@@ -1,0 +1,230 @@
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+
+export type Lang = "fr" | "en";
+
+type Dict = Record<string, { fr: string; en: string }>;
+
+const dict: Dict = {
+  // ── Navigation ──
+  "nav.features": { fr: "Fonctionnalités", en: "Features" },
+  "nav.network": { fr: "Réseau", en: "Network" },
+  "nav.business": { fr: "Entreprises", en: "Business" },
+  "nav.riders": { fr: "Coursiers", en: "Riders" },
+  "nav.login": { fr: "Connexion", en: "Sign in" },
+  "nav.start": { fr: "Commencer", en: "Get started" },
+
+  // ── Hero ──
+  "hero.badge": { fr: "Maintenant en direct au Bénin", en: "Now live in Benin" },
+  "hero.title1": { fr: "La logistique", en: "Logistics" },
+  "hero.title2": { fr: "qui ne dort jamais.", en: "that never sleeps." },
+  "hero.desc": {
+    fr: "Livraisons instantanées, suivi en temps réel, paiements mobiles. Rapide connecte le Bénin — et bientôt toute l'Afrique — à une nouvelle ère de mobilité intelligente.",
+    en: "Instant deliveries, real-time tracking, mobile payments. Rapide connects Benin — and soon all of Africa — to a new era of intelligent mobility.",
+  },
+  "hero.cta1": { fr: "Envoyer un colis", en: "Send a package" },
+  "hero.cta2": { fr: "Devenir coursier", en: "Become a rider" },
+  "hero.card1.l": { fr: "En route", en: "En route" },
+  "hero.card1.v": { fr: "Cotonou → Porto-Novo", en: "Cotonou → Porto-Novo" },
+  "hero.card2.l": { fr: "ETA", en: "ETA" },
+  "hero.card2.v": { fr: "12 min · 1 200 XOF", en: "12 min · 1,200 XOF" },
+  "hero.stat1": { fr: "Temps moyen", en: "Avg. time" },
+  "hero.stat2": { fr: "Livraisons à l'heure", en: "On-time delivery" },
+  "hero.stat3": { fr: "Coursiers actifs", en: "Active riders" },
+  "hero.stat4": { fr: "Service continu", en: "Always-on" },
+
+  // ── Features ──
+  "feat.tag": { fr: "Plateforme", en: "Platform" },
+  "feat.title": { fr: "Une infrastructure pensée pour l'Afrique", en: "Infrastructure built for Africa" },
+  "feat.desc": {
+    fr: "Chaque détail a été conçu pour la réalité du terrain : routes denses, réseaux mobiles variables, paiements diversifiés.",
+    en: "Every detail engineered for the real world: dense roads, variable mobile networks, diverse payments.",
+  },
+  "feat.1.t": { fr: "Envoi instantané", en: "Instant send" },
+  "feat.1.d": { fr: "Réservez un coursier en quelques secondes, à toute heure.", en: "Book a rider in seconds, any time of day." },
+  "feat.2.t": { fr: "Suivi en direct", en: "Live tracking" },
+  "feat.2.d": { fr: "Visualisez chaque trajet en temps réel sur une carte fluide.", en: "See every trip in real time on a fluid map." },
+  "feat.3.t": { fr: "Livraison programmée", en: "Scheduled delivery" },
+  "feat.3.d": { fr: "Planifiez vos envois à la minute près, jusqu'à 30 jours à l'avance.", en: "Schedule deliveries to the minute, up to 30 days ahead." },
+  "feat.4.t": { fr: "Colis assurés", en: "Insured parcels" },
+  "feat.4.d": { fr: "Protection optionnelle et vérification OTP à la livraison.", en: "Optional insurance and OTP verification at delivery." },
+  "feat.5.t": { fr: "Paiements mobiles", en: "Mobile payments" },
+  "feat.5.d": { fr: "Mobile Money, carte bancaire, portefeuille Rapide, espèces.", en: "Mobile Money, bank cards, Rapide wallet, cash." },
+  "feat.6.t": { fr: "Multi-villes", en: "Multi-city" },
+  "feat.6.d": { fr: "Cotonou, Porto-Novo, Parakou — et bientôt toute l'Afrique de l'Ouest.", en: "Cotonou, Porto-Novo, Parakou — and soon all of West Africa." },
+
+  // ── Network ──
+  "net.tag": { fr: "Réseau", en: "Network" },
+  "net.title1": { fr: "Un maillage dense.", en: "A dense mesh." },
+  "net.title2": { fr: "Une portée continentale.", en: "Continental reach." },
+  "net.desc": {
+    fr: "Notre dispatcher intelligent route chaque colis via les coursiers les plus proches et les itinéraires les plus rapides — en tenant compte du trafic, de la météo et de la densité urbaine.",
+    en: "Our smart dispatcher routes every parcel through the closest riders and fastest routes — accounting for traffic, weather, and urban density.",
+  },
+
+  // ── Audiences ──
+  "aud.b.tag": { fr: "Entreprises", en: "Business" },
+  "aud.b.t": { fr: "Pilotez votre logistique depuis un seul tableau de bord.", en: "Run your logistics from a single dashboard." },
+  "aud.b.d": { fr: "Importation en masse, facturation automatique, API ouverte, équipe multi-utilisateurs.", en: "Bulk import, automated invoicing, open API, multi-user teams." },
+  "aud.b.c": { fr: "Découvrir Rapide Business", en: "Discover Rapide Business" },
+  "aud.r.tag": { fr: "Coursiers", en: "Riders" },
+  "aud.r.t": { fr: "Gagnez plus, roulez intelligent.", en: "Earn more, ride smarter." },
+  "aud.r.d": { fr: "Demandes optimisées par IA, paiements instantanés, bonus de performance.", en: "AI-optimized requests, instant payouts, performance bonuses." },
+  "aud.r.c": { fr: "Rejoindre la flotte", en: "Join the fleet" },
+
+  // ── CTA ──
+  "cta.title1": { fr: "Prêt à", en: "Ready to" },
+  "cta.title2": { fr: "livrer plus vite", en: "deliver faster" },
+  "cta.title3": { fr: "?", en: "?" },
+  "cta.desc": { fr: "Téléchargez l'application Rapide et envoyez votre premier colis en moins de deux minutes.", en: "Download the Rapide app and send your first parcel in under two minutes." },
+  "cta.btn1": { fr: "Commencer maintenant", en: "Start now" },
+  "cta.btn2": { fr: "Parler à un commercial", en: "Talk to sales" },
+
+  // ── Footer ──
+  "foot.privacy": { fr: "Confidentialité", en: "Privacy" },
+  "foot.terms": { fr: "Conditions", en: "Terms" },
+  "foot.support": { fr: "Support", en: "Support" },
+  "foot.careers": { fr: "Carrières", en: "Careers" },
+  "foot.rights": { fr: "© 2026 Rapide. Tous droits réservés.", en: "© 2026 Rapide. All rights reserved." },
+
+  // ── Login ──
+  "login.title": { fr: "Connexion", en: "Sign in" },
+  "login.subtitle": { fr: "Heureux de vous revoir.", en: "Welcome back." },
+  "login.google": { fr: "Continuer avec Google", en: "Continue with Google" },
+  "login.or": { fr: "OU", en: "OR" },
+  "login.password": { fr: "Mot de passe", en: "Password" },
+  "login.btn": { fr: "Se connecter", en: "Sign in" },
+  "login.no_account": { fr: "Pas de compte ?", en: "No account?" },
+  "login.create": { fr: "Créer un compte", en: "Create account" },
+  "login.toast_welcome": { fr: "Bienvenue sur Rapide", en: "Welcome to Rapide" },
+
+  // ── Signup ──
+  "signup.title": { fr: "Créer un compte", en: "Create account" },
+  "signup.subtitle": { fr: "Commencez à envoyer en moins de 2 minutes.", en: "Start sending in under 2 minutes." },
+  "signup.google": { fr: "Continuer avec Google", en: "Continue with Google" },
+  "signup.fullname": { fr: "Nom complet", en: "Full name" },
+  "signup.phone": { fr: "Téléphone (+229...)", en: "Phone (+229...)" },
+  "signup.password_hint": { fr: "Mot de passe (8+ caractères)", en: "Password (8+ characters)" },
+  "signup.btn": { fr: "Créer mon compte", en: "Create my account" },
+  "signup.has_account": { fr: "Déjà un compte ?", en: "Already have an account?" },
+  "signup.login": { fr: "Se connecter", en: "Sign in" },
+  "signup.toast_success": { fr: "Compte créé", en: "Account created" },
+  "signup.toast_verify": { fr: "Vérifiez votre email pour confirmer votre compte", en: "Check your email to confirm your account" },
+
+  // ── App dashboard ──
+  "app.hello": { fr: "Bonjour", en: "Hello" },
+  "app.wallet_label": { fr: "Portefeuille Rapide", en: "Rapide Wallet" },
+  "app.send_label": { fr: "Envoi express", en: "Express send" },
+  "app.send_title": { fr: "Envoyer un colis", en: "Send a parcel" },
+  "app.send_sub": { fr: "Coursier en moins de 10 min", en: "Rider in under 10 min" },
+  "app.riders_online": { fr: "Coursiers en ligne", en: "Riders online" },
+  "app.on_time": { fr: "Livraisons à l'heure", en: "On-time deliveries" },
+  "app.recent_orders": { fr: "Courses récentes", en: "Recent trips" },
+  "app.see_all": { fr: "Voir tout", en: "See all" },
+  "app.no_orders": { fr: "Aucune course pour l'instant.", en: "No trips yet." },
+
+  // ── Profile ──
+  "profile.user": { fr: "Utilisateur", en: "User" },
+  "profile.theme": { fr: "Thème", en: "Theme" },
+  "profile.language": { fr: "Langue", en: "Language" },
+  "profile.signout": { fr: "Se déconnecter", en: "Sign out" },
+
+  // ── Orders ──
+  "orders.title": { fr: "Mes courses", en: "My trips" },
+  "orders.loading": { fr: "Chargement…", en: "Loading…" },
+  "orders.empty": { fr: "Aucune course pour l'instant.", en: "No trips yet." },
+  "orders.send": { fr: "Envoyer un colis", en: "Send a parcel" },
+
+  // ── Wallet ──
+  "wallet.title": { fr: "Portefeuille", en: "Wallet" },
+  "wallet.balance": { fr: "Solde disponible", en: "Available balance" },
+  "wallet.topup": { fr: "Recharger", en: "Top up" },
+  "wallet.withdraw": { fr: "Retirer", en: "Withdraw" },
+  "wallet.transactions": { fr: "Transactions", en: "Transactions" },
+  "wallet.no_tx": { fr: "Aucune transaction.", en: "No transactions." },
+
+  // ── Track ──
+  "track.rider_on_way": { fr: "Coursier en route", en: "Rider on the way" },
+  "track.searching": { fr: "Recherche d'un coursier à proximité…", en: "Searching for a nearby rider…" },
+  "track.live": { fr: "Suivi en direct", en: "Live tracking" },
+  "track.amount": { fr: "Montant", en: "Amount" },
+  "track.s.pending": { fr: "Recherche d'un coursier", en: "Searching for a rider" },
+  "track.s.accepted": { fr: "Coursier assigné", en: "Rider assigned" },
+  "track.s.arriving": { fr: "En route vers le ramassage", en: "En route to pickup" },
+  "track.s.picked_up": { fr: "Colis récupéré", en: "Parcel collected" },
+  "track.s.in_transit": { fr: "En livraison", en: "In transit" },
+  "track.s.delivered": { fr: "Livré", en: "Delivered" },
+
+  // ── Book ──
+  "book.step1.title": { fr: "Itinéraire", en: "Route" },
+  "book.step2.title": { fr: "Le colis", en: "The parcel" },
+  "book.step3.title": { fr: "Type de livraison", en: "Delivery type" },
+  "book.pickup": { fr: "Ramassage", en: "Pickup" },
+  "book.dropoff": { fr: "Livraison", en: "Dropoff" },
+  "book.contact_pickup": { fr: "Contact ramassage", en: "Pickup contact" },
+  "book.recipient": { fr: "Destinataire *", en: "Recipient *" },
+  "book.phone": { fr: "Téléphone", en: "Phone" },
+  "book.phone_req": { fr: "Téléphone *", en: "Phone *" },
+  "book.next": { fr: "Suivant", en: "Next" },
+  "book.distance_est": { fr: "km estimés", en: "km estimated" },
+  "book.category": { fr: "Catégorie", en: "Category" },
+  "book.weight": { fr: "Poids estimé", en: "Estimated weight" },
+  "book.notes_placeholder": { fr: "Instructions pour le coursier (optionnel)", en: "Instructions for the rider (optional)" },
+  "book.distance": { fr: "Distance", en: "Distance" },
+  "book.commission": { fr: "Commission Rapide", en: "Rapide Commission" },
+  "book.total": { fr: "Total", en: "Total" },
+  "book.insurance": { fr: "Assurance colis (+300 XOF)", en: "Parcel insurance (+300 XOF)" },
+  "book.confirm": { fr: "Confirmer", en: "Confirm" },
+  "book.std.title": { fr: "Standard", en: "Standard" },
+  "book.std.desc": { fr: "Livré sous 60 min", en: "Delivered within 60 min" },
+  "book.exp.title": { fr: "Express", en: "Express" },
+  "book.exp.desc": { fr: "Livré sous 25 min · +50%", en: "Delivered within 25 min · +50%" },
+  "book.sched.title": { fr: "Programmé", en: "Scheduled" },
+  "book.sched.desc": { fr: "Choisissez l'heure · -10%", en: "Choose the time · -10%" },
+  "book.recipient_err": { fr: "Renseignez le destinataire", en: "Please fill in the recipient" },
+  "book.success": { fr: "Commande créée — recherche d'un coursier", en: "Order created — searching for a rider" },
+  "book.cat.document": { fr: "Documents", en: "Documents" },
+  "book.cat.food": { fr: "Repas", en: "Meal" },
+  "book.cat.electronics": { fr: "Électronique", en: "Electronics" },
+  "book.cat.clothing": { fr: "Vêtements", en: "Clothing" },
+  "book.cat.fragile": { fr: "Fragile", en: "Fragile" },
+  "book.cat.other": { fr: "Autre", en: "Other" },
+
+  // ── AppShell tabs ──
+  "tab.home": { fr: "Accueil", en: "Home" },
+  "tab.orders": { fr: "Courses", en: "Trips" },
+  "tab.send": { fr: "Envoyer", en: "Send" },
+  "tab.wallet": { fr: "Portefeuille", en: "Wallet" },
+  "tab.profile": { fr: "Profil", en: "Profile" },
+
+  // ── Errors / 404 ──
+  "err.404.title": { fr: "Page introuvable", en: "Page not found" },
+  "err.404.desc": { fr: "Cette page n'existe pas ou a été déplacée.", en: "This page doesn't exist or has been moved." },
+  "err.404.back": { fr: "Retour à l'accueil", en: "Back to home" },
+  "err.500.title": { fr: "Une erreur est survenue", en: "An error occurred" },
+  "err.500.desc": { fr: "Quelque chose s'est mal passé. Essayez de rafraîchir la page.", en: "Something went wrong. Try refreshing the page." },
+  "err.500.retry": { fr: "Réessayer", en: "Retry" },
+  "err.500.home": { fr: "Accueil", en: "Home" },
+};
+
+const LangCtx = createContext<{ lang: Lang; setLang: (l: Lang) => void; t: (k: keyof typeof dict) => string }>({
+  lang: "fr",
+  setLang: () => {},
+  t: (k) => k as string,
+});
+
+export function LanguageProvider({ children }: { children: ReactNode }) {
+  const [lang, setLangState] = useState<Lang>("fr");
+  useEffect(() => {
+    const saved = (typeof window !== "undefined" && (localStorage.getItem("lang") as Lang)) || null;
+    if (saved === "fr" || saved === "en") setLangState(saved);
+  }, []);
+  const setLang = (l: Lang) => {
+    setLangState(l);
+    if (typeof window !== "undefined") localStorage.setItem("lang", l);
+    if (typeof document !== "undefined") document.documentElement.lang = l;
+  };
+  const t = (k: keyof typeof dict) => dict[k]?.[lang] ?? (k as string);
+  return <LangCtx.Provider value={{ lang, setLang, t }}>{children}</LangCtx.Provider>;
+}
+
+export const useT = () => useContext(LangCtx);
