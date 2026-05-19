@@ -1,17 +1,34 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, ArrowRight, MapPin, Package, Shield, Zap, Clock, Loader2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Package, Shield, Zap, Clock, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { CITIES, haversineKm, quote, fmtXOF, type DeliveryType } from "@/lib/pricing";
+import { CITIES, haversineKm, quote, fmtXOF, type DeliveryType, type GeoResult } from "@/lib/pricing";
 import { toast } from "sonner";
 import { useT } from "@/lib/i18n";
-import { LiveMap } from "@/components/rapide/LiveMap";
+import { LiveMap, type LatLng } from "@/components/rapide/LiveMap";
+import { AddressSearch } from "@/components/rapide/AddressSearch";
+
+const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined;
 
 export const Route = createFileRoute("/_authenticated/app/book")({
   component: BookPage,
 });
+
+async function reverseGeocode(lat: number, lng: number): Promise<GeoResult> {
+  if (!MAPBOX_TOKEN) return { name: `${lat.toFixed(5)}, ${lng.toFixed(5)}`, lat, lng };
+  try {
+    const res = await fetch(
+      `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?language=fr&limit=1&access_token=${MAPBOX_TOKEN}`,
+    );
+    const data = await res.json();
+    const name: string = data.features?.[0]?.place_name ?? `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+    return { name, lat, lng };
+  } catch {
+    return { name: `${lat.toFixed(5)}, ${lng.toFixed(5)}`, lat, lng };
+  }
+}
 
 function BookPage() {
   const { user } = useAuth();
@@ -20,8 +37,9 @@ function BookPage() {
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
 
-  const [pickup, setPickup] = useState(CITIES[0]);
-  const [dropoff, setDropoff] = useState(CITIES[3]);
+  const [pickup, setPickup] = useState<GeoResult>(CITIES[0]);
+  const [dropoff, setDropoff] = useState<GeoResult>(CITIES[3]);
+  const [lastFocused, setLastFocused] = useState<"pickup" | "dropoff">("pickup");
   const [pickupName, setPickupName] = useState("");
   const [pickupPhone, setPickupPhone] = useState("");
   const [dropName, setDropName] = useState("");
@@ -36,6 +54,12 @@ function BookPage() {
 
   const distance = useMemo(() => haversineKm(pickup, dropoff), [pickup, dropoff]);
   const q = useMemo(() => quote({ distanceKm: distance, type, insurance, weightKg: weight }), [distance, type, insurance, weight]);
+
+  const handleMapClick = useCallback(async (latlng: LatLng) => {
+    const result = await reverseGeocode(latlng.lat, latlng.lng);
+    if (lastFocused === "pickup") setPickup(result);
+    else setDropoff(result);
+  }, [lastFocused]);
 
   const CATEGORIES = [
     { value: "document" as const, labelKey: "book.cat.document" as const },
@@ -95,9 +119,36 @@ function BookPage() {
         {step === 1 && (
           <>
             <h1 className="font-display text-2xl font-bold">{t("book.step1.title")}</h1>
-            <CitySelect label={t("book.pickup")} icon="A" value={pickup} onChange={setPickup} />
-            <CitySelect label={t("book.dropoff")} icon="B" value={dropoff} onChange={setDropoff} />
-            <LiveMap pickup={pickup} dropoff={dropoff} height={200} zoom={12} />
+            <AddressSearch
+              label={t("book.pickup")}
+              icon="A"
+              value={pickup}
+              onChange={setPickup}
+              onFocus={() => setLastFocused("pickup")}
+              placeholder={t("book.search_placeholder_pickup")}
+            />
+            <AddressSearch
+              label={t("book.dropoff")}
+              icon="B"
+              value={dropoff}
+              onChange={setDropoff}
+              onFocus={() => setLastFocused("dropoff")}
+              placeholder={t("book.search_placeholder_dropoff")}
+            />
+            <div className="relative">
+              <LiveMap
+                pickup={pickup}
+                dropoff={dropoff}
+                height={200}
+                zoom={12}
+                onMapClick={handleMapClick}
+              />
+              {MAPBOX_TOKEN && (
+                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 glass rounded-full px-3 py-1 text-[10px] text-muted-foreground pointer-events-none">
+                  {t("book.tap_map")}
+                </div>
+              )}
+            </div>
             <div className="glass rounded-2xl p-4 grid grid-cols-2 gap-3">
               <Field label={t("book.contact_pickup")} value={pickupName} onChange={setPickupName} placeholder={t("book.contact_pickup")} />
               <Field label={t("book.phone")} value={pickupPhone} onChange={setPickupPhone} placeholder="+229" />
@@ -171,24 +222,6 @@ function BookPage() {
   );
 }
 
-function CitySelect({ label, icon, value, onChange }: { label: string; icon: string; value: typeof CITIES[number]; onChange: (c: typeof CITIES[number]) => void }) {
-  return (
-    <div className="glass rounded-2xl p-4">
-      <div className="flex items-center gap-3">
-        <div className="h-8 w-8 rounded-lg bg-primary/15 text-primary flex items-center justify-center text-xs font-bold">{icon}</div>
-        <div className="flex-1">
-          <p className="text-xs text-muted-foreground">{label}</p>
-          <select value={value.name} onChange={(e) => onChange(CITIES.find((c) => c.name === e.target.value) ?? value)}
-            className="w-full bg-transparent text-sm font-medium outline-none">
-            {CITIES.map((c) => <option key={c.name} value={c.name} className="bg-background">{c.name}</option>)}
-          </select>
-        </div>
-        <MapPin className="h-4 w-4 text-muted-foreground" />
-      </div>
-    </div>
-  );
-}
-
 function Field({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string }) {
   return (
     <label className="block">
@@ -199,7 +232,7 @@ function Field({ label, value, onChange, placeholder }: { label: string; value: 
   );
 }
 
-function TypeOption({ active, onClick, icon: Icon, title, desc }: { active: boolean; onClick: () => void; icon: any; title: string; desc: string }) {
+function TypeOption({ active, onClick, icon: Icon, title, desc }: { active: boolean; onClick: () => void; icon: React.ElementType; title: string; desc: string }) {
   return (
     <button onClick={onClick} className={`w-full rounded-2xl p-4 flex items-center gap-3 border transition text-left ${active ? "border-primary bg-primary/10" : "border-border glass"}`}>
       <div className="h-10 w-10 rounded-xl bg-primary/15 text-primary flex items-center justify-center"><Icon className="h-5 w-5" /></div>

@@ -1,5 +1,6 @@
 // Rapide pricing engine (XOF)
 export type DeliveryType = "standard" | "express" | "scheduled";
+export type GeoResult = { name: string; lat: number; lng: number };
 
 export function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
   const R = 6371;

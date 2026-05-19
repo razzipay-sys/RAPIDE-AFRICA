@@ -27,10 +27,27 @@ function LoginPage() {
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data: authData, error } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
     if (error) return toast.error(error.message);
     toast.success(t("login.toast_welcome"));
+
+    // Role-based redirect only when no specific page was requested
+    if (search.redirect === "/app" && authData.user) {
+      const { data: roleData } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", authData.user.id)
+        .maybeSingle();
+      if (roleData?.role === "admin") {
+        navigate({ to: "/admin/" as any });
+        return;
+      }
+      if (roleData?.role === "rider") {
+        navigate({ to: "/rider" as any });
+        return;
+      }
+    }
     navigate({ to: search.redirect as any });
   };
 

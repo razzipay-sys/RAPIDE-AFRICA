@@ -38,6 +38,7 @@ type Props = {
   showGeolocate?: boolean;
   zoom?: number;
   className?: string;
+  onMapClick?: (latlng: LatLng) => void;
 };
 
 export function LiveMap({
@@ -50,6 +51,7 @@ export function LiveMap({
   showGeolocate = false,
   zoom = 13,
   className,
+  onMapClick,
 }: Props) {
   const [mapbox, setMapbox] = useState<MapboxRuntime | null>(null);
 
@@ -94,7 +96,28 @@ export function LiveMap({
     return { type: "Feature" as const, geometry: { type: "LineString" as const, coordinates: coords }, properties: {} };
   }, [showRoute, pickup, dropoff, rider]);
 
-  if (!TOKEN || !mapbox) return null;
+  if (!TOKEN) {
+    return (
+      <div
+        className={`rounded-3xl border border-white/5 flex flex-col items-center justify-center gap-2 bg-muted/20 ${className ?? ""}`}
+        style={{ height }}
+      >
+        <MapPin className="h-8 w-8 text-muted-foreground/30" />
+        <p className="text-xs text-muted-foreground/50">Carte indisponible</p>
+      </div>
+    );
+  }
+
+  if (!mapbox) {
+    return (
+      <div
+        className={`rounded-3xl border border-white/5 flex items-center justify-center bg-muted/20 ${className ?? ""}`}
+        style={{ height }}
+      >
+        <div className="h-6 w-6 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+      </div>
+    );
+  }
 
   const { Map, Marker, NavigationControl, GeolocateControl, Source, Layer } = mapbox;
 
@@ -106,6 +129,7 @@ export function LiveMap({
         mapStyle="mapbox://styles/mapbox/dark-v11"
         style={{ width: "100%", height: "100%" }}
         attributionControl={false}
+        onClick={onMapClick ? (e) => onMapClick({ lat: e.lngLat.lat, lng: e.lngLat.lng }) : undefined}
       >
         <NavigationControl position="bottom-right" showCompass={false} />
         {showGeolocate && (

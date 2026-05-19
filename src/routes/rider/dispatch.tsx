@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { fmtXOF } from "@/lib/pricing";
 import { toast } from "sonner";
+import { LiveMap } from "@/components/rapide/LiveMap";
 import type { Tables } from "@/integrations/supabase/types";
 
 export const Route = createFileRoute("/rider/dispatch")({
@@ -31,7 +32,6 @@ function RiderDispatch() {
     enabled: !!user,
   });
 
-  // Available orders — searching_rider, no rider yet
   const { data: orders, isLoading } = useQuery({
     queryKey: ["dispatch-queue"],
     queryFn: async () => {
@@ -49,7 +49,6 @@ function RiderDispatch() {
     refetchInterval: 15000,
   });
 
-  // Realtime subscription for new incoming orders
   useEffect(() => {
     if (!rider?.is_online) return;
     channelRef.current = supabase
@@ -71,20 +70,14 @@ function RiderDispatch() {
 
   const acceptOrder = useMutation({
     mutationFn: async (orderId: string) => {
-      if (!rider) throw new Error("No rider profile");
-      // Optimistic claim — use rpc to avoid race conditions in production
-      const { error } = await supabase
-        .from("orders")
-        .update({ rider_id: rider.id, status: "rider_assigned" })
-        .eq("id", orderId)
-        .eq("status", "searching_rider")
-        .is("rider_id", null);
+      if (!rider || !user) throw new Error("No rider profile");
+      // Atomic claim — prevents two riders claiming the same order simultaneously
+      const { data: claimed, error } = await (supabase.rpc as CallableFunction)(
+        "claim_order",
+        { p_order_id: orderId, p_rider_id: rider.id, p_user_id: user.id },
+      );
       if (error) throw error;
-      await supabase.from("order_events").insert({
-        order_id: orderId,
-        status: "rider_assigned",
-        created_by: user?.id,
-      });
+      if (!claimed) throw new Error("Order already taken");
     },
     onMutate: (id) => setAccepting(id),
     onSuccess: () => {
@@ -94,9 +87,9 @@ function RiderDispatch() {
       setAccepting(null);
       toast.success("Order accepted! Head to pickup.");
     },
-    onError: (e) => {
+    onError: (e: Error) => {
       setAccepting(null);
-      toast.error("Could not accept order — it may already be taken.");
+      toast.error(e.message === "Order already taken" ? "Order was just taken by another rider." : "Could not accept order.");
     },
   });
 
@@ -214,15 +207,18 @@ function DispatchCard({
   const [expanded, setExpanded] = useState(false);
   const ago = Math.round((Date.now() - new Date(order.created_at).getTime()) / 60000);
 
+  const pickup =
+    order.pickup_lat && order.pickup_lng
+      ? { lat: Number(order.pickup_lat), lng: Number(order.pickup_lng) }
+      : null;
+  const dropoff =
+    order.dropoff_lat && order.dropoff_lng
+      ? { lat: Number(order.dropoff_lat), lng: Number(order.dropoff_lng) }
+      : null;
+
   return (
-    <motion.div
-      layout
-      className="glass-strong rounded-2xl overflow-hidden border border-border"
-    >
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full p-4 text-left"
-      >
+    <motion.div layout className="glass-strong rounded-2xl overflow-hidden border border-border">
+      <button onClick={() => setExpanded(!expanded)} className="w-full p-4 text-left">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 mb-1">
@@ -261,6 +257,11 @@ function DispatchCard({
             className="overflow-hidden"
           >
             <div className="px-4 pb-4 space-y-3 border-t border-border/50 pt-3">
+              {/* Route preview map */}
+              {pickup && dropoff && (
+                <LiveMap pickup={pickup} dropoff={dropoff} height={180} zoom={13} showRoute />
+              )}
+
               <div className="grid grid-cols-2 gap-2 text-sm">
                 <div className="glass rounded-xl p-3">
                   <p className="text-xs text-muted-foreground">Category</p>
