@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import {
@@ -12,6 +12,20 @@ import { StatusBadge, StatusDot } from "@/components/rapide/StatusBadge";
 import { SkeletonOrderCard, SkeletonStatCard } from "@/components/rapide/SkeletonCard";
 
 export const Route = createFileRoute("/_authenticated/app/")({
+  beforeLoad: async () => {
+    const { data } = await supabase.auth.getSession();
+    if (!data.session) return;
+
+    // Check for elevated roles and redirect to their home dashboard
+    const { data: roles } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", data.session.user.id);
+
+    const roleList = (roles ?? []).map((r) => r.role);
+    if (roleList.includes("admin")) throw redirect({ to: "/admin/" as any });
+    if (roleList.includes("rider")) throw redirect({ to: "/rider" as any });
+  },
   component: Home,
 });
 
