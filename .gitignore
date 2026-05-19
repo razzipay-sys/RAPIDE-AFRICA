@@ -15,7 +15,14 @@ dist-ssr
 .tanstack/**
 .nitro
 *.local
+
+# Secret environment variables — never commit these
 .env
+.env.local
+.env.*.local
+
+# .env.development and .env.production are safe to commit (no secrets)
+# .env.example is the template — always commit it
 
 # Wrangler / Cloudflare
 .wrangler/
