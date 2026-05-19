@@ -1,7 +1,8 @@
 import { createFileRoute, Outlet, Link, redirect, useLocation } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { AuthProvider } from "@/hooks/use-auth";
-import { LayoutDashboard, Package, Key, FileText, Zap } from "lucide-react";
+import { LayoutDashboard, Package, Key, FileText } from "lucide-react";
+import rapideLogo from "@/assets/rapide-logo.jpg";
 
 export const Route = createFileRoute("/merchant")({
   beforeLoad: async ({ location }) => {
@@ -36,9 +37,7 @@ function MerchantLayout() {
       <div className="min-h-screen bg-background flex">
         <aside className="w-56 shrink-0 border-r border-border flex flex-col py-6 px-3">
           <div className="flex items-center gap-2 px-3 mb-8">
-            <div className="h-7 w-7 rounded-lg bg-gradient-primary flex items-center justify-center">
-              <Zap className="h-4 w-4 text-primary-foreground" />
-            </div>
+            <img src={rapideLogo} alt="Rapide" className="h-8 w-8 rounded-lg object-cover" />
             <span className="font-display font-bold text-sm">Rapide Merchant</span>
           </div>
           <nav className="space-y-1 flex-1">

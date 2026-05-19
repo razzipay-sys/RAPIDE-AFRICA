@@ -1,7 +1,8 @@
 import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
 import { motion } from "framer-motion";
-import { Package, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import rapideLogo from "@/assets/rapide-logo.jpg";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useT } from "@/lib/i18n";
@@ -36,7 +37,7 @@ function LoginPage() {
   const signInWithGoogle = async () => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: window.location.origin + "/app" },
+      options: { redirectTo: (import.meta.env.VITE_APP_URL || window.location.origin) + "/app" },
     });
     if (error) toast.error(error.message);
   };
@@ -45,9 +46,7 @@ function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-hero px-4">
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="glass-strong w-full max-w-md rounded-3xl p-8">
         <Link to="/" className="flex items-center gap-2 mb-6">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-primary shadow-glow">
-            <Package className="h-4 w-4 text-primary-foreground" strokeWidth={2.5} />
-          </div>
+          <img src={rapideLogo} alt="Rapide" className="h-10 w-10 rounded-xl object-cover shadow-glow" />
           <span className="font-display text-lg font-bold">Rapide</span>
         </Link>
         <h1 className="font-display text-2xl font-bold">{t("login.title")}</h1>

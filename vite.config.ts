@@ -12,6 +12,11 @@ export default defineConfig({
       jsx: "automatic",
     },
   },
+  server: {
+    host: true,
+    port: 5173,
+    strictPort: true,
+  },
   plugins: [
     tanstackStart({
       server: { entry: "server" },

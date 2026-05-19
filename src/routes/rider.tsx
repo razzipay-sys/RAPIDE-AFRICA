@@ -1,7 +1,7 @@
 import { createFileRoute, Outlet, Link, redirect, useLocation } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { AuthProvider } from "@/hooks/use-auth";
-import { Home, Package, Wallet, User } from "lucide-react";
+import { Home, Package, Wallet, User, FileText } from "lucide-react";
 
 export const Route = createFileRoute("/rider")({
   beforeLoad: async ({ location }) => {
@@ -14,9 +14,10 @@ export const Route = createFileRoute("/rider")({
 });
 
 const tabs = [
-  { to: "/rider/", icon: Home, label: "Dashboard" },
+  { to: "/rider/", icon: Home, label: "Home" },
   { to: "/rider/dispatch", icon: Package, label: "Dispatch" },
   { to: "/rider/earnings", icon: Wallet, label: "Earnings" },
+  { to: "/rider/documents", icon: FileText, label: "Docs" },
   { to: "/rider/profile", icon: User, label: "Profile" },
 ];
 

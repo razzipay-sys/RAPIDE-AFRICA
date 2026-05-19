@@ -1,8 +1,9 @@
 import { Link } from "@tanstack/react-router";
 import { motion } from "framer-motion";
-import { Package, Moon, Sun, Languages } from "lucide-react";
+import { Moon, Sun, Languages } from "lucide-react";
 import { useTheme } from "@/lib/theme";
 import { useT } from "@/lib/i18n";
+import rapideLogo from "@/assets/rapide-logo.jpg";
 
 export function Nav() {
   const { theme, toggle } = useTheme();
@@ -17,9 +18,7 @@ export function Nav() {
     >
       <nav className="glass-strong mx-auto flex max-w-6xl items-center justify-between rounded-2xl px-5 py-3">
         <Link to="/" className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-primary shadow-glow">
-            <Package className="h-4 w-4 text-primary-foreground" strokeWidth={2.5} />
-          </div>
+          <img src={rapideLogo} alt="Rapide" className="h-9 w-9 rounded-lg object-cover" />
           <span className="font-display text-lg font-bold tracking-tight">Rapide</span>
         </Link>
 

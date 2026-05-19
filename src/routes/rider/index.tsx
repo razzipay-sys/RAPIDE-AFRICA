@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { fmtXOF } from "@/lib/pricing";
 import { toast } from "sonner";
+import { LiveMap } from "@/components/rapide/LiveMap";
 
 export const Route = createFileRoute("/rider/")({
   component: RiderDashboard,
@@ -249,6 +250,16 @@ function RiderDashboard() {
           </div>
         </div>
       </motion.button>
+
+      {/* Mini GPS Map — shown when online and location known */}
+      {isOnline && rider?.current_lat && rider?.current_lng && (
+        <LiveMap
+          rider={{ lat: Number(rider.current_lat), lng: Number(rider.current_lng) }}
+          showGeolocate
+          height={180}
+          zoom={15}
+        />
+      )}
 
       {/* Active Order */}
       <AnimatePresence>

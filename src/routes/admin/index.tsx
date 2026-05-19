@@ -2,9 +2,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { motion } from "framer-motion";
-import { Bike, Package, Clock, CheckCircle, XCircle, Search, Users } from "lucide-react";
+import { Bike, Package, Clock, CheckCircle, XCircle, Search, Users, MapIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { fmtXOF } from "@/lib/pricing";
+import { LiveMap } from "@/components/rapide/LiveMap";
+import type { RiderPin } from "@/components/rapide/LiveMap";
 
 export const Route = createFileRoute("/admin/")({
   component: AdminOps,
@@ -100,6 +102,23 @@ function AdminOps() {
     },
   });
 
+  const { data: onlineRiders } = useQuery({
+    queryKey: ["admin-online-riders-map"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("riders")
+        .select("id, current_lat, current_lng")
+        .eq("is_online", true)
+        .not("current_lat", "is", null);
+      return (data ?? []).filter((r) => r.current_lat && r.current_lng).map<RiderPin>((r) => ({
+        id: r.id,
+        lat: Number(r.current_lat),
+        lng: Number(r.current_lng),
+      }));
+    },
+    refetchInterval: 12000,
+  });
+
   // Realtime subscription for live order updates
   useEffect(() => {
     const ch = supabase
@@ -172,6 +191,18 @@ function AdminOps() {
           color="bg-green-500"
         />
       </div>
+
+      {/* Live Riders Map */}
+      <section>
+        <h2 className="font-display text-lg font-bold mb-3 flex items-center gap-2">
+          <MapIcon className="h-4 w-4 text-primary" />
+          Live Riders Map
+          <span className="ml-auto text-xs font-normal text-muted-foreground">
+            {onlineRiders?.length ?? 0} online
+          </span>
+        </h2>
+        <LiveMap riders={onlineRiders ?? []} height={340} zoom={12} />
+      </section>
 
       {/* KYC Pending */}
       {(pendingKycRiders?.length ?? 0) > 0 && (

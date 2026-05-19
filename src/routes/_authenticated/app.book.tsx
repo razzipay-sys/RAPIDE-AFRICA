@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { CITIES, haversineKm, quote, fmtXOF, type DeliveryType } from "@/lib/pricing";
 import { toast } from "sonner";
 import { useT } from "@/lib/i18n";
+import { LiveMap } from "@/components/rapide/LiveMap";
 
 export const Route = createFileRoute("/_authenticated/app/book")({
   component: BookPage,
@@ -96,6 +97,7 @@ function BookPage() {
             <h1 className="font-display text-2xl font-bold">{t("book.step1.title")}</h1>
             <CitySelect label={t("book.pickup")} icon="A" value={pickup} onChange={setPickup} />
             <CitySelect label={t("book.dropoff")} icon="B" value={dropoff} onChange={setDropoff} />
+            <LiveMap pickup={pickup} dropoff={dropoff} height={200} zoom={12} />
             <div className="glass rounded-2xl p-4 grid grid-cols-2 gap-3">
               <Field label={t("book.contact_pickup")} value={pickupName} onChange={setPickupName} placeholder={t("book.contact_pickup")} />
               <Field label={t("book.phone")} value={pickupPhone} onChange={setPickupPhone} placeholder="+229" />

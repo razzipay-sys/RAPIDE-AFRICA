@@ -14,6 +14,192 @@ export type Database = {
   }
   public: {
     Tables: {
+      conversations: {
+        Row: {
+          id: string
+          participant_1: string
+          participant_2: string
+          order_id: string | null
+          last_message_at: string | null
+          last_message_preview: string | null
+          unread_1: number
+          unread_2: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          participant_1: string
+          participant_2: string
+          order_id?: string | null
+          last_message_at?: string | null
+          last_message_preview?: string | null
+          unread_1?: number
+          unread_2?: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          participant_1?: string
+          participant_2?: string
+          order_id?: string | null
+          last_message_at?: string | null
+          last_message_preview?: string | null
+          unread_1?: number
+          unread_2?: number
+          created_at?: string
+        }
+        Relationships: []
+      }
+      driver_documents: {
+        Row: {
+          id: string
+          rider_id: string
+          type: "license" | "vehicle_registration" | "insurance" | "id_card" | "profile_photo"
+          file_url: string
+          status: "pending" | "approved" | "rejected"
+          rejection_reason: string | null
+          reviewed_by: string | null
+          reviewed_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          rider_id: string
+          type: "license" | "vehicle_registration" | "insurance" | "id_card" | "profile_photo"
+          file_url: string
+          status?: "pending" | "approved" | "rejected"
+          rejection_reason?: string | null
+          reviewed_by?: string | null
+          reviewed_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          rider_id?: string
+          type?: "license" | "vehicle_registration" | "insurance" | "id_card" | "profile_photo"
+          file_url?: string
+          status?: "pending" | "approved" | "rejected"
+          rejection_reason?: string | null
+          reviewed_by?: string | null
+          reviewed_at?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      messages: {
+        Row: {
+          id: string
+          conversation_id: string
+          sender_id: string
+          type: "text" | "image" | "audio" | "system"
+          content: string | null
+          media_url: string | null
+          is_read: boolean
+          translated_content: string | null
+          translate_from: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          conversation_id: string
+          sender_id: string
+          type?: "text" | "image" | "audio" | "system"
+          content?: string | null
+          media_url?: string | null
+          is_read?: boolean
+          translated_content?: string | null
+          translate_from?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          conversation_id?: string
+          sender_id?: string
+          type?: "text" | "image" | "audio" | "system"
+          content?: string | null
+          media_url?: string | null
+          is_read?: boolean
+          translated_content?: string | null
+          translate_from?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      notifications: {
+        Row: {
+          id: string
+          user_id: string
+          type: "order_update" | "chat_message" | "payment" | "promotion" | "system" | "kyc_update"
+          title: string
+          body: string | null
+          action_url: string | null
+          data: Json | null
+          is_read: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          type: "order_update" | "chat_message" | "payment" | "promotion" | "system" | "kyc_update"
+          title: string
+          body?: string | null
+          action_url?: string | null
+          data?: Json | null
+          is_read?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          type?: "order_update" | "chat_message" | "payment" | "promotion" | "system" | "kyc_update"
+          title?: string
+          body?: string | null
+          action_url?: string | null
+          data?: Json | null
+          is_read?: boolean
+          created_at?: string
+        }
+        Relationships: []
+      }
+      support_tickets: {
+        Row: {
+          id: string
+          user_id: string
+          order_id: string | null
+          subject: string
+          message: string
+          category: string | null
+          status: "open" | "in_progress" | "resolved" | "closed"
+          priority: "low" | "medium" | "high" | "urgent"
+          updated_at: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          order_id?: string | null
+          subject: string
+          message: string
+          category?: string | null
+          status?: "open" | "in_progress" | "resolved" | "closed"
+          priority?: "low" | "medium" | "high" | "urgent"
+          updated_at?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          order_id?: string | null
+          subject?: string
+          message?: string
+          category?: string | null
+          status?: "open" | "in_progress" | "resolved" | "closed"
+          priority?: "low" | "medium" | "high" | "urgent"
+          updated_at?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
       addresses: {
         Row: {
           address_line: string
@@ -394,7 +580,7 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "customer" | "rider" | "merchant" | "admin" | "support"
+      app_role: "customer" | "rider" | "merchant" | "admin" | "support" | "banned"
       delivery_type: "standard" | "express" | "scheduled" | "multi_stop"
       kyc_status: "pending" | "in_review" | "approved" | "rejected"
       order_status:

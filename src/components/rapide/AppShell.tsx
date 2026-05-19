@@ -1,15 +1,22 @@
 import { Link, useLocation } from "@tanstack/react-router";
-import { Home, Package, Wallet, User, Plus } from "lucide-react";
+import { Home, Package, Wallet, User, Plus, MessageCircle } from "lucide-react";
 import type { ReactNode } from "react";
 import { useT } from "@/lib/i18n";
+import { NotificationBell } from "@/components/rapide/NotificationBell";
+import rapideLogo from "@/assets/rapide-logo.jpg";
 
-type TabDef = { to: string; icon: typeof Home; labelKey: "tab.home" | "tab.orders" | "tab.send" | "tab.wallet" | "tab.profile"; primary?: boolean };
+type TabDef = {
+  to: string;
+  icon: typeof Home;
+  labelKey: "tab.home" | "tab.orders" | "tab.send" | "tab.wallet" | "tab.profile" | "tab.chat";
+  primary?: boolean;
+};
 
 const tabDefs: TabDef[] = [
   { to: "/app", icon: Home, labelKey: "tab.home" },
   { to: "/app/orders", icon: Package, labelKey: "tab.orders" },
   { to: "/app/book", icon: Plus, labelKey: "tab.send", primary: true },
-  { to: "/app/wallet", icon: Wallet, labelKey: "tab.wallet" },
+  { to: "/app/chat", icon: MessageCircle, labelKey: "tab.chat" },
   { to: "/app/profile", icon: User, labelKey: "tab.profile" },
 ];
 
@@ -18,11 +25,26 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { t } = useT();
   return (
     <div className="min-h-screen bg-background pb-24">
-      <main className="mx-auto max-w-2xl px-4 pt-6">{children}</main>
+      {/* Top header */}
+      <div className="fixed top-0 inset-x-0 z-30 px-4 py-3 flex items-center justify-between pointer-events-none">
+        <div className="pointer-events-auto">
+          <Link to="/app" className="flex items-center gap-2">
+            <img src={rapideLogo} alt="Rapide" className="h-8 w-8 rounded-lg object-cover" />
+            <span className="font-display text-base font-bold tracking-tight">Rapide</span>
+          </Link>
+        </div>
+        <div className="pointer-events-auto">
+          <NotificationBell />
+        </div>
+      </div>
+
+      <main className="mx-auto max-w-2xl px-4 pt-16">{children}</main>
+
+      {/* Bottom navigation */}
       <nav className="fixed inset-x-0 bottom-0 z-40 px-3 pb-3">
         <div className="glass-strong mx-auto flex max-w-2xl items-center justify-between rounded-2xl px-2 py-2 shadow-elegant">
           {tabDefs.map((tab) => {
-            const active = pathname === tab.to;
+            const active = pathname === tab.to || (tab.to !== "/app" && pathname.startsWith(tab.to));
             const Icon = tab.icon;
             if (tab.primary) {
               return (
@@ -34,7 +56,13 @@ export function AppShell({ children }: { children: ReactNode }) {
               );
             }
             return (
-              <Link key={tab.to} to={tab.to} className={`flex flex-1 flex-col items-center gap-0.5 py-1.5 text-[10px] transition ${active ? "text-primary" : "text-muted-foreground"}`}>
+              <Link
+                key={tab.to}
+                to={tab.to}
+                className={`flex flex-1 flex-col items-center gap-0.5 py-1.5 text-[10px] transition ${
+                  active ? "text-primary" : "text-muted-foreground"
+                }`}
+              >
                 <Icon className="h-5 w-5" />
                 {t(tab.labelKey)}
               </Link>

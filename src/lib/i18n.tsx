@@ -195,6 +195,95 @@ const dict: Dict = {
   "tab.send": { fr: "Envoyer", en: "Send" },
   "tab.wallet": { fr: "Portefeuille", en: "Wallet" },
   "tab.profile": { fr: "Profil", en: "Profile" },
+  "tab.chat": { fr: "Messages", en: "Messages" },
+
+  // ── Chat ──
+  "chat.title": { fr: "Messages", en: "Messages" },
+  "chat.empty": { fr: "Aucune conversation", en: "No conversations" },
+  "chat.empty_sub": { fr: "Vos échanges avec les coursiers apparaîtront ici.", en: "Your exchanges with riders will appear here." },
+  "chat.type": { fr: "Écrire un message…", en: "Write a message…" },
+  "chat.send": { fr: "Envoyer", en: "Send" },
+  "chat.translate": { fr: "Traduire", en: "Translate" },
+  "chat.original": { fr: "Original", en: "Original" },
+  "chat.translated": { fr: "Traduit", en: "Translated" },
+  "chat.voice_note": { fr: "Note vocale", en: "Voice note" },
+  "chat.attach": { fr: "Joindre", en: "Attach" },
+  "chat.you": { fr: "Vous", en: "You" },
+  "chat.order": { fr: "Course", en: "Order" },
+  "chat.call": { fr: "Appeler", en: "Call" },
+  "chat.unread": { fr: "non lu(s)", en: "unread" },
+
+  // ── Notifications ──
+  "notif.title": { fr: "Notifications", en: "Notifications" },
+  "notif.empty": { fr: "Aucune notification", en: "No notifications" },
+  "notif.empty_sub": { fr: "Vous êtes à jour !", en: "You're all caught up!" },
+  "notif.mark_all": { fr: "Tout marquer comme lu", en: "Mark all as read" },
+  "notif.order_update": { fr: "Mise à jour de commande", en: "Order update" },
+  "notif.payment": { fr: "Paiement", en: "Payment" },
+  "notif.promotion": { fr: "Promotion", en: "Promotion" },
+  "notif.system": { fr: "Système", en: "System" },
+  "notif.chat_message": { fr: "Nouveau message", en: "New message" },
+
+  // ── Map ──
+  "map.pickup": { fr: "Ramassage", en: "Pickup" },
+  "map.dropoff": { fr: "Livraison", en: "Dropoff" },
+  "map.rider": { fr: "Coursier", en: "Rider" },
+  "map.loading": { fr: "Chargement de la carte…", en: "Loading map…" },
+  "map.no_token": { fr: "Carte indisponible", en: "Map unavailable" },
+
+  // ── Rating ──
+  "rating.title": { fr: "Évaluer la course", en: "Rate the trip" },
+  "rating.subtitle": { fr: "Comment s'est passée votre livraison ?", en: "How was your delivery?" },
+  "rating.submit": { fr: "Soumettre", en: "Submit" },
+  "rating.skip": { fr: "Plus tard", en: "Later" },
+  "rating.comment": { fr: "Commentaire (optionnel)", en: "Comment (optional)" },
+  "rating.thanks": { fr: "Merci pour votre avis !", en: "Thank you for your feedback!" },
+
+  // ── Driver documents ──
+  "docs.title": { fr: "Documents", en: "Documents" },
+  "docs.subtitle": { fr: "Téléchargez vos documents pour commencer à livrer.", en: "Upload your documents to start delivering." },
+  "docs.upload": { fr: "Télécharger", en: "Upload" },
+  "docs.change": { fr: "Modifier", en: "Change" },
+  "docs.license": { fr: "Permis de conduire", en: "Driver's License" },
+  "docs.registration": { fr: "Carte grise", en: "Vehicle Registration" },
+  "docs.insurance": { fr: "Assurance", en: "Insurance" },
+  "docs.id_card": { fr: "Pièce d'identité", en: "ID Card" },
+  "docs.profile_photo": { fr: "Photo de profil", en: "Profile Photo" },
+  "docs.approved": { fr: "Approuvé", en: "Approved" },
+  "docs.pending": { fr: "En attente", en: "Pending Review" },
+  "docs.rejected": { fr: "Refusé", en: "Rejected" },
+  "docs.not_uploaded": { fr: "Non téléchargé", en: "Not uploaded" },
+
+  // ── Support ──
+  "support.title": { fr: "Support", en: "Support" },
+  "support.new_ticket": { fr: "Nouveau ticket", en: "New ticket" },
+  "support.open": { fr: "Ouvert", en: "Open" },
+  "support.in_progress": { fr: "En cours", en: "In progress" },
+  "support.resolved": { fr: "Résolu", en: "Resolved" },
+  "support.closed": { fr: "Fermé", en: "Closed" },
+
+  // ── Admin ──
+  "admin.users": { fr: "Utilisateurs", en: "Users" },
+  "admin.drivers": { fr: "Coursiers", en: "Drivers" },
+  "admin.support": { fr: "Support", en: "Support" },
+  "admin.settings": { fr: "Paramètres", en: "Settings" },
+
+  // ── Rider ──
+  "rider.online": { fr: "En ligne", en: "Online" },
+  "rider.offline": { fr: "Hors ligne", en: "Offline" },
+  "rider.go_online": { fr: "Passer en ligne", en: "Go online" },
+  "rider.go_offline": { fr: "Passer hors ligne", en: "Go offline" },
+  "rider.accepting": { fr: "Accepte les commandes", en: "Accepting orders" },
+  "rider.not_accepting": { fr: "N'accepte pas de nouvelles commandes", en: "Not accepting new orders" },
+  "rider.today_earnings": { fr: "Gains du jour", en: "Today's earnings" },
+  "rider.deliveries": { fr: "Livraisons", en: "Deliveries" },
+  "rider.documents": { fr: "Documents", en: "Documents" },
+  "rider.profile": { fr: "Profil", en: "Profile" },
+
+  // ── Time greetings ──
+  "greet.morning": { fr: "Bonjour", en: "Good morning" },
+  "greet.afternoon": { fr: "Bon après-midi", en: "Good afternoon" },
+  "greet.evening": { fr: "Bonsoir", en: "Good evening" },
 
   // ── Errors / 404 ──
   "err.404.title": { fr: "Page introuvable", en: "Page not found" },

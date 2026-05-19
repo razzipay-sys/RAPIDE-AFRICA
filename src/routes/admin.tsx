@@ -1,7 +1,8 @@
 import { createFileRoute, Outlet, Link, redirect, useLocation } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { AuthProvider } from "@/hooks/use-auth";
-import { LayoutDashboard, DollarSign, BarChart3, Settings, Zap } from "lucide-react";
+import { LayoutDashboard, DollarSign, BarChart3, Settings, Users, Bike, HeadphonesIcon } from "lucide-react";
+import rapideLogo from "@/assets/rapide-logo.jpg";
 
 export const Route = createFileRoute("/admin")({
   beforeLoad: async ({ location }) => {
@@ -25,8 +26,11 @@ export const Route = createFileRoute("/admin")({
 
 const navItems = [
   { to: "/admin/", icon: LayoutDashboard, label: "Ops" },
+  { to: "/admin/users", icon: Users, label: "Users" },
+  { to: "/admin/drivers", icon: Bike, label: "Drivers" },
   { to: "/admin/finance", icon: DollarSign, label: "Finance" },
   { to: "/admin/analytics", icon: BarChart3, label: "Analytics" },
+  { to: "/admin/support", icon: HeadphonesIcon, label: "Support" },
 ];
 
 function AdminLayout() {
@@ -37,9 +41,7 @@ function AdminLayout() {
         {/* Sidebar */}
         <aside className="w-56 shrink-0 border-r border-border flex flex-col py-6 px-3">
           <div className="flex items-center gap-2 px-3 mb-8">
-            <div className="h-7 w-7 rounded-lg bg-gradient-primary flex items-center justify-center">
-              <Zap className="h-4 w-4 text-primary-foreground" />
-            </div>
+            <img src={rapideLogo} alt="Rapide" className="h-8 w-8 rounded-lg object-cover" />
             <span className="font-display font-bold text-sm">Rapide Admin</span>
           </div>
           <nav className="space-y-1 flex-1">

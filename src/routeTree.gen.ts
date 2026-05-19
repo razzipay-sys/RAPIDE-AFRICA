@@ -19,20 +19,28 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as RiderIndexRouteImport } from './routes/rider/index'
 import { Route as MerchantIndexRouteImport } from './routes/merchant/index'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
+import { Route as RiderProfileRouteImport } from './routes/rider/profile'
 import { Route as RiderEarningsRouteImport } from './routes/rider/earnings'
+import { Route as RiderDocumentsRouteImport } from './routes/rider/documents'
 import { Route as RiderDispatchRouteImport } from './routes/rider/dispatch'
 import { Route as MerchantInvoicingRouteImport } from './routes/merchant/invoicing'
 import { Route as MerchantBulkRouteImport } from './routes/merchant/bulk'
 import { Route as MerchantApiKeysRouteImport } from './routes/merchant/api-keys'
+import { Route as AdminUsersRouteImport } from './routes/admin/users'
+import { Route as AdminSupportRouteImport } from './routes/admin/support'
 import { Route as AdminFinanceRouteImport } from './routes/admin/finance'
+import { Route as AdminDriversRouteImport } from './routes/admin/drivers'
 import { Route as AdminAnalyticsRouteImport } from './routes/admin/analytics'
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
 import { Route as AuthenticatedAppIndexRouteImport } from './routes/_authenticated/app.index'
 import { Route as AuthenticatedAppWalletRouteImport } from './routes/_authenticated/app.wallet'
 import { Route as AuthenticatedAppProfileRouteImport } from './routes/_authenticated/app.profile'
 import { Route as AuthenticatedAppOrdersRouteImport } from './routes/_authenticated/app.orders'
+import { Route as AuthenticatedAppNotificationsRouteImport } from './routes/_authenticated/app.notifications'
+import { Route as AuthenticatedAppChatRouteImport } from './routes/_authenticated/app.chat'
 import { Route as AuthenticatedAppBookRouteImport } from './routes/_authenticated/app.book'
 import { Route as AuthenticatedAppTrackOrderIdRouteImport } from './routes/_authenticated/app.track.$orderId'
+import { Route as AuthenticatedAppChatCidRouteImport } from './routes/_authenticated/app.chat.$cid'
 
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
@@ -83,9 +91,19 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AdminRoute,
 } as any)
+const RiderProfileRoute = RiderProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => RiderRoute,
+} as any)
 const RiderEarningsRoute = RiderEarningsRouteImport.update({
   id: '/earnings',
   path: '/earnings',
+  getParentRoute: () => RiderRoute,
+} as any)
+const RiderDocumentsRoute = RiderDocumentsRouteImport.update({
+  id: '/documents',
+  path: '/documents',
   getParentRoute: () => RiderRoute,
 } as any)
 const RiderDispatchRoute = RiderDispatchRouteImport.update({
@@ -108,9 +126,24 @@ const MerchantApiKeysRoute = MerchantApiKeysRouteImport.update({
   path: '/api-keys',
   getParentRoute: () => MerchantRoute,
 } as any)
+const AdminUsersRoute = AdminUsersRouteImport.update({
+  id: '/users',
+  path: '/users',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminSupportRoute = AdminSupportRouteImport.update({
+  id: '/support',
+  path: '/support',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminFinanceRoute = AdminFinanceRouteImport.update({
   id: '/finance',
   path: '/finance',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminDriversRoute = AdminDriversRouteImport.update({
+  id: '/drivers',
+  path: '/drivers',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminAnalyticsRoute = AdminAnalyticsRouteImport.update({
@@ -143,6 +176,17 @@ const AuthenticatedAppOrdersRoute = AuthenticatedAppOrdersRouteImport.update({
   path: '/orders',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
+const AuthenticatedAppNotificationsRoute =
+  AuthenticatedAppNotificationsRouteImport.update({
+    id: '/notifications',
+    path: '/notifications',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
+const AuthenticatedAppChatRoute = AuthenticatedAppChatRouteImport.update({
+  id: '/chat',
+  path: '/chat',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
 const AuthenticatedAppBookRoute = AuthenticatedAppBookRouteImport.update({
   id: '/book',
   path: '/book',
@@ -154,6 +198,11 @@ const AuthenticatedAppTrackOrderIdRoute =
     path: '/track/$orderId',
     getParentRoute: () => AuthenticatedAppRoute,
   } as any)
+const AuthenticatedAppChatCidRoute = AuthenticatedAppChatCidRouteImport.update({
+  id: '/$cid',
+  path: '/$cid',
+  getParentRoute: () => AuthenticatedAppChatRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -164,20 +213,28 @@ export interface FileRoutesByFullPath {
   '/signup': typeof SignupRoute
   '/app': typeof AuthenticatedAppRouteWithChildren
   '/admin/analytics': typeof AdminAnalyticsRoute
+  '/admin/drivers': typeof AdminDriversRoute
   '/admin/finance': typeof AdminFinanceRoute
+  '/admin/support': typeof AdminSupportRoute
+  '/admin/users': typeof AdminUsersRoute
   '/merchant/api-keys': typeof MerchantApiKeysRoute
   '/merchant/bulk': typeof MerchantBulkRoute
   '/merchant/invoicing': typeof MerchantInvoicingRoute
   '/rider/dispatch': typeof RiderDispatchRoute
+  '/rider/documents': typeof RiderDocumentsRoute
   '/rider/earnings': typeof RiderEarningsRoute
+  '/rider/profile': typeof RiderProfileRoute
   '/admin/': typeof AdminIndexRoute
   '/merchant/': typeof MerchantIndexRoute
   '/rider/': typeof RiderIndexRoute
   '/app/book': typeof AuthenticatedAppBookRoute
+  '/app/chat': typeof AuthenticatedAppChatRouteWithChildren
+  '/app/notifications': typeof AuthenticatedAppNotificationsRoute
   '/app/orders': typeof AuthenticatedAppOrdersRoute
   '/app/profile': typeof AuthenticatedAppProfileRoute
   '/app/wallet': typeof AuthenticatedAppWalletRoute
   '/app/': typeof AuthenticatedAppIndexRoute
+  '/app/chat/$cid': typeof AuthenticatedAppChatCidRoute
   '/app/track/$orderId': typeof AuthenticatedAppTrackOrderIdRoute
 }
 export interface FileRoutesByTo {
@@ -185,20 +242,28 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
   '/admin/analytics': typeof AdminAnalyticsRoute
+  '/admin/drivers': typeof AdminDriversRoute
   '/admin/finance': typeof AdminFinanceRoute
+  '/admin/support': typeof AdminSupportRoute
+  '/admin/users': typeof AdminUsersRoute
   '/merchant/api-keys': typeof MerchantApiKeysRoute
   '/merchant/bulk': typeof MerchantBulkRoute
   '/merchant/invoicing': typeof MerchantInvoicingRoute
   '/rider/dispatch': typeof RiderDispatchRoute
+  '/rider/documents': typeof RiderDocumentsRoute
   '/rider/earnings': typeof RiderEarningsRoute
+  '/rider/profile': typeof RiderProfileRoute
   '/admin': typeof AdminIndexRoute
   '/merchant': typeof MerchantIndexRoute
   '/rider': typeof RiderIndexRoute
   '/app/book': typeof AuthenticatedAppBookRoute
+  '/app/chat': typeof AuthenticatedAppChatRouteWithChildren
+  '/app/notifications': typeof AuthenticatedAppNotificationsRoute
   '/app/orders': typeof AuthenticatedAppOrdersRoute
   '/app/profile': typeof AuthenticatedAppProfileRoute
   '/app/wallet': typeof AuthenticatedAppWalletRoute
   '/app': typeof AuthenticatedAppIndexRoute
+  '/app/chat/$cid': typeof AuthenticatedAppChatCidRoute
   '/app/track/$orderId': typeof AuthenticatedAppTrackOrderIdRoute
 }
 export interface FileRoutesById {
@@ -212,20 +277,28 @@ export interface FileRoutesById {
   '/signup': typeof SignupRoute
   '/_authenticated/app': typeof AuthenticatedAppRouteWithChildren
   '/admin/analytics': typeof AdminAnalyticsRoute
+  '/admin/drivers': typeof AdminDriversRoute
   '/admin/finance': typeof AdminFinanceRoute
+  '/admin/support': typeof AdminSupportRoute
+  '/admin/users': typeof AdminUsersRoute
   '/merchant/api-keys': typeof MerchantApiKeysRoute
   '/merchant/bulk': typeof MerchantBulkRoute
   '/merchant/invoicing': typeof MerchantInvoicingRoute
   '/rider/dispatch': typeof RiderDispatchRoute
+  '/rider/documents': typeof RiderDocumentsRoute
   '/rider/earnings': typeof RiderEarningsRoute
+  '/rider/profile': typeof RiderProfileRoute
   '/admin/': typeof AdminIndexRoute
   '/merchant/': typeof MerchantIndexRoute
   '/rider/': typeof RiderIndexRoute
   '/_authenticated/app/book': typeof AuthenticatedAppBookRoute
+  '/_authenticated/app/chat': typeof AuthenticatedAppChatRouteWithChildren
+  '/_authenticated/app/notifications': typeof AuthenticatedAppNotificationsRoute
   '/_authenticated/app/orders': typeof AuthenticatedAppOrdersRoute
   '/_authenticated/app/profile': typeof AuthenticatedAppProfileRoute
   '/_authenticated/app/wallet': typeof AuthenticatedAppWalletRoute
   '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
+  '/_authenticated/app/chat/$cid': typeof AuthenticatedAppChatCidRoute
   '/_authenticated/app/track/$orderId': typeof AuthenticatedAppTrackOrderIdRoute
 }
 export interface FileRouteTypes {
@@ -239,20 +312,28 @@ export interface FileRouteTypes {
     | '/signup'
     | '/app'
     | '/admin/analytics'
+    | '/admin/drivers'
     | '/admin/finance'
+    | '/admin/support'
+    | '/admin/users'
     | '/merchant/api-keys'
     | '/merchant/bulk'
     | '/merchant/invoicing'
     | '/rider/dispatch'
+    | '/rider/documents'
     | '/rider/earnings'
+    | '/rider/profile'
     | '/admin/'
     | '/merchant/'
     | '/rider/'
     | '/app/book'
+    | '/app/chat'
+    | '/app/notifications'
     | '/app/orders'
     | '/app/profile'
     | '/app/wallet'
     | '/app/'
+    | '/app/chat/$cid'
     | '/app/track/$orderId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -260,20 +341,28 @@ export interface FileRouteTypes {
     | '/login'
     | '/signup'
     | '/admin/analytics'
+    | '/admin/drivers'
     | '/admin/finance'
+    | '/admin/support'
+    | '/admin/users'
     | '/merchant/api-keys'
     | '/merchant/bulk'
     | '/merchant/invoicing'
     | '/rider/dispatch'
+    | '/rider/documents'
     | '/rider/earnings'
+    | '/rider/profile'
     | '/admin'
     | '/merchant'
     | '/rider'
     | '/app/book'
+    | '/app/chat'
+    | '/app/notifications'
     | '/app/orders'
     | '/app/profile'
     | '/app/wallet'
     | '/app'
+    | '/app/chat/$cid'
     | '/app/track/$orderId'
   id:
     | '__root__'
@@ -286,20 +375,28 @@ export interface FileRouteTypes {
     | '/signup'
     | '/_authenticated/app'
     | '/admin/analytics'
+    | '/admin/drivers'
     | '/admin/finance'
+    | '/admin/support'
+    | '/admin/users'
     | '/merchant/api-keys'
     | '/merchant/bulk'
     | '/merchant/invoicing'
     | '/rider/dispatch'
+    | '/rider/documents'
     | '/rider/earnings'
+    | '/rider/profile'
     | '/admin/'
     | '/merchant/'
     | '/rider/'
     | '/_authenticated/app/book'
+    | '/_authenticated/app/chat'
+    | '/_authenticated/app/notifications'
     | '/_authenticated/app/orders'
     | '/_authenticated/app/profile'
     | '/_authenticated/app/wallet'
     | '/_authenticated/app/'
+    | '/_authenticated/app/chat/$cid'
     | '/_authenticated/app/track/$orderId'
   fileRoutesById: FileRoutesById
 }
@@ -385,11 +482,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/rider/profile': {
+      id: '/rider/profile'
+      path: '/profile'
+      fullPath: '/rider/profile'
+      preLoaderRoute: typeof RiderProfileRouteImport
+      parentRoute: typeof RiderRoute
+    }
     '/rider/earnings': {
       id: '/rider/earnings'
       path: '/earnings'
       fullPath: '/rider/earnings'
       preLoaderRoute: typeof RiderEarningsRouteImport
+      parentRoute: typeof RiderRoute
+    }
+    '/rider/documents': {
+      id: '/rider/documents'
+      path: '/documents'
+      fullPath: '/rider/documents'
+      preLoaderRoute: typeof RiderDocumentsRouteImport
       parentRoute: typeof RiderRoute
     }
     '/rider/dispatch': {
@@ -420,11 +531,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MerchantApiKeysRouteImport
       parentRoute: typeof MerchantRoute
     }
+    '/admin/users': {
+      id: '/admin/users'
+      path: '/users'
+      fullPath: '/admin/users'
+      preLoaderRoute: typeof AdminUsersRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/support': {
+      id: '/admin/support'
+      path: '/support'
+      fullPath: '/admin/support'
+      preLoaderRoute: typeof AdminSupportRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/finance': {
       id: '/admin/finance'
       path: '/finance'
       fullPath: '/admin/finance'
       preLoaderRoute: typeof AdminFinanceRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/drivers': {
+      id: '/admin/drivers'
+      path: '/drivers'
+      fullPath: '/admin/drivers'
+      preLoaderRoute: typeof AdminDriversRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/analytics': {
@@ -469,6 +601,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppOrdersRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
+    '/_authenticated/app/notifications': {
+      id: '/_authenticated/app/notifications'
+      path: '/notifications'
+      fullPath: '/app/notifications'
+      preLoaderRoute: typeof AuthenticatedAppNotificationsRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/chat': {
+      id: '/_authenticated/app/chat'
+      path: '/chat'
+      fullPath: '/app/chat'
+      preLoaderRoute: typeof AuthenticatedAppChatRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
     '/_authenticated/app/book': {
       id: '/_authenticated/app/book'
       path: '/book'
@@ -483,11 +629,31 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppTrackOrderIdRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
+    '/_authenticated/app/chat/$cid': {
+      id: '/_authenticated/app/chat/$cid'
+      path: '/$cid'
+      fullPath: '/app/chat/$cid'
+      preLoaderRoute: typeof AuthenticatedAppChatCidRouteImport
+      parentRoute: typeof AuthenticatedAppChatRoute
+    }
   }
 }
 
+interface AuthenticatedAppChatRouteChildren {
+  AuthenticatedAppChatCidRoute: typeof AuthenticatedAppChatCidRoute
+}
+
+const AuthenticatedAppChatRouteChildren: AuthenticatedAppChatRouteChildren = {
+  AuthenticatedAppChatCidRoute: AuthenticatedAppChatCidRoute,
+}
+
+const AuthenticatedAppChatRouteWithChildren =
+  AuthenticatedAppChatRoute._addFileChildren(AuthenticatedAppChatRouteChildren)
+
 interface AuthenticatedAppRouteChildren {
   AuthenticatedAppBookRoute: typeof AuthenticatedAppBookRoute
+  AuthenticatedAppChatRoute: typeof AuthenticatedAppChatRouteWithChildren
+  AuthenticatedAppNotificationsRoute: typeof AuthenticatedAppNotificationsRoute
   AuthenticatedAppOrdersRoute: typeof AuthenticatedAppOrdersRoute
   AuthenticatedAppProfileRoute: typeof AuthenticatedAppProfileRoute
   AuthenticatedAppWalletRoute: typeof AuthenticatedAppWalletRoute
@@ -497,6 +663,8 @@ interface AuthenticatedAppRouteChildren {
 
 const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppBookRoute: AuthenticatedAppBookRoute,
+  AuthenticatedAppChatRoute: AuthenticatedAppChatRouteWithChildren,
+  AuthenticatedAppNotificationsRoute: AuthenticatedAppNotificationsRoute,
   AuthenticatedAppOrdersRoute: AuthenticatedAppOrdersRoute,
   AuthenticatedAppProfileRoute: AuthenticatedAppProfileRoute,
   AuthenticatedAppWalletRoute: AuthenticatedAppWalletRoute,
@@ -521,13 +689,19 @@ const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
 
 interface AdminRouteChildren {
   AdminAnalyticsRoute: typeof AdminAnalyticsRoute
+  AdminDriversRoute: typeof AdminDriversRoute
   AdminFinanceRoute: typeof AdminFinanceRoute
+  AdminSupportRoute: typeof AdminSupportRoute
+  AdminUsersRoute: typeof AdminUsersRoute
   AdminIndexRoute: typeof AdminIndexRoute
 }
 
 const AdminRouteChildren: AdminRouteChildren = {
   AdminAnalyticsRoute: AdminAnalyticsRoute,
+  AdminDriversRoute: AdminDriversRoute,
   AdminFinanceRoute: AdminFinanceRoute,
+  AdminSupportRoute: AdminSupportRoute,
+  AdminUsersRoute: AdminUsersRoute,
   AdminIndexRoute: AdminIndexRoute,
 }
 
@@ -553,13 +727,17 @@ const MerchantRouteWithChildren = MerchantRoute._addFileChildren(
 
 interface RiderRouteChildren {
   RiderDispatchRoute: typeof RiderDispatchRoute
+  RiderDocumentsRoute: typeof RiderDocumentsRoute
   RiderEarningsRoute: typeof RiderEarningsRoute
+  RiderProfileRoute: typeof RiderProfileRoute
   RiderIndexRoute: typeof RiderIndexRoute
 }
 
 const RiderRouteChildren: RiderRouteChildren = {
   RiderDispatchRoute: RiderDispatchRoute,
+  RiderDocumentsRoute: RiderDocumentsRoute,
   RiderEarningsRoute: RiderEarningsRoute,
+  RiderProfileRoute: RiderProfileRoute,
   RiderIndexRoute: RiderIndexRoute,
 }
 
