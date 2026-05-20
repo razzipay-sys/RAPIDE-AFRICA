@@ -175,9 +175,13 @@ function ChatRoomPage() {
     qc.invalidateQueries({ queryKey: ["conversations"] });
   };
 
+  const MAX_MESSAGE_LEN = 1000;
+  const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
+  const ALLOWED_MIME = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+
   const sendMessage = async () => {
     if (!text.trim() || !user || !cid) return;
-    const content = text.trim();
+    const content = text.trim().slice(0, MAX_MESSAGE_LEN);
     setText("");
     setSending(true);
     const { error } = await supabase.from("messages").insert({
@@ -197,9 +201,17 @@ function ChatRoomPage() {
 
   const sendImageMessage = async (file: File) => {
     if (!user || !cid) return;
+    if (file.size > MAX_FILE_SIZE) {
+      toast.error(lang === "fr" ? "Fichier trop grand (max 5 Mo)" : "File too large (max 5 MB)");
+      return;
+    }
+    if (!ALLOWED_MIME.has(file.type)) {
+      toast.error(lang === "fr" ? "Format non supporté" : "Unsupported format");
+      return;
+    }
     setUploading(true);
     try {
-      const ext = (file.name.split(".").pop() ?? "jpg").toLowerCase();
+      const ext = (file.name.split(".").pop() ?? "jpg").replace(/[^a-z0-9]/gi, "").toLowerCase();
       const path = `${cid}/images/${Date.now()}.${ext}`;
       const { error: upErr } = await supabase.storage
         .from("chat-media")
@@ -411,6 +423,7 @@ function ChatRoomPage() {
           <div className="flex-1 glass rounded-2xl flex items-end gap-2 px-4 py-2.5 min-h-10">
             <textarea
               value={text}
+              maxLength={MAX_MESSAGE_LEN}
               onChange={(e) => {
                 setText(e.target.value);
                 e.target.style.height = "auto";

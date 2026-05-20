@@ -1,10 +1,13 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { RtcTokenBuilder, RtcRole } from "npm:agora-token@1.0.0";
-import { corsHeaders } from "../_shared/cors.ts";
+import { getCorsHeaders } from "../_shared/cors.ts";
 import { checkRateLimit } from "../_shared/rateLimiter.ts";
 
 serve(async (req) => {
+  const origin = req.headers.get("Origin");
+  const corsHeaders = getCorsHeaders(origin);
+
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -47,6 +50,21 @@ serve(async (req) => {
 
     if (!channelName || !uid) {
       return new Response(JSON.stringify({ error: "channelName and uid are required" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Validate channelName to prevent injection (alphanumeric + hyphens only)
+    if (typeof channelName !== "string" || !/^[a-zA-Z0-9_\-]{1,64}$/.test(channelName)) {
+      return new Response(JSON.stringify({ error: "Invalid channelName" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (typeof uid !== "number" || !Number.isInteger(uid) || uid < 1 || uid > 2_147_483_647) {
+      return new Response(JSON.stringify({ error: "Invalid uid" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

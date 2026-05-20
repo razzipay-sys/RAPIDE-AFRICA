@@ -9,6 +9,16 @@ export const Route = createFileRoute("/rider")({
     if (!data.session) {
       throw redirect({ to: "/login", search: { redirect: location.href } });
     }
+    // Ensure the user actually has the rider role
+    const { data: role } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", data.session.user.id)
+      .in("role", ["rider", "admin"])
+      .maybeSingle();
+    if (!role) {
+      throw redirect({ to: "/app" });
+    }
   },
   component: RiderLayout,
 });

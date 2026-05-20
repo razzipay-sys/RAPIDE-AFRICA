@@ -1,9 +1,14 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { corsHeaders } from "../_shared/cors.ts";
+import { getCorsHeaders } from "../_shared/cors.ts";
 import { checkRateLimit } from "../_shared/rateLimiter.ts";
 
+const MAX_TEXT_LENGTH = 2000;
+
 serve(async (req) => {
+  const origin = req.headers.get("Origin");
+  const corsHeaders = getCorsHeaders(origin);
+
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -53,10 +58,24 @@ serve(async (req) => {
       });
     }
 
-    const deeplKey = Deno.env.get("DEEPL_API_KEY")!;
-    // DeepL language codes: EN, FR — map short codes
+    if (typeof text !== "string" || text.length > MAX_TEXT_LENGTH) {
+      return new Response(JSON.stringify({ error: "Text exceeds maximum length" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Validate targetLang is one of the supported languages
     const langMap: Record<string, string> = { en: "EN", fr: "FR" };
-    const targetCode = langMap[targetLang.toLowerCase()] ?? targetLang.toUpperCase();
+    const targetCode = langMap[targetLang.toLowerCase()];
+    if (!targetCode) {
+      return new Response(JSON.stringify({ error: "Unsupported target language" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const deeplKey = Deno.env.get("DEEPL_API_KEY")!;
 
     const deeplRes = await fetch("https://api-free.deepl.com/v2/translate", {
       method: "POST",
@@ -80,8 +99,8 @@ serve(async (req) => {
     const translated: string = deeplData.translations[0].text;
     const detectedLang: string = deeplData.translations[0].detected_source_language;
 
-    // Persist translation on the message row so it's cached for future viewers
-    if (messageId) {
+    // Persist translation on the message row (cache for future viewers)
+    if (messageId && typeof messageId === "string" && messageId.length === 36) {
       await supabase
         .from("messages")
         .update({ translated_content: translated, translate_from: detectedLang })
