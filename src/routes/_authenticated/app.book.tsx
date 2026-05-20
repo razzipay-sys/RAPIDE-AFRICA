@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState, useCallback } from "react";
-import { motion } from "framer-motion";
-import { ArrowLeft, ArrowRight, Package, Shield, Zap, Clock, Loader2 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { ArrowLeft, ArrowRight, Package, Shield, Zap, Clock, Loader2, MapPin, User, Phone } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { CITIES, haversineKm, quote, fmtXOF, type DeliveryType, type GeoResult } from "@/lib/pricing";
@@ -30,30 +30,57 @@ async function reverseGeocode(lat: number, lng: number): Promise<GeoResult> {
   }
 }
 
+const slideVariants = {
+  enter: (dir: number) => ({ opacity: 0, x: dir * 28 }),
+  center: { opacity: 1, x: 0, transition: { duration: 0.22, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] } },
+  exit: (dir: number) => ({ opacity: 0, x: dir * -28, transition: { duration: 0.16 } }),
+};
+
+const CATEGORIES = [
+  { value: "document" as const,     label: "Document" },
+  { value: "food" as const,         label: "Nourriture" },
+  { value: "electronics" as const,  label: "Électronique" },
+  { value: "clothing" as const,     label: "Vêtement" },
+  { value: "fragile" as const,      label: "Fragile" },
+  { value: "other" as const,        label: "Autre" },
+];
+
 function BookPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { t } = useT();
-  const [step, setStep] = useState(1);
-  const [submitting, setSubmitting] = useState(false);
 
+  const [step, setStep] = useState(1);
+  const [dir, setDir] = useState(1);
+  const [submitting, setSubmitting] = useState(false);
+  const [mapInteractive, setMapInteractive] = useState(false);
+
+  // Step 1 — addresses
   const [pickup, setPickup] = useState<GeoResult>(CITIES[0]);
   const [dropoff, setDropoff] = useState<GeoResult>(CITIES[3]);
   const [lastFocused, setLastFocused] = useState<"pickup" | "dropoff">("pickup");
-  const [pickupName, setPickupName] = useState("");
+
+  // Step 2 — contacts + parcel
+  const [pickupName, setPickupName]   = useState("");
   const [pickupPhone, setPickupPhone] = useState("");
-  const [dropName, setDropName] = useState("");
-  const [dropPhone, setDropPhone] = useState("");
+  const [dropName, setDropName]       = useState("");
+  const [dropPhone, setDropPhone]     = useState("");
+  const [category, setCategory]       = useState<"document" | "food" | "electronics" | "clothing" | "fragile" | "other">("document");
+  const [weight, setWeight]           = useState(2);
+  const [notes, setNotes]             = useState("");
 
-  const [category, setCategory] = useState<"document" | "food" | "electronics" | "clothing" | "fragile" | "other">("document");
-  const [weight, setWeight] = useState(2);
-  const [notes, setNotes] = useState("");
-
-  const [type, setType] = useState<DeliveryType>("standard");
+  // Step 3 — delivery type + pricing
+  const [type, setType]           = useState<DeliveryType>("standard");
   const [insurance, setInsurance] = useState(false);
 
   const distance = useMemo(() => haversineKm(pickup, dropoff), [pickup, dropoff]);
   const q = useMemo(() => quote({ distanceKm: distance, type, insurance, weightKg: weight }), [distance, type, insurance, weight]);
+
+  const goTo = (n: number) => {
+    setDir(n > step ? 1 : -1);
+    setStep(n);
+    setMapInteractive(false);
+  };
 
   const handleMapClick = useCallback(async (latlng: LatLng) => {
     const result = await reverseGeocode(latlng.lat, latlng.lng);
@@ -61,21 +88,32 @@ function BookPage() {
     else setDropoff(result);
   }, [lastFocused]);
 
-  const CATEGORIES = [
-    { value: "document" as const, labelKey: "book.cat.document" as const },
-    { value: "food" as const, labelKey: "book.cat.food" as const },
-    { value: "electronics" as const, labelKey: "book.cat.electronics" as const },
-    { value: "clothing" as const, labelKey: "book.cat.clothing" as const },
-    { value: "fragile" as const, labelKey: "book.cat.fragile" as const },
-    { value: "other" as const, labelKey: "book.cat.other" as const },
-  ];
+  const validateStep1 = () => {
+    if (!pickup.name.trim() || !dropoff.name.trim()) {
+      toast.error(t("book.pickup") + " / " + t("book.dropoff") + " requis");
+      return false;
+    }
+    if (pickup.lat === dropoff.lat && pickup.lng === dropoff.lng) {
+      toast.error("Les adresses de collecte et de livraison doivent être différentes");
+      return false;
+    }
+    return true;
+  };
+
+  const validateStep2 = () => {
+    if (!dropName.trim()) {
+      toast.error("Le nom du destinataire est requis");
+      return false;
+    }
+    if (!dropPhone.trim()) {
+      toast.error("Le téléphone du destinataire est requis");
+      return false;
+    }
+    return true;
+  };
 
   const submit = async () => {
     if (!user) return;
-    if (!dropName || !dropPhone) {
-      toast.error(t("book.recipient_err"));
-      return;
-    }
     setSubmitting(true);
     const { data, error } = await supabase.from("orders").insert({
       customer_id: user.id,
@@ -91,7 +129,7 @@ function BookPage() {
     }).select("id").single();
     setSubmitting(false);
     if (error || !data) {
-      toast.error(error?.message ?? t("book.recipient_err"));
+      toast.error(error?.message ?? "Erreur lors de la création de la commande");
       return;
     }
     await supabase.from("order_events").insert({
@@ -102,23 +140,40 @@ function BookPage() {
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 pb-6">
+      {/* Header */}
       <header className="flex items-center justify-between">
-        <button onClick={() => step > 1 ? setStep(step - 1) : navigate({ to: "/app" })} className="glass h-9 w-9 rounded-xl flex items-center justify-center">
+        <button
+          onClick={() => step > 1 ? goTo(step - 1) : navigate({ to: "/app" })}
+          className="glass h-9 w-9 rounded-xl flex items-center justify-center"
+        >
           <ArrowLeft className="h-4 w-4" />
         </button>
         <div className="flex gap-1.5">
           {[1, 2, 3].map((n) => (
-            <div key={n} className={`h-1.5 w-8 rounded-full ${n <= step ? "bg-primary" : "bg-muted"}`} />
+            <div key={n} className={`h-1.5 w-8 rounded-full transition-all duration-300 ${n <= step ? "bg-primary" : "bg-muted"}`} />
           ))}
         </div>
         <div className="w-9" />
       </header>
 
-      <motion.div key={step} initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} className="space-y-4">
+      <AnimatePresence mode="wait" custom={dir}>
+        {/* ── STEP 1: Addresses + Map ── */}
         {step === 1 && (
-          <>
-            <h1 className="font-display text-2xl font-bold">{t("book.step1.title")}</h1>
+          <motion.div
+            key="step1"
+            custom={dir}
+            variants={slideVariants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            className="space-y-4"
+          >
+            <div>
+              <h1 className="font-display text-2xl font-bold">{t("book.step1.title")}</h1>
+              <p className="text-sm text-muted-foreground mt-0.5">Choisissez les adresses de collecte et de livraison</p>
+            </div>
+
             <AddressSearch
               label={t("book.pickup")}
               icon="A"
@@ -135,75 +190,225 @@ function BookPage() {
               onFocus={() => setLastFocused("dropoff")}
               placeholder={t("book.search_placeholder_dropoff")}
             />
-            <div className="relative">
-              <LiveMap
-                pickup={pickup}
-                dropoff={dropoff}
-                height={200}
-                zoom={12}
-                onMapClick={handleMapClick}
-              />
-              {MAPBOX_TOKEN && (
-                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 glass rounded-full px-3 py-1 text-[10px] text-muted-foreground pointer-events-none">
-                  {t("book.tap_map")}
+
+            {/* Map with interaction gate to prevent scroll-lock on mobile */}
+            <div className="relative rounded-3xl overflow-hidden">
+              <div style={{ pointerEvents: mapInteractive ? "auto" : "none" }}>
+                <LiveMap
+                  pickup={pickup}
+                  dropoff={dropoff}
+                  height={220}
+                  zoom={12}
+                  onMapClick={mapInteractive ? handleMapClick : undefined}
+                  key={`${pickup.lat},${pickup.lng},${dropoff.lat},${dropoff.lng}`}
+                />
+              </div>
+
+              {!mapInteractive ? (
+                <button
+                  type="button"
+                  onClick={() => setMapInteractive(true)}
+                  className="absolute inset-0 flex items-center justify-center bg-black/10 hover:bg-black/20 transition-colors"
+                >
+                  <span className="glass-strong rounded-full px-4 py-2 text-xs font-medium flex items-center gap-2 shadow-elegant">
+                    <MapPin className="h-3.5 w-3.5 text-primary" />
+                    Appuyer pour choisir sur la carte
+                  </span>
+                </button>
+              ) : (
+                <div className="absolute top-2 left-0 right-0 flex justify-center pointer-events-none">
+                  <span className="glass rounded-full px-3 py-1 text-[10px] text-muted-foreground pointer-events-none">
+                    {lastFocused === "pickup" ? "Placement : point de collecte" : "Placement : destination"}
+                  </span>
                 </div>
               )}
+
+              {mapInteractive && (
+                <button
+                  type="button"
+                  onClick={() => setMapInteractive(false)}
+                  className="absolute bottom-3 left-1/2 -translate-x-1/2 glass-strong rounded-full px-5 py-2 text-xs font-semibold shadow-elegant"
+                >
+                  Terminé
+                </button>
+              )}
             </div>
-            <div className="glass rounded-2xl p-4 grid grid-cols-2 gap-3">
-              <Field label={t("book.contact_pickup")} value={pickupName} onChange={setPickupName} placeholder={t("book.contact_pickup")} />
-              <Field label={t("book.phone")} value={pickupPhone} onChange={setPickupPhone} placeholder="+229" />
-              <Field label={t("book.recipient")} value={dropName} onChange={setDropName} placeholder={t("book.recipient")} />
-              <Field label={t("book.phone_req")} value={dropPhone} onChange={setDropPhone} placeholder="+229" />
-            </div>
-            <p className="text-xs text-muted-foreground text-center">{distance.toFixed(1)} {t("book.distance_est")}</p>
-            <button onClick={() => setStep(2)} className="w-full rounded-xl bg-gradient-primary px-4 py-3 text-sm font-semibold text-primary-foreground shadow-glow flex items-center justify-center gap-2">
+
+            <p className="text-xs text-muted-foreground text-center">
+              Distance estimée : <span className="font-semibold text-foreground">{distance.toFixed(1)} km</span>
+            </p>
+
+            <button
+              onClick={() => validateStep1() && goTo(2)}
+              className="w-full rounded-xl bg-gradient-primary px-4 py-3 text-sm font-semibold text-primary-foreground shadow-glow flex items-center justify-center gap-2 hover:scale-[1.01] transition active:scale-[0.98]"
+            >
               {t("book.next")} <ArrowRight className="h-4 w-4" />
             </button>
-          </>
+          </motion.div>
         )}
 
+        {/* ── STEP 2: Contacts + Parcel ── */}
         {step === 2 && (
-          <>
-            <h1 className="font-display text-2xl font-bold">{t("book.step2.title")}</h1>
+          <motion.div
+            key="step2"
+            custom={dir}
+            variants={slideVariants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            className="space-y-4"
+          >
             <div>
-              <p className="text-xs text-muted-foreground mb-2">{t("book.category")}</p>
+              <h1 className="font-display text-2xl font-bold">{t("book.step2.title")}</h1>
+              <p className="text-sm text-muted-foreground mt-0.5">Informations sur le destinataire et le colis</p>
+            </div>
+
+            {/* Recipient (required) */}
+            <div className="glass-strong rounded-2xl p-5 space-y-4">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="h-6 w-6 rounded-lg bg-primary/15 text-primary flex items-center justify-center">
+                  <User className="h-3.5 w-3.5" />
+                </div>
+                <p className="text-sm font-semibold">Destinataire <span className="text-primary text-xs">*requis</span></p>
+              </div>
+              <Field
+                label="Nom du destinataire"
+                value={dropName}
+                onChange={setDropName}
+                placeholder="Ex. : Kofi Mensah"
+                required
+              />
+              <Field
+                label="Téléphone du destinataire"
+                value={dropPhone}
+                onChange={setDropPhone}
+                placeholder="+229 01 XX XX XX"
+                type="tel"
+                required
+              />
+            </div>
+
+            {/* Sender (optional) */}
+            <div className="glass rounded-2xl p-5 space-y-4">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="h-6 w-6 rounded-lg bg-muted/50 text-muted-foreground flex items-center justify-center">
+                  <Phone className="h-3.5 w-3.5" />
+                </div>
+                <p className="text-sm font-semibold text-muted-foreground">Expéditeur <span className="text-xs">(optionnel)</span></p>
+              </div>
+              <Field
+                label="Votre nom"
+                value={pickupName}
+                onChange={setPickupName}
+                placeholder="Ex. : Ama Diallo"
+              />
+              <Field
+                label="Votre téléphone"
+                value={pickupPhone}
+                onChange={setPickupPhone}
+                placeholder="+229 01 XX XX XX"
+                type="tel"
+              />
+            </div>
+
+            {/* Parcel category */}
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">{t("book.category")}</p>
               <div className="grid grid-cols-3 gap-2">
                 {CATEGORIES.map((c) => (
-                  <button key={c.value} onClick={() => setCategory(c.value)}
-                    className={`rounded-xl px-3 py-2.5 text-sm border transition ${category === c.value ? "border-primary bg-primary/10 text-primary" : "border-border glass"}`}>
-                    {t(c.labelKey)}
+                  <button
+                    key={c.value}
+                    type="button"
+                    onClick={() => setCategory(c.value)}
+                    className={`rounded-xl px-3 py-2.5 text-sm border transition ${
+                      category === c.value ? "border-primary bg-primary/10 text-primary" : "border-border glass"
+                    }`}
+                  >
+                    {c.label}
                   </button>
                 ))}
               </div>
             </div>
+
+            {/* Weight */}
             <div className="glass rounded-2xl p-4">
-              <p className="text-xs text-muted-foreground">{t("book.weight")} : <span className="text-foreground font-medium">{weight} kg</span></p>
-              <input type="range" min={1} max={20} value={weight} onChange={(e) => setWeight(Number(e.target.value))} className="w-full mt-2 accent-[var(--primary)]" />
+              <p className="text-xs text-muted-foreground">{t("book.weight")} : <span className="text-foreground font-semibold">{weight} kg</span></p>
+              <input
+                type="range"
+                min={1}
+                max={20}
+                value={weight}
+                onChange={(e) => setWeight(Number(e.target.value))}
+                className="w-full mt-2 accent-[var(--primary)]"
+              />
+              <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
+                <span>1 kg</span><span>20 kg</span>
+              </div>
             </div>
-            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder={t("book.notes_placeholder")} rows={3}
-              className="w-full rounded-2xl bg-input/40 border border-border p-4 text-sm outline-none focus:border-primary" />
-            <button onClick={() => setStep(3)} className="w-full rounded-xl bg-gradient-primary px-4 py-3 text-sm font-semibold text-primary-foreground shadow-glow flex items-center justify-center gap-2">
+
+            {/* Notes */}
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder={t("book.notes_placeholder")}
+              rows={3}
+              className="w-full rounded-2xl bg-input/40 border border-border p-4 text-sm outline-none focus:border-primary resize-none"
+            />
+
+            <button
+              onClick={() => validateStep2() && goTo(3)}
+              className="w-full rounded-xl bg-gradient-primary px-4 py-3 text-sm font-semibold text-primary-foreground shadow-glow flex items-center justify-center gap-2 hover:scale-[1.01] transition active:scale-[0.98]"
+            >
               {t("book.next")} <ArrowRight className="h-4 w-4" />
             </button>
-          </>
+          </motion.div>
         )}
 
+        {/* ── STEP 3: Delivery type + Pricing ── */}
         {step === 3 && (
-          <>
-            <h1 className="font-display text-2xl font-bold">{t("book.step3.title")}</h1>
-            <div className="space-y-2">
-              <TypeOption active={type === "standard"} onClick={() => setType("standard")} icon={Package} title={t("book.std.title")} desc={t("book.std.desc")} />
-              <TypeOption active={type === "express"} onClick={() => setType("express")} icon={Zap} title={t("book.exp.title")} desc={t("book.exp.desc")} />
-              <TypeOption active={type === "scheduled"} onClick={() => setType("scheduled")} icon={Clock} title={t("book.sched.title")} desc={t("book.sched.desc")} />
+          <motion.div
+            key="step3"
+            custom={dir}
+            variants={slideVariants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            className="space-y-4"
+          >
+            <div>
+              <h1 className="font-display text-2xl font-bold">{t("book.step3.title")}</h1>
+              <p className="text-sm text-muted-foreground mt-0.5">Choisissez votre type de livraison</p>
             </div>
-            <button onClick={() => setInsurance(!insurance)} className={`w-full rounded-2xl p-4 flex items-center justify-between border transition ${insurance ? "border-primary bg-primary/10" : "border-border glass"}`}>
+
+            <div className="space-y-2">
+              <TypeOption active={type === "standard"} onClick={() => setType("standard")} icon={Package}
+                title={t("book.std.title")} desc={t("book.std.desc")} />
+              <TypeOption active={type === "express"}  onClick={() => setType("express")}  icon={Zap}
+                title={t("book.exp.title")} desc={t("book.exp.desc")} />
+              <TypeOption active={type === "scheduled"} onClick={() => setType("scheduled")} icon={Clock}
+                title={t("book.sched.title")} desc={t("book.sched.desc")} />
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setInsurance(!insurance)}
+              className={`w-full rounded-2xl p-4 flex items-center justify-between border transition ${
+                insurance ? "border-primary bg-primary/10" : "border-border glass"
+              }`}
+            >
               <span className="flex items-center gap-3 text-sm"><Shield className="h-4 w-4 text-primary" /> {t("book.insurance")}</span>
-              <span className={`h-5 w-5 rounded-full border-2 ${insurance ? "border-primary bg-primary" : "border-muted-foreground"}`} />
+              <span className={`h-5 w-5 rounded-full border-2 flex-shrink-0 ${insurance ? "border-primary bg-primary" : "border-muted-foreground"}`} />
             </button>
 
-            <div className="glass-strong rounded-2xl p-5 space-y-1.5">
+            {/* Summary */}
+            <div className="glass-strong rounded-2xl p-5 space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Récapitulatif</p>
+              <Row label="De" value={pickup.name} truncate />
+              <Row label="Vers" value={dropoff.name} truncate />
+              <Row label="Destinataire" value={`${dropName} · ${dropPhone}`} />
               <Row label={t("book.distance")} value={`${distance.toFixed(1)} km`} />
               <Row label="Type" value={type} />
+              {insurance && <Row label="Assurance" value="Incluse" />}
               <Row label={t("book.commission")} value={fmtXOF(q.commission_xof)} muted />
               <div className="h-px bg-border my-2" />
               <div className="flex items-baseline justify-between">
@@ -212,44 +417,77 @@ function BookPage() {
               </div>
             </div>
 
-            <button onClick={submit} disabled={submitting} className="w-full rounded-xl bg-gradient-primary px-4 py-3.5 text-sm font-semibold text-primary-foreground shadow-glow disabled:opacity-60 flex items-center justify-center gap-2">
-              {submitting && <Loader2 className="h-4 w-4 animate-spin" />} {t("book.confirm")} · {fmtXOF(q.price_xof)}
+            <button
+              onClick={submit}
+              disabled={submitting}
+              className="w-full rounded-xl bg-gradient-primary px-4 py-3.5 text-sm font-semibold text-primary-foreground shadow-glow disabled:opacity-60 flex items-center justify-center gap-2 hover:scale-[1.01] transition active:scale-[0.98]"
+            >
+              {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
+              {t("book.confirm")} · {fmtXOF(q.price_xof)}
             </button>
-          </>
+          </motion.div>
         )}
-      </motion.div>
+      </AnimatePresence>
     </div>
   );
 }
 
-function Field({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string }) {
+function Field({
+  label, value, onChange, placeholder, type = "text", required = false,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  type?: string;
+  required?: boolean;
+}) {
   return (
-    <label className="block">
-      <span className="text-[10px] text-muted-foreground uppercase tracking-wider">{label}</span>
-      <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
-        className="w-full mt-1 bg-transparent border-b border-border py-1.5 text-sm outline-none focus:border-primary" />
-    </label>
+    <div>
+      <label className="block text-xs text-muted-foreground mb-1">
+        {label}{required && <span className="text-primary ml-0.5">*</span>}
+      </label>
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className={`w-full rounded-xl bg-input/40 border px-3 py-2.5 text-sm outline-none transition focus:border-primary ${
+          required && !value.trim() ? "border-destructive/40" : "border-border"
+        }`}
+      />
+    </div>
   );
 }
 
-function TypeOption({ active, onClick, icon: Icon, title, desc }: { active: boolean; onClick: () => void; icon: React.ElementType; title: string; desc: string }) {
+function TypeOption({ active, onClick, icon: Icon, title, desc }: {
+  active: boolean; onClick: () => void; icon: React.ElementType; title: string; desc: string;
+}) {
   return (
-    <button onClick={onClick} className={`w-full rounded-2xl p-4 flex items-center gap-3 border transition text-left ${active ? "border-primary bg-primary/10" : "border-border glass"}`}>
-      <div className="h-10 w-10 rounded-xl bg-primary/15 text-primary flex items-center justify-center"><Icon className="h-5 w-5" /></div>
-      <div className="flex-1">
+    <button
+      type="button"
+      onClick={onClick}
+      className={`w-full rounded-2xl p-4 flex items-center gap-3 border transition text-left ${
+        active ? "border-primary bg-primary/10" : "border-border glass"
+      }`}
+    >
+      <div className="h-10 w-10 rounded-xl bg-primary/15 text-primary flex items-center justify-center shrink-0">
+        <Icon className="h-5 w-5" />
+      </div>
+      <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold">{title}</p>
         <p className="text-xs text-muted-foreground">{desc}</p>
       </div>
-      <div className={`h-5 w-5 rounded-full border-2 ${active ? "border-primary bg-primary" : "border-muted-foreground"}`} />
+      <div className={`h-5 w-5 rounded-full border-2 shrink-0 ${active ? "border-primary bg-primary" : "border-muted-foreground"}`} />
     </button>
   );
 }
 
-function Row({ label, value, muted }: { label: string; value: string; muted?: boolean }) {
+function Row({ label, value, muted, truncate }: { label: string; value: string; muted?: boolean; truncate?: boolean }) {
   return (
-    <div className="flex items-center justify-between text-sm">
-      <span className="text-muted-foreground">{label}</span>
-      <span className={muted ? "text-muted-foreground" : "font-medium"}>{value}</span>
+    <div className="flex items-baseline justify-between gap-3 text-sm">
+      <span className="text-muted-foreground shrink-0">{label}</span>
+      <span className={`${muted ? "text-muted-foreground" : "font-medium"} ${truncate ? "truncate text-right" : ""}`}>{value}</span>
     </div>
   );
 }

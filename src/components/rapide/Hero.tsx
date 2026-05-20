@@ -1,17 +1,30 @@
 import { motion } from "framer-motion";
 import { ArrowRight, MapPin, Zap } from "lucide-react";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import heroImg from "@/assets/hero-rider.jpg?url";
 import { useT } from "@/lib/i18n";
+import { supabase } from "@/integrations/supabase/client";
 
 export function Hero() {
   const { t } = useT();
+  const navigate = useNavigate();
+
   const stats = [
     { v: "12 min", l: t("hero.stat1") },
     { v: "98.7%", l: t("hero.stat2") },
     { v: "2 400+", l: t("hero.stat3") },
     { v: "24/7",   l: t("hero.stat4") },
   ];
+
+  const handleSendParcel = async () => {
+    const { data } = await supabase.auth.getSession();
+    if (data.session && !data.session.user.is_anonymous) {
+      navigate({ to: "/app/book" });
+    } else {
+      navigate({ to: "/signup" });
+    }
+  };
+
   return (
     <section className="relative overflow-hidden pt-32 pb-24 md:pt-40 md:pb-32">
       <div className="pointer-events-none absolute inset-0 bg-gradient-radial" />
@@ -21,7 +34,7 @@ export function Hero() {
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+          transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] }}
           className="text-center"
         >
           <div className="mx-auto mb-6 inline-flex items-center gap-2 rounded-full glass px-4 py-1.5 text-xs text-muted-foreground">
@@ -43,15 +56,13 @@ export function Hero() {
           </p>
 
           <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
-            {/* Send a Parcel → /app/book (auth guard redirects to login if needed) */}
-            <Link
-              to="/app/book"
+            <button
+              onClick={handleSendParcel}
               className="group inline-flex items-center gap-2 rounded-xl bg-gradient-primary px-6 py-3.5 text-sm font-semibold text-primary-foreground shadow-glow transition hover:scale-[1.03] active:scale-[0.98]"
             >
               {t("hero.cta1")}
               <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
-            </Link>
-            {/* Become a Courier → dedicated rider signup */}
+            </button>
             <Link
               to="/rider-signup"
               className="inline-flex items-center gap-2 rounded-xl glass px-6 py-3.5 text-sm font-semibold transition hover:bg-white/10 active:scale-[0.98]"
@@ -64,7 +75,7 @@ export function Hero() {
         <motion.div
           initial={{ opacity: 0, y: 60, scale: 0.95 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ duration: 1, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
+          transition={{ duration: 1, delay: 0.3, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] }}
           className="relative mx-auto mt-16 max-w-5xl"
         >
           <div className="relative overflow-hidden rounded-3xl border border-border shadow-elegant">

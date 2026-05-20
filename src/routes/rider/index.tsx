@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Wifi, WifiOff, MapPin, Star, Package, Zap, ChevronRight,
-  Navigation, MessageCircle, KeyRound, CheckCircle2, Phone,
+  Navigation, MessageCircle, KeyRound, CheckCircle2, Phone, Loader2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
@@ -374,7 +374,7 @@ function RiderDashboard() {
           onClick={() => toggleOnline.mutate()}
           disabled={toggleOnline.isPending || !rider}
           whileTap={{ scale: 0.97 }}
-          className={`w-full rounded-3xl p-6 text-left transition-all ${
+          className={`w-full rounded-3xl p-6 text-left transition-all duration-300 disabled:opacity-70 ${
             isOnline
               ? "bg-gradient-primary shadow-glow"
               : "glass-strong border border-border"
@@ -383,7 +383,9 @@ function RiderDashboard() {
           <div className="flex items-center justify-between">
             <div>
               <div className="flex items-center gap-2 mb-1">
-                {isOnline ? (
+                {toggleOnline.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                ) : isOnline ? (
                   <Wifi className="h-5 w-5 text-primary-foreground" />
                 ) : (
                   <WifiOff className="h-5 w-5 text-muted-foreground" />
@@ -393,18 +395,29 @@ function RiderDashboard() {
                     isOnline ? "text-primary-foreground/80" : "text-muted-foreground"
                   }`}
                 >
-                  {isOnline ? "Online" : "Offline"}
+                  {toggleOnline.isPending ? "Updating…" : isOnline ? "Online" : "Offline"}
                 </span>
               </div>
               <p className={`font-display text-2xl font-bold ${isOnline ? "text-primary-foreground" : ""}`}>
-                {isOnline ? "Tap to go offline" : "Tap to go online"}
+                {isOnline ? "You're available" : "You're unavailable"}
               </p>
               <p className={`text-sm mt-0.5 ${isOnline ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
-                {isOnline ? "Accepting dispatch orders now" : "You won't receive new orders"}
+                {isOnline ? "Accepting dispatch orders now" : "Tap to start receiving orders"}
               </p>
             </div>
-            <div className={`h-14 w-14 rounded-full flex items-center justify-center transition-all ${isOnline ? "bg-white/20" : "bg-muted"}`}>
-              <div className={`h-8 w-8 rounded-full transition-all ${isOnline ? "bg-white shadow-lg" : "bg-muted-foreground/30"}`} />
+            {/* iOS-style toggle switch */}
+            <div
+              className={`relative h-8 w-14 rounded-full transition-colors duration-300 ${
+                isOnline ? "bg-white/30" : "bg-muted-foreground/20"
+              }`}
+            >
+              <motion.div
+                layout
+                transition={{ type: "spring", stiffness: 500, damping: 35 }}
+                className={`absolute top-1 h-6 w-6 rounded-full shadow-lg ${
+                  isOnline ? "bg-white left-7" : "bg-muted-foreground/60 left-1"
+                }`}
+              />
             </div>
           </div>
         </motion.button>

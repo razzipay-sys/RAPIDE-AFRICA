@@ -5,7 +5,8 @@ import { AuthProvider } from "@/hooks/use-auth";
 export const Route = createFileRoute("/_authenticated")({
   beforeLoad: async ({ location }) => {
     const { data } = await supabase.auth.getSession();
-    if (!data.session) {
+    // Block unauthenticated AND anonymous sessions — anon users must sign up properly
+    if (!data.session || data.session.user.is_anonymous) {
       throw redirect({ to: "/login", search: { redirect: location.href } });
     }
   },
