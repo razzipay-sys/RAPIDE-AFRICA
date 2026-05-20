@@ -5,6 +5,7 @@ import { TrendingUp, ArrowDownLeft, Star, Calendar } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useWallet, useRiderProfile } from "@/hooks/use-queries";
 import { fmtXOF } from "@/lib/pricing";
 
 export const Route = createFileRoute("/rider/earnings")({
@@ -22,24 +23,8 @@ const TYPE_LABELS: Record<string, string> = {
 
 function RiderEarnings() {
   const { user } = useAuth();
-
-  const { data: wallet } = useQuery({
-    queryKey: ["wallet", user?.id],
-    queryFn: async () => {
-      const { data } = await supabase.from("wallets").select("balance_xof").eq("user_id", user!.id).single();
-      return data;
-    },
-    enabled: !!user,
-  });
-
-  const { data: rider } = useQuery({
-    queryKey: ["rider-profile", user?.id],
-    queryFn: async () => {
-      const { data } = await supabase.from("riders").select("rating, total_deliveries").eq("user_id", user!.id).single();
-      return data;
-    },
-    enabled: !!user,
-  });
+  const { data: wallet } = useWallet(user?.id);
+  const { data: rider }  = useRiderProfile(user?.id);
 
   const { data: transactions } = useQuery({
     queryKey: ["rider-transactions", user?.id],

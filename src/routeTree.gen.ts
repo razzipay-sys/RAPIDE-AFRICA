@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as RiderSignupRouteImport } from './routes/rider-signup'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as RiderRouteImport } from './routes/rider'
 import { Route as MerchantRouteImport } from './routes/merchant'
@@ -42,6 +43,11 @@ import { Route as AuthenticatedAppBookRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedAppTrackOrderIdRouteImport } from './routes/_authenticated/app.track.$orderId'
 import { Route as AuthenticatedAppChatCidRouteImport } from './routes/_authenticated/app.chat.$cid'
 
+const RiderSignupRoute = RiderSignupRouteImport.update({
+  id: '/rider-signup',
+  path: '/rider-signup',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
   path: '/signup',
@@ -210,6 +216,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/merchant': typeof MerchantRouteWithChildren
   '/rider': typeof RiderRouteWithChildren
+  '/rider-signup': typeof RiderSignupRoute
   '/signup': typeof SignupRoute
   '/app': typeof AuthenticatedAppRouteWithChildren
   '/admin/analytics': typeof AdminAnalyticsRoute
@@ -240,6 +247,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/rider-signup': typeof RiderSignupRoute
   '/signup': typeof SignupRoute
   '/admin/analytics': typeof AdminAnalyticsRoute
   '/admin/drivers': typeof AdminDriversRoute
@@ -274,6 +282,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/merchant': typeof MerchantRouteWithChildren
   '/rider': typeof RiderRouteWithChildren
+  '/rider-signup': typeof RiderSignupRoute
   '/signup': typeof SignupRoute
   '/_authenticated/app': typeof AuthenticatedAppRouteWithChildren
   '/admin/analytics': typeof AdminAnalyticsRoute
@@ -309,6 +318,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/merchant'
     | '/rider'
+    | '/rider-signup'
     | '/signup'
     | '/app'
     | '/admin/analytics'
@@ -339,6 +349,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/login'
+    | '/rider-signup'
     | '/signup'
     | '/admin/analytics'
     | '/admin/drivers'
@@ -372,6 +383,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/merchant'
     | '/rider'
+    | '/rider-signup'
     | '/signup'
     | '/_authenticated/app'
     | '/admin/analytics'
@@ -407,11 +419,19 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   MerchantRoute: typeof MerchantRouteWithChildren
   RiderRoute: typeof RiderRouteWithChildren
+  RiderSignupRoute: typeof RiderSignupRoute
   SignupRoute: typeof SignupRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/rider-signup': {
+      id: '/rider-signup'
+      path: '/rider-signup'
+      fullPath: '/rider-signup'
+      preLoaderRoute: typeof RiderSignupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/signup': {
       id: '/signup'
       path: '/signup'
@@ -750,6 +770,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   MerchantRoute: MerchantRouteWithChildren,
   RiderRoute: RiderRouteWithChildren,
+  RiderSignupRoute: RiderSignupRoute,
   SignupRoute: SignupRoute,
 }
 export const routeTree = rootRouteImport

@@ -47,7 +47,7 @@ export function Nav() {
           >
             {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </button>
-          <Link to="/login" className="ml-1 hidden rounded-lg px-3 py-1.5 text-sm text-muted-foreground transition hover:text-foreground md:block">
+          <Link to="/login" search={{ redirect: "/app" }} className="ml-1 hidden rounded-lg px-3 py-1.5 text-sm text-muted-foreground transition hover:text-foreground md:block">
             {t("nav.login")}
           </Link>
           <Link to="/signup" className="rounded-lg bg-gradient-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-glow transition hover:scale-[1.02]">

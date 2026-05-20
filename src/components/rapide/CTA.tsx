@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, MessageCircle } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 import { useT } from "@/lib/i18n";
 
 export function CTA() {
@@ -17,17 +18,28 @@ export function CTA() {
           <div className="absolute inset-0 bg-gradient-radial opacity-60" />
           <div className="relative">
             <h2 className="font-display text-4xl font-bold tracking-tight md:text-6xl">
-              {t("cta.title1")} <span className="text-gradient-primary">{t("cta.title2")}</span>{t("cta.title3")}
+              {t("cta.title1")}{" "}
+              <span className="text-gradient-primary">{t("cta.title2")}</span>
+              {t("cta.title3")}
             </h2>
             <p className="mx-auto mt-5 max-w-xl text-muted-foreground">{t("cta.desc")}</p>
             <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-              <button className="group inline-flex items-center gap-2 rounded-xl bg-gradient-primary px-6 py-3.5 text-sm font-semibold text-primary-foreground shadow-glow transition hover:scale-[1.03]">
+              {/* Primary CTA → signup to start sending parcels */}
+              <Link
+                to="/signup"
+                className="group inline-flex items-center gap-2 rounded-xl bg-gradient-primary px-6 py-3.5 text-sm font-semibold text-primary-foreground shadow-glow transition hover:scale-[1.03] active:scale-[0.98]"
+              >
                 {t("cta.btn1")}
                 <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
-              </button>
-              <button className="rounded-xl glass px-6 py-3.5 text-sm font-semibold transition hover:bg-white/10">
+              </Link>
+              {/* Secondary CTA → mailto for sales inquiries */}
+              <a
+                href="mailto:sales@rapide.africa"
+                className="inline-flex items-center gap-2 rounded-xl glass px-6 py-3.5 text-sm font-semibold transition hover:bg-white/10 active:scale-[0.98]"
+              >
+                <MessageCircle className="h-4 w-4" />
                 {t("cta.btn2")}
-              </button>
+              </a>
             </div>
           </div>
         </motion.div>

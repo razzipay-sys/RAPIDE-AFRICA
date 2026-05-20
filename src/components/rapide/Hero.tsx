@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { ArrowRight, MapPin, Zap } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 import heroImg from "@/assets/hero-rider.jpg?url";
 import { useT } from "@/lib/i18n";
 
@@ -9,7 +10,7 @@ export function Hero() {
     { v: "12 min", l: t("hero.stat1") },
     { v: "98.7%", l: t("hero.stat2") },
     { v: "2 400+", l: t("hero.stat3") },
-    { v: "24/7", l: t("hero.stat4") },
+    { v: "24/7",   l: t("hero.stat4") },
   ];
   return (
     <section className="relative overflow-hidden pt-32 pb-24 md:pt-40 md:pb-32">
@@ -37,16 +38,26 @@ export function Hero() {
             <span className="text-gradient-primary">{t("hero.title2")}</span>
           </h1>
 
-          <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground md:text-xl">{t("hero.desc")}</p>
+          <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground md:text-xl">
+            {t("hero.desc")}
+          </p>
 
           <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
-            <button className="group inline-flex items-center gap-2 rounded-xl bg-gradient-primary px-6 py-3.5 text-sm font-semibold text-primary-foreground shadow-glow transition hover:scale-[1.03]">
+            {/* Send a Parcel → /app/book (auth guard redirects to login if needed) */}
+            <Link
+              to="/app/book"
+              className="group inline-flex items-center gap-2 rounded-xl bg-gradient-primary px-6 py-3.5 text-sm font-semibold text-primary-foreground shadow-glow transition hover:scale-[1.03] active:scale-[0.98]"
+            >
               {t("hero.cta1")}
               <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
-            </button>
-            <button className="inline-flex items-center gap-2 rounded-xl glass px-6 py-3.5 text-sm font-semibold transition hover:bg-white/10">
+            </Link>
+            {/* Become a Courier → dedicated rider signup */}
+            <Link
+              to="/rider-signup"
+              className="inline-flex items-center gap-2 rounded-xl glass px-6 py-3.5 text-sm font-semibold transition hover:bg-white/10 active:scale-[0.98]"
+            >
               {t("hero.cta2")}
-            </button>
+            </Link>
           </div>
         </motion.div>
 
@@ -57,7 +68,14 @@ export function Hero() {
           className="relative mx-auto mt-16 max-w-5xl"
         >
           <div className="relative overflow-hidden rounded-3xl border border-border shadow-elegant">
-            <img src={heroImg} alt="Rapide" width={1600} height={1200} className="w-full h-auto object-cover" />
+            <img
+              src={heroImg}
+              alt="Rapide delivery in action"
+              width={1600}
+              height={1200}
+              className="w-full h-auto object-cover"
+              loading="eager"
+            />
             <div className="absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent" />
 
             <motion.div

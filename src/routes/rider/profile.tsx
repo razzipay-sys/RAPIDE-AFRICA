@@ -1,13 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { User, Star, Package, Phone, Mail, LogOut, ChevronRight, Edit2, Check } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useProfile, useWallet, useRiderProfile } from "@/hooks/use-queries";
 import { fmtXOF } from "@/lib/pricing";
 import { toast } from "sonner";
-
 
 export const Route = createFileRoute("/rider/profile")({
   component: RiderProfile,
@@ -19,40 +19,9 @@ function RiderProfile() {
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState("");
 
-  const { data: profile } = useQuery({
-    queryKey: ["profile", user?.id],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("profiles")
-        .select("full_name, avatar_url, phone")
-        .eq("id", user!.id)
-        .single();
-      return data;
-    },
-    enabled: !!user,
-  });
-
-  const { data: rider } = useQuery({
-    queryKey: ["rider-profile", user?.id],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("riders")
-        .select("rating, total_deliveries, vehicle_type, license_plate, is_online")
-        .eq("user_id", user!.id)
-        .single();
-      return data;
-    },
-    enabled: !!user,
-  });
-
-  const { data: wallet } = useQuery({
-    queryKey: ["wallet", user?.id],
-    queryFn: async () => {
-      const { data } = await supabase.from("wallets").select("balance_xof").eq("user_id", user!.id).single();
-      return data;
-    },
-    enabled: !!user,
-  });
+  const { data: profile } = useProfile(user?.id);
+  const { data: rider }   = useRiderProfile(user?.id);
+  const { data: wallet }  = useWallet(user?.id);
 
   const saveName = useMutation({
     mutationFn: async (name: string) => {

@@ -6,6 +6,7 @@ type Dict = Record<string, { fr: string; en: string }>;
 
 const dict: Dict = {
   // ── Navigation ──
+  "nav.back": { fr: "Retour", en: "Back" },
   "nav.features": { fr: "Fonctionnalités", en: "Features" },
   "nav.network": { fr: "Réseau", en: "Network" },
   "nav.business": { fr: "Entreprises", en: "Business" },
