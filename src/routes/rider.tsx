@@ -2,9 +2,14 @@ import { createFileRoute, Outlet, Link, redirect, useLocation, useNavigate } fro
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { AuthProvider } from "@/hooks/use-auth";
-import { Home, Package, Wallet, User, FileText, ArrowLeft } from "lucide-react";
+import { Home, Package, Wallet, User, FileText, ArrowLeft, LogOut } from "lucide-react";
 import rapideLogo from "@/assets/rapide-logo.jpg";
 import { NotificationBell } from "@/components/rapide/NotificationBell";
+
+async function handleSignOut() {
+  await supabase.auth.signOut();
+  window.location.href = "/login";
+}
 
 export const Route = createFileRoute("/rider")({
   beforeLoad: async ({ location }) => {
@@ -101,8 +106,15 @@ function RiderLayout() {
               )}
             </AnimatePresence>
           </div>
-          <div className="pointer-events-auto">
+          <div className="pointer-events-auto flex items-center gap-2">
             <NotificationBell />
+            <button
+              onClick={handleSignOut}
+              aria-label="Sign out"
+              className="flex h-9 w-9 items-center justify-center rounded-xl glass text-muted-foreground hover:text-destructive transition-colors"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
           </div>
         </div>
 

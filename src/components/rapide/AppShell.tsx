@@ -1,9 +1,10 @@
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
-import { Home, Package, Wallet, User, Plus, MessageCircle, ArrowLeft } from "lucide-react";
+import { Home, Package, Wallet, User, Plus, MessageCircle, ArrowLeft, LogOut } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { ReactNode } from "react";
 import { useT } from "@/lib/i18n";
 import { NotificationBell } from "@/components/rapide/NotificationBell";
+import { supabase } from "@/integrations/supabase/client";
 import rapideLogo from "@/assets/rapide-logo.jpg";
 
 type TabDef = {
@@ -41,6 +42,11 @@ const pageVariants = {
   enter:   { opacity: 1, y: 0, transition: { duration: 0.22, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] } },
   exit:    { opacity: 0, y: -4, transition: { duration: 0.14 } },
 };
+
+async function handleSignOut() {
+  await supabase.auth.signOut();
+  window.location.href = "/login";
+}
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
@@ -94,8 +100,15 @@ export function AppShell({ children }: { children: ReactNode }) {
             )}
           </AnimatePresence>
         </div>
-        <div className="pointer-events-auto">
+        <div className="pointer-events-auto flex items-center gap-2">
           <NotificationBell />
+          <button
+            onClick={handleSignOut}
+            aria-label="Sign out"
+            className="flex h-9 w-9 items-center justify-center rounded-xl glass text-muted-foreground hover:text-destructive transition-colors"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
         </div>
       </div>
 
