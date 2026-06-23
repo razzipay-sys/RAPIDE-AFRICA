@@ -98,7 +98,14 @@ function LoginPage() {
           <div className="h-px flex-1 bg-border" /> {t("login.or")} <div className="h-px flex-1 bg-border" />
         </div>
 
-        <form onSubmit={onSubmit} className="space-y-3">
+        <form
+          onSubmit={onSubmit}
+          className="space-y-3"
+          onKeyDown={(e) => {
+            // avoid any global key handlers interfering with typing
+            e.stopPropagation();
+          }}
+        >
           <input
             id="email"
             name="email"
@@ -121,7 +128,6 @@ function LoginPage() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className="w-full rounded-xl bg-input/40 border border-border px-4 py-2.5 text-sm outline-none focus:border-primary"
-            onKeyDown={(e) => e.stopPropagation()}
           />
           <button
             disabled={loading}
