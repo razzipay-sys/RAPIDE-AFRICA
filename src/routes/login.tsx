@@ -1,5 +1,5 @@
 import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, useCallback, useMemo } from "react";
 import { motion } from "framer-motion";
 import { Loader2 } from "lucide-react";
 import rapideLogo from "@/assets/rapide-logo.jpg";
@@ -30,48 +30,78 @@ function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const safeRedirect = isSafeRedirect(search.redirect) ? search.redirect : "/app";
+  const safeRedirect = useMemo(() => 
+    isSafeRedirect(search.redirect) ? search.redirect : "/app",
+    [search.redirect]
+  );
 
-  const onSubmit = async (e: FormEvent) => {
+  const onSubmit = useCallback(async (e: FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const { data: authData, error } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
-    if (error) {
+    try {
+      const { data: authData, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        toast.error(sanitizeAuthError(error, lang as "fr" | "en"));
+        setLoading(false);
+        return;
+      }
+      toast.success(t("login.toast_welcome"));
+
+      // Role-based redirect only when no specific page was requested
+      if (safeRedirect === "/app" && authData.user) {
+        const { data: roleData } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", authData.user.id)
+          .maybeSingle();
+        if (roleData?.role === "admin") { 
+          navigate({ to: "/admin/" as any }); 
+          setLoading(false);
+          return; 
+        }
+        if (roleData?.role === "rider") { 
+          navigate({ to: "/rider" as any }); 
+          setLoading(false);
+          return; 
+        }
+      }
+      navigate({ to: safeRedirect as any });
+    } catch (error) {
       toast.error(sanitizeAuthError(error, lang as "fr" | "en"));
-      return;
+    } finally {
+      setLoading(false);
     }
-    toast.success(t("login.toast_welcome"));
+  }, [email, password, safeRedirect, navigate, t, lang]);
 
-    // Role-based redirect only when no specific page was requested
-    if (safeRedirect === "/app" && authData.user) {
-      const { data: roleData } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", authData.user.id)
-        .maybeSingle();
-      if (roleData?.role === "admin") { navigate({ to: "/admin/" as any }); return; }
-      if (roleData?.role === "rider") { navigate({ to: "/rider" as any }); return; }
+  const signInWithGoogle = useCallback(async () => {
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: window.location.origin + "/app",
+          queryParams: { access_type: "offline", prompt: "select_account" },
+        },
+      });
+      if (error) toast.error(sanitizeAuthError(error, lang as "fr" | "en"));
+    } catch (error) {
+      toast.error(sanitizeAuthError(error, lang as "fr" | "en"));
     }
-    navigate({ to: safeRedirect as any });
-  };
+  }, [lang]);
 
-  const signInWithGoogle = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: window.location.origin + "/app",
-        queryParams: { access_type: "offline", prompt: "select_account" },
-      },
-    });
-    if (error) toast.error(sanitizeAuthError(error, lang as "fr" | "en"));
-  };
+  const handleEmailChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setEmail(e.target.value);
+  }, []);
+
+  const handlePasswordChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setPassword(e.target.value);
+  }, []);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-hero px-4">
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
         className="glass-strong w-full max-w-md rounded-3xl p-8"
       >
         <Link to="/" className="flex items-center gap-2 mb-6">
@@ -98,14 +128,7 @@ function LoginPage() {
           <div className="h-px flex-1 bg-border" /> {t("login.or")} <div className="h-px flex-1 bg-border" />
         </div>
 
-        <form
-          onSubmit={onSubmit}
-          className="space-y-3"
-          onKeyDown={(e) => {
-            // avoid any global key handlers interfering with typing
-            e.stopPropagation();
-          }}
-        >
+        <form onSubmit={onSubmit} className="space-y-3">
           <input
             id="email"
             name="email"
@@ -115,7 +138,7 @@ function LoginPage() {
             inputMode="email"
             placeholder="Email"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={handleEmailChange}
             className="w-full rounded-xl bg-input/40 border border-border px-4 py-2.5 text-sm outline-none focus:border-primary"
           />
           <input
@@ -126,10 +149,11 @@ function LoginPage() {
             autoComplete="current-password"
             placeholder={t("login.password")}
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={handlePasswordChange}
             className="w-full rounded-xl bg-input/40 border border-border px-4 py-2.5 text-sm outline-none focus:border-primary"
           />
           <button
+            type="submit"
             disabled={loading}
             className="w-full rounded-xl bg-gradient-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-glow disabled:opacity-60 flex items-center justify-center gap-2"
           >
