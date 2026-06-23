@@ -100,15 +100,20 @@ function LoginPage() {
 
         <form onSubmit={onSubmit} className="space-y-3">
           <input
+            id="email"
+            name="email"
             type="email"
             required
             autoComplete="email"
+            inputMode="email"
             placeholder="Email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className="w-full rounded-xl bg-input/40 border border-border px-4 py-2.5 text-sm outline-none focus:border-primary"
           />
           <input
+            id="password"
+            name="password"
             type="password"
             required
             autoComplete="current-password"
@@ -116,6 +121,7 @@ function LoginPage() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className="w-full rounded-xl bg-input/40 border border-border px-4 py-2.5 text-sm outline-none focus:border-primary"
+            onKeyDown={(e) => e.stopPropagation()}
           />
           <button
             disabled={loading}
