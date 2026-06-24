@@ -110,9 +110,9 @@ function WalletPage() {
         type:        "topup",
         amount_xof:  amountXof,
         reference,
-        description: lang === "fr"
+        description: t("wallet.pending_topup_desc", { reference }) ?? (lang === "fr"
           ? `Rechargement Mobile Money en attente — réf. ${reference}`
-          : `Pending Mobile Money top-up — ref. ${reference}`,
+          : `Pending Mobile Money top-up — ref. ${reference}`),
       });
       if (error) throw error;
     },
@@ -132,10 +132,10 @@ function WalletPage() {
       const { error } = await supabase.from("support_tickets").insert({
         user_id:     user!.id,
         category:    "payment",
-        subject:     lang === "fr" ? "Demande de retrait" : "Withdrawal request",
-        message:     lang === "fr"
-          ? `Retrait de ${fmtXOF(amountXof)} vers ${phone}. Solde actuel: ${fmtXOF(wallet?.balance_xof ?? 0)}.`
-          : `Withdrawal of ${fmtXOF(amountXof)} to ${phone}. Current balance: ${fmtXOF(wallet?.balance_xof ?? 0)}.`,
+        subject:     t("wallet.req_subj") || (t("auto.withdrawalreque")),
+        message:     t("wallet.req_msg", { amount: fmtXOF(amountXof), phone }) ?? (lang === "fr"
+          ? `L'utilisateur demande un retrait de ${fmtXOF(amountXof)} sur le numéro ${phone}.`
+          : `User requests a withdrawal of ${fmtXOF(amountXof)} to number ${phone}.`),
         priority: "normal",
         status:   "open",
       });
@@ -143,9 +143,7 @@ function WalletPage() {
     },
     onSuccess: () => {
       toast.success(
-        lang === "fr"
-          ? "Demande de retrait envoyée. Vous serez contacté sous 24h."
-          : "Withdrawal request submitted. Our team will contact you within 24h."
+        t("wallet.req_sent") || (t("auto.withdrawalreque"))
       );
       setWithdrawOpen(false);
       setWithdrawAmount("");
@@ -184,7 +182,7 @@ function WalletPage() {
   function handleAmountConfirm() {
     const n = Number(amount);
     if (!n || n < 500) {
-      toast.error(lang === "fr" ? "Montant minimum : 500 XOF" : "Minimum amount: 500 XOF");
+      toast.error(t("wallet.min_amount") ?? (t("auto.minimumamountxo")));
       return;
     }
     setStep("instructions");
@@ -224,7 +222,7 @@ function WalletPage() {
               {fmtXOF(wallet?.balance_xof ?? 0)}
             </p>
             <p className="text-xs text-muted-foreground mt-2">
-              {lang === "fr" ? "Ce mois :" : "This month:"}{" "}
+              {t("wallet.this_month") ?? (t("auto.thismonth"))}{" "}
               <span className="text-green-400 font-medium">+{fmtXOF(thisMonthTotal)}</span>
             </p>
 
@@ -269,11 +267,11 @@ function WalletPage() {
             >
               {/* Header */}
               <div className="flex items-center justify-between mb-5">
-                <h2 className="font-display text-xl font-bold">
+                <h3 className="font-display text-2xl font-bold">
                   {step === "done"
-                    ? (lang === "fr" ? "Rechargement enregistré ✓" : "Top-up recorded ✓")
-                    : t("wallet.topup")}
-                </h2>
+                    ? (t("wallet.topup_recorded") ?? (t("auto.topuprecorded")))
+                    : t("wallet.topup_title")}
+                </h3>
                 <button onClick={closeTopup} className="text-muted-foreground hover:text-foreground">
                   <X className="h-5 w-5" />
                 </button>
@@ -301,7 +299,7 @@ function WalletPage() {
                   <input
                     type="number"
                     id="topup-amount-input"
-                    placeholder={lang === "fr" ? "Montant en XOF" : "Amount in XOF"}
+                    placeholder={t("wallet.amount_xof") ?? (t("auto.amountinxof"))}
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
                     className="w-full rounded-xl bg-input/40 border border-border px-4 py-2.5 text-sm outline-none focus:border-primary mb-4"
@@ -312,9 +310,9 @@ function WalletPage() {
                     onClick={handleAmountConfirm}
                     className="w-full rounded-xl bg-gradient-primary py-3 text-sm font-bold text-primary-foreground shadow-glow"
                   >
-                    {amount
-                      ? `${lang === "fr" ? "Continuer" : "Continue"} — ${fmtXOF(Number(amount))}`
-                      : (lang === "fr" ? "Entrer un montant" : "Enter an amount")}
+                    {amount && Number(amount) >= 500
+                      ? `${t("wallet.continue") ?? (t("auto.continue"))} — ${fmtXOF(Number(amount))}`
+                      : (t("wallet.enter_amount") ?? (t("auto.enteranamount")))}
                   </button>
                 </motion.div>
               )}
@@ -323,9 +321,7 @@ function WalletPage() {
               {step === "instructions" && (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
                   <p className="text-sm text-muted-foreground">
-                    {lang === "fr"
-                      ? `Envoyez ${fmtXOF(Number(amount))} à l'un de ces numéros en indiquant votre référence :`
-                      : `Send ${fmtXOF(Number(amount))} to one of these numbers with your reference:`}
+                    {t("wallet.transfer_instr")}
                   </p>
 
                   {/* MoMo numbers */}
@@ -345,7 +341,7 @@ function WalletPage() {
                   <div className="glass rounded-xl p-3 flex items-center justify-between gap-3">
                     <div>
                       <p className="text-xs text-muted-foreground">
-                        {lang === "fr" ? "Référence (obligatoire)" : "Reference (required)"}
+                        {t("wallet.ref_required") ?? (t("auto.referencerequir"))}
                       </p>
                       <p className="font-mono font-bold text-primary text-lg tracking-wider">{ref}</p>
                     </div>
@@ -359,9 +355,7 @@ function WalletPage() {
                   </div>
 
                   <p className="text-xs text-muted-foreground">
-                    {lang === "fr"
-                      ? "⚡ Votre solde sera crédité dans les 2h après vérification du transfert."
-                      : "⚡ Your balance will be credited within 2h after transfer verification."}
+                    {t("auto.yourbalancewill")}
                   </p>
 
                   <button
@@ -371,8 +365,8 @@ function WalletPage() {
                     className="w-full rounded-xl bg-gradient-primary py-3 text-sm font-bold text-primary-foreground shadow-glow disabled:opacity-60"
                   >
                     {confirmTopup.isPending
-                      ? (lang === "fr" ? "Enregistrement…" : "Recording…")
-                      : (lang === "fr" ? "J'ai effectué le transfert" : "I've completed the transfer")}
+                      ? (t("wallet.recording") ?? (t("auto.recording")))
+                      : (t("wallet.completed_transfer") ?? (t("auto.ivecompletedthe")))}
                   </button>
                 </motion.div>
               )}
@@ -390,24 +384,22 @@ function WalletPage() {
                     </div>
                   </div>
                   <p className="font-display text-lg font-bold mb-2">
-                    {lang === "fr" ? "Demande enregistrée !" : "Request recorded!"}
+                    {t("auto.requestrecorded")}
                   </p>
                   <p className="text-sm text-muted-foreground mb-1">
-                    {lang === "fr" ? "Référence :" : "Reference:"}{" "}
+                    {t("auto.reference")}{" "}
                     <span className="font-mono font-bold text-primary">{ref}</span>
                   </p>
                   <p className="text-xs text-muted-foreground mb-6">
-                    {lang === "fr"
-                      ? "Votre solde sera crédité de"
-                      : "Your wallet will be credited with"}{" "}
+                    {t("wallet.ref_help")}{" "}
                     <span className="font-semibold text-green-400">{fmtXOF(Number(amount))}</span>{" "}
-                    {lang === "fr" ? "après vérification." : "after verification."}
+                    {t("auto.afterverificati")}
                   </p>
                   <button
                     onClick={closeTopup}
                     className="w-full rounded-xl glass py-2.5 text-sm font-semibold"
                   >
-                    {lang === "fr" ? "Fermer" : "Close"}
+                    {t("auto.close")}
                   </button>
                 </motion.div>
               )}
@@ -443,15 +435,13 @@ function WalletPage() {
               </div>
 
               <p className="text-sm text-muted-foreground mb-4">
-                {lang === "fr"
-                  ? "Renseignez le montant et le numéro Mobile Money sur lequel vous souhaitez recevoir le virement."
-                  : "Enter the amount and Mobile Money number you'd like the payout sent to."}
+                {t("auto.entertheamounta")}
               </p>
 
               <div className="space-y-3 mb-5">
                 <div>
                   <p className="text-xs text-muted-foreground mb-1">
-                    {lang === "fr" ? "Montant (XOF)" : "Amount (XOF)"}
+                    {t("auto.amountxof")}
                   </p>
                   <input
                     id="withdraw-amount-input"
@@ -464,7 +454,7 @@ function WalletPage() {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground mb-1">
-                    {lang === "fr" ? "Numéro Mobile Money" : "Mobile Money number"}
+                    {t("auto.mobilemoneynumb")}
                   </p>
                   <input
                     id="withdraw-phone-input"
@@ -479,7 +469,7 @@ function WalletPage() {
 
               {wallet && Number(withdrawAmount) > wallet.balance_xof && (
                 <p className="text-xs text-destructive mb-3">
-                  {lang === "fr" ? "Solde insuffisant." : "Insufficient balance."}
+                  {t("auto.insufficientbal")}
                 </p>
               )}
 
@@ -501,8 +491,8 @@ function WalletPage() {
                 className="w-full rounded-xl bg-gradient-primary py-3 text-sm font-bold text-primary-foreground shadow-glow disabled:opacity-50"
               >
                 {requestWithdrawal.isPending
-                  ? (lang === "fr" ? "Envoi…" : "Sending…")
-                  : (lang === "fr" ? "Demander le retrait" : "Request withdrawal")}
+                  ? (t("auto.sending"))
+                  : (t("auto.requestwithdraw"))}
               </button>
             </motion.div>
           </motion.div>
@@ -544,7 +534,7 @@ function WalletPage() {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{tx.description ?? label}</p>
                     <p className="text-[11px] text-muted-foreground mt-0.5">
-                      {new Date(tx.created_at).toLocaleString(lang === "fr" ? "fr-FR" : "en-GB", {
+                      {new Date(tx.created_at).toLocaleString(t("auto.engb"), {
                         day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
                       })}
                       {tx.reference && (

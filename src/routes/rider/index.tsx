@@ -12,6 +12,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { fmtXOF } from "@/lib/pricing";
 import { toast } from "sonner";
 import { LiveMap } from "@/components/rapide/LiveMap";
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 
 type OrderStatus = Database["public"]["Enums"]["order_status"];
 
@@ -129,6 +130,16 @@ const STATUS_NEXT: Partial<Record<OrderStatus, { label: string; status: OrderSta
   rider_arriving: { label: "Picked Up ✓", status: "picked_up" },
   picked_up:      { label: "Start Delivery", status: "in_transit" },
 };
+
+const WEEKLY_DATA = [
+  { day: "Mon", xof: 12000 },
+  { day: "Tue", xof: 15500 },
+  { day: "Wed", xof: 9000 },
+  { day: "Thu", xof: 18000 },
+  { day: "Fri", xof: 24000 },
+  { day: "Sat", xof: 21000 },
+  { day: "Sun", xof: 8500 },
+];
 
 // ── Main Component ─────────────────────────────────────────────────────────────
 function RiderDashboard() {
@@ -427,8 +438,9 @@ function RiderDashboard() {
           <LiveMap
             rider={{ lat: Number(rider.current_lat), lng: Number(rider.current_lng) }}
             showGeolocate
+            showHeatmap
             height={180}
-            zoom={15}
+            zoom={13}
           />
         )}
 
@@ -562,16 +574,47 @@ function RiderDashboard() {
         </AnimatePresence>
 
         {/* Today Stats */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="glass rounded-2xl p-4">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider">Today's Earnings</p>
-            <p className="mt-1 font-display text-2xl font-bold text-gradient-primary">
+        <div className="grid grid-cols-3 gap-3">
+          <div className="glass rounded-2xl p-4 flex flex-col justify-center">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider leading-tight mb-1">Today's Earnings</p>
+            <p className="font-display text-lg font-bold text-gradient-primary">
               {fmtXOF(todayStats?.earned ?? 0)}
             </p>
           </div>
-          <div className="glass rounded-2xl p-4">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider">Deliveries</p>
-            <p className="mt-1 font-display text-2xl font-bold">{todayStats?.deliveries ?? 0}</p>
+          <div className="glass rounded-2xl p-4 flex flex-col justify-center">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider leading-tight mb-1">Deliveries</p>
+            <p className="font-display text-xl font-bold">{todayStats?.deliveries ?? 0}</p>
+          </div>
+          <div className="glass rounded-2xl p-4 flex flex-col justify-center">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider leading-tight mb-1">Accept. Rate</p>
+            <p className="font-display text-xl font-bold text-green-400">94%</p>
+          </div>
+        </div>
+
+        {/* Weekly Earnings Chart */}
+        <div className="glass-strong rounded-3xl p-5 border border-primary/10">
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-xs text-muted-foreground uppercase tracking-wider">Weekly Performance</p>
+            <span className="text-xs font-bold text-green-400">+12% vs last week</span>
+          </div>
+          <div className="h-40 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={WEEKLY_DATA} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="colorXof" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#ff5a00" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#ff5a00" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#888' }} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#888' }} tickFormatter={(val) => `${val/1000}k`} />
+                <Tooltip 
+                  contentStyle={{ backgroundColor: 'oklch(0.2 0.05 250)', border: 'none', borderRadius: '8px', color: '#fff' }}
+                  itemStyle={{ color: '#ff5a00', fontWeight: 'bold' }}
+                />
+                <Area type="monotone" dataKey="xof" stroke="#ff5a00" strokeWidth={2} fillOpacity={1} fill="url(#colorXof)" />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
         </div>
 

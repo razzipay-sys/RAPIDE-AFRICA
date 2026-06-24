@@ -87,7 +87,7 @@ function ProfilePage() {
     setNewLabel("");
     setNewAddress("");
     setAddingAddress(false);
-    toast.success(lang === "fr" ? "Adresse sauvegardée" : "Address saved");
+    toast.success(t("profile.saved_address"));
   };
 
   const removeAddress = (id: string) => {
@@ -131,7 +131,7 @@ function ProfilePage() {
           </div>
           <p className="font-display text-xl font-bold">{stats?.delivered ?? "—"}</p>
           <p className="text-[10px] text-muted-foreground mt-0.5">
-            {lang === "fr" ? "Livraisons" : "Deliveries"}
+            {t("profile.deliveries")}
           </p>
         </div>
         <div className="glass rounded-2xl p-3 text-center">
@@ -142,7 +142,7 @@ function ProfilePage() {
             {stats ? fmtXOF(stats.totalSpent) : "—"}
           </p>
           <p className="text-[10px] text-muted-foreground mt-0.5">
-            {lang === "fr" ? "Total dépensé" : "Total spent"}
+            {t("profile.total_spent")}
           </p>
         </div>
         <div className="glass rounded-2xl p-3 text-center">
@@ -153,7 +153,7 @@ function ProfilePage() {
             {stats?.avgRating != null ? stats.avgRating.toFixed(1) : "—"}
           </p>
           <p className="text-[10px] text-muted-foreground mt-0.5">
-            {lang === "fr" ? "Note moyenne" : "Avg rating"}
+            {t("profile.avg_rating")}
           </p>
         </div>
       </motion.div>
@@ -167,14 +167,14 @@ function ProfilePage() {
         <div className="flex items-center justify-between mb-2">
           <h2 className="font-display text-base font-bold flex items-center gap-2">
             <MapPin className="h-4 w-4 text-primary" />
-            {lang === "fr" ? "Adresses sauvegardées" : "Saved addresses"}
+            {t("profile.saved_addresses")}
           </h2>
           <button
             onClick={() => setAddingAddress((v) => !v)}
             className="flex items-center gap-1 text-xs text-primary font-medium"
           >
             <Plus className="h-3.5 w-3.5" />
-            {lang === "fr" ? "Ajouter" : "Add"}
+            {t("profile.add")}
           </button>
         </div>
 
@@ -189,14 +189,14 @@ function ProfilePage() {
               <div className="glass rounded-2xl p-4 space-y-2">
                 <input
                   type="text"
-                  placeholder={lang === "fr" ? "Étiquette (ex: Maison)" : "Label (e.g. Home)"}
+                  placeholder={t("profile.label_hint")}
                   value={newLabel}
                   onChange={(e) => setNewLabel(e.target.value)}
                   className="w-full rounded-xl bg-input/40 border border-border px-3 py-2 text-sm outline-none focus:border-primary"
                 />
                 <input
                   type="text"
-                  placeholder={lang === "fr" ? "Adresse complète" : "Full address"}
+                  placeholder={t("profile.address_hint")}
                   value={newAddress}
                   onChange={(e) => setNewAddress(e.target.value)}
                   className="w-full rounded-xl bg-input/40 border border-border px-3 py-2 text-sm outline-none focus:border-primary"
@@ -206,14 +206,14 @@ function ProfilePage() {
                     onClick={() => setAddingAddress(false)}
                     className="flex-1 rounded-xl glass py-2 text-xs font-semibold"
                   >
-                    {lang === "fr" ? "Annuler" : "Cancel"}
+                    {t("profile.cancel")}
                   </button>
                   <button
                     onClick={addAddress}
                     disabled={!newLabel.trim() || !newAddress.trim()}
                     className="flex-1 rounded-xl bg-gradient-primary py-2 text-xs font-bold text-primary-foreground disabled:opacity-40"
                   >
-                    {lang === "fr" ? "Sauvegarder" : "Save"}
+                    {t("profile.save")}
                   </button>
                 </div>
               </div>
@@ -243,9 +243,7 @@ function ProfilePage() {
           </div>
         ) : (
           <p className="text-xs text-muted-foreground text-center py-3">
-            {lang === "fr"
-              ? "Aucune adresse sauvegardée"
-              : "No saved addresses yet"}
+            {t("profile.no_addresses")}
           </p>
         )}
       </motion.section>
@@ -268,7 +266,7 @@ function ProfilePage() {
           <ChevronRight className="h-4 w-4 text-muted-foreground" />
         </button>
         <button
-          onClick={() => setLang(lang === "fr" ? "en" : "fr")}
+          onClick={() => setLang(t("auto.fr"))}
           className="w-full p-4 flex items-center gap-3 text-left"
         >
           <Languages className="h-4 w-4 text-primary" />

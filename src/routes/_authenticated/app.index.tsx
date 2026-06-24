@@ -10,6 +10,7 @@ import { fmtXOF } from "@/lib/pricing";
 import { useT } from "@/lib/i18n";
 import { StatusBadge, StatusDot } from "@/components/rapide/StatusBadge";
 import { SkeletonOrderCard, SkeletonStatCard } from "@/components/rapide/SkeletonCard";
+import { LiveMap } from "@/components/rapide/LiveMap";
 
 export const Route = createFileRoute("/_authenticated/app/")({
   beforeLoad: async () => {
@@ -29,23 +30,23 @@ export const Route = createFileRoute("/_authenticated/app/")({
   component: Home,
 });
 
-function getGreeting(lang: string): string {
+function getGreeting(t: (key: string) => string): string {
   const h = new Date().getHours();
-  if (h < 12) return lang === "fr" ? "Bonjour" : "Good morning";
-  if (h < 18) return lang === "fr" ? "Bon après-midi" : "Good afternoon";
-  return lang === "fr" ? "Bonsoir" : "Good evening";
+  if (h < 12) return t("app.greeting.morning");
+  if (h < 18) return t("app.greeting.afternoon");
+  return t("app.greeting.evening");
 }
 
 const QUICK_ACTIONS = [
-  { icon: Zap, labelFr: "Express", labelEn: "Express", to: "/app/book", color: "bg-primary/15 text-primary" },
-  { icon: Clock, labelFr: "Programmé", labelEn: "Scheduled", to: "/app/book", color: "bg-blue-500/15 text-blue-400" },
-  { icon: Shield, labelFr: "Assuré", labelEn: "Insured", to: "/app/book", color: "bg-green-500/15 text-green-400" },
-  { icon: MapPin, labelFr: "Suivre", labelEn: "Track", to: "/app/orders", color: "bg-purple-500/15 text-purple-400" },
+  { icon: Zap, labelKey: "app.quick.express", to: "/app/book", color: "bg-primary/15 text-primary" },
+  { icon: Clock, labelKey: "app.quick.scheduled", to: "/app/book", color: "bg-blue-500/15 text-blue-400" },
+  { icon: Shield, labelKey: "app.quick.insured", to: "/app/book", color: "bg-green-500/15 text-green-400" },
+  { icon: MapPin, labelKey: "app.quick.track", to: "/app/orders", color: "bg-purple-500/15 text-purple-400" },
 ] as const;
 
 function Home() {
   const { user } = useAuth();
-  const { t, lang } = useT();
+  const { t } = useT();
 
   const { data: wallet, isLoading: walletLoading } = useQuery({
     queryKey: ["wallet", user?.id],
@@ -70,7 +71,7 @@ function Home() {
     queryFn: async () => {
       const { data } = await supabase
         .from("orders")
-        .select("id,code,status,pickup_address,dropoff_address,price_xof,created_at")
+        .select("id,code,status,pickup_address,dropoff_address,pickup_lat,pickup_lng,dropoff_lat,dropoff_lng,price_xof,created_at")
         .eq("customer_id", user!.id)
         .order("created_at", { ascending: false })
         .limit(3);
@@ -92,7 +93,7 @@ function Home() {
   });
 
   const firstName = profile?.full_name?.split(" ")[0] || "";
-  const greeting = getGreeting(lang);
+  const greeting = getGreeting(t);
   const activeOrder = orders?.find((o) =>
     ["searching_rider", "rider_assigned", "rider_arriving", "picked_up", "in_transit"].includes(o.status)
   );
@@ -103,7 +104,7 @@ function Home() {
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
         <p className="text-sm text-muted-foreground">{greeting}</p>
         <h1 className="font-display text-3xl font-bold">
-          {firstName || (lang === "fr" ? "Bienvenue" : "Welcome")} 👋
+          {firstName || t("app.welcome")} 👋
         </h1>
       </motion.div>
 
@@ -113,32 +114,45 @@ function Home() {
           initial={{ opacity: 0, scale: 0.98 }}
           animate={{ opacity: 1, scale: 1 }}
         >
-          <Link
-            to="/app/track/$orderId"
-            params={{ orderId: activeOrder.id }}
-            className="block rounded-3xl bg-gradient-primary p-4 shadow-glow"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="h-2 w-2 rounded-full bg-white animate-pulse" />
-                  <span className="text-xs font-bold text-primary-foreground/80 uppercase tracking-wider">
-                    {lang === "fr" ? "Course en cours" : "Active trip"}
-                  </span>
-                </div>
-                <p className="font-display text-base font-bold text-primary-foreground">
-                  {activeOrder.pickup_address} → {activeOrder.dropoff_address}
-                </p>
-                <p className="text-xs text-primary-foreground/70 mt-0.5">
-                  {activeOrder.code} · {fmtXOF(activeOrder.price_xof)}
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <StatusBadge status={activeOrder.status} className="bg-white/20 text-primary-foreground border-white/30" />
-                <ArrowRight className="h-5 w-5 text-primary-foreground" />
-              </div>
+          <div className="block rounded-3xl bg-gradient-primary overflow-hidden shadow-glow">
+            <div className="h-32 w-full relative z-0 pointer-events-none">
+              <LiveMap 
+                pickup={activeOrder.pickup_lng ? [activeOrder.pickup_lng, activeOrder.pickup_lat] : undefined} 
+                dropoff={activeOrder.dropoff_lng ? [activeOrder.dropoff_lng, activeOrder.dropoff_lat] : undefined}
+                height={128}
+                zoom={11}
+                showRoute={true}
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-primary/95 via-primary/50 to-transparent" />
             </div>
-          </Link>
+            
+            <Link
+              to="/app/track/$orderId"
+              params={{ orderId: activeOrder.id }}
+              className="block p-4 relative z-10 -mt-6"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="h-2 w-2 rounded-full bg-white animate-pulse" />
+                    <span className="text-xs font-bold text-primary-foreground/90 uppercase tracking-wider">
+                      {t("app.active_trip")}
+                    </span>
+                  </div>
+                  <p className="font-display text-base font-bold text-primary-foreground">
+                    {activeOrder.pickup_address} → {activeOrder.dropoff_address}
+                  </p>
+                  <p className="text-xs text-primary-foreground/80 mt-0.5">
+                    {activeOrder.code} · {fmtXOF(activeOrder.price_xof)}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <StatusBadge status={activeOrder.status} className="bg-white/20 text-primary-foreground border-white/30 backdrop-blur-md" />
+                  <ArrowRight className="h-5 w-5 text-primary-foreground" />
+                </div>
+              </div>
+            </Link>
+          </div>
         </motion.div>
       )}
 
@@ -199,8 +213,8 @@ function Home() {
               <div className={`h-12 w-12 rounded-2xl flex items-center justify-center ${action.color}`}>
                 <action.icon className="h-5 w-5" />
               </div>
-              <span className="text-[10px] text-muted-foreground text-center leading-tight">
-                {lang === "fr" ? action.labelFr : action.labelEn}
+              <span className="text-[10px] font-semibold text-center text-muted-foreground uppercase tracking-wider">
+                {t(action.labelKey)}
               </span>
             </Link>
           </motion.div>
@@ -236,9 +250,9 @@ function Home() {
         </motion.div>
       </div>
 
-      {/* Recent orders */}
+      {/* Recent Activity Timeline */}
       <section>
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between mb-4">
           <h2 className="font-display text-lg font-bold">{t("app.recent_orders")}</h2>
           <Link to="/app/orders" className="text-xs text-primary font-medium">{t("app.see_all")}</Link>
         </div>
@@ -248,38 +262,52 @@ function Home() {
             {[1, 2].map((i) => <SkeletonOrderCard key={i} />)}
           </div>
         ) : orders?.length ? (
-          <div className="space-y-2">
-            {orders.map((o, i) => (
-              <motion.div
-                key={o.id}
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.18 + i * 0.05 }}
-              >
-                <Link
-                  to="/app/track/$orderId"
-                  params={{ orderId: o.id }}
-                  className="flex items-center gap-3 glass rounded-2xl p-4 hover:bg-white/5 transition-colors"
+          <div className="relative pl-3">
+            <div className="absolute left-[21px] top-4 bottom-4 w-px bg-white/10" />
+            <div className="space-y-4">
+              {orders.map((o, i) => (
+                <motion.div
+                  key={o.id}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.18 + i * 0.05 }}
+                  className="relative"
                 >
-                  <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                    <Package className="h-5 w-5 text-primary" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="text-xs text-muted-foreground font-mono">{o.code}</p>
-                      <StatusDot status={o.status} />
+                  <Link
+                    to="/app/track/$orderId"
+                    params={{ orderId: o.id }}
+                    className="flex items-center gap-4 group"
+                  >
+                    <div className="relative z-10 h-10 w-10 rounded-full bg-background border-2 border-border flex items-center justify-center shrink-0 group-hover:border-primary/50 transition-colors">
+                      <div className="h-4 w-4 rounded-full bg-primary/20 flex items-center justify-center">
+                        <div className="h-2 w-2 rounded-full bg-primary" />
+                      </div>
                     </div>
-                    <p className="text-sm font-medium truncate mt-0.5">
-                      {o.pickup_address} → {o.dropoff_address}
-                    </p>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <p className="text-sm font-bold">{fmtXOF(o.price_xof)}</p>
-                    <StatusBadge status={o.status} className="text-[9px] px-1.5 py-0 mt-0.5" />
-                  </div>
-                </Link>
-              </motion.div>
-            ))}
+                    <div className="flex-1 glass rounded-2xl p-4 group-hover:bg-white/5 transition-colors">
+                      <div className="flex justify-between items-start mb-2">
+                        <div className="flex items-center gap-2">
+                          <p className="text-xs text-muted-foreground font-mono">{o.code}</p>
+                          <StatusDot status={o.status} />
+                        </div>
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                          {new Date(o.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                        </p>
+                      </div>
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-sm font-medium leading-tight">
+                          {o.pickup_address} <br/>
+                          <span className="text-muted-foreground">↓ {o.dropoff_address}</span>
+                        </p>
+                        <div className="text-right shrink-0">
+                          <p className="text-sm font-bold text-gradient-primary">{fmtXOF(o.price_xof)}</p>
+                          <StatusBadge status={o.status} className="text-[9px] px-1.5 py-0 mt-1" />
+                        </div>
+                      </div>
+                    </div>
+                  </Link>
+                </motion.div>
+              ))}
+            </div>
           </div>
         ) : (
           <div className="glass rounded-2xl p-6 text-center">

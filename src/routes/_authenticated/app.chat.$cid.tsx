@@ -37,7 +37,7 @@ function groupByDate(messages: Message[], lang: string) {
   let last = "";
   for (const m of messages) {
     const d = new Date(m.created_at).toLocaleDateString(
-      lang === "fr" ? "fr-FR" : "en-GB",
+      t("auto.engb"),
       { weekday: "long", day: "numeric", month: "long" },
     );
     if (d !== last) {
@@ -202,11 +202,11 @@ function ChatRoomPage() {
   const sendImageMessage = async (file: File) => {
     if (!user || !cid) return;
     if (file.size > MAX_FILE_SIZE) {
-      toast.error(lang === "fr" ? "Fichier trop grand (max 5 Mo)" : "File too large (max 5 MB)");
+      toast.error(t("chat.file_too_large"));
       return;
     }
     if (!ALLOWED_MIME.has(file.type)) {
-      toast.error(lang === "fr" ? "Format non supporté" : "Unsupported format");
+      toast.error(t("chat.format_unsupported"));
       return;
     }
     setUploading(true);
@@ -470,7 +470,7 @@ function MessageBubble({
   lang: string;
 }) {
   const time = new Date(msg.created_at).toLocaleTimeString(
-    lang === "fr" ? "fr-FR" : "en-GB",
+    t("auto.engb"),
     { hour: "2-digit", minute: "2-digit" },
   );
 

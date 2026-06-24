@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { motion } from "framer-motion";
 import { MapPin, Navigation } from "lucide-react";
 import type { LayerProps } from "react-map-gl/mapbox";
@@ -27,16 +27,19 @@ type MapboxRuntime = {
 
 export type LatLng = { lat: number; lng: number };
 export type RiderPin = { lat: number; lng: number; id?: string };
+export type OrderRoute = { id: string; pickup: LatLng; dropoff: LatLng };
 
 type Props = {
   pickup?: LatLng | null;
   dropoff?: LatLng | null;
   rider?: LatLng | null;
   riders?: RiderPin[];
+  activeOrders?: OrderRoute[];
   height?: number;
   showRoute?: boolean;
   routeCoords?: LatLng[];
   showGeolocate?: boolean;
+  showHeatmap?: boolean;
   zoom?: number;
   className?: string;
   onMapClick?: (latlng: LatLng) => void;
@@ -47,16 +50,38 @@ export function LiveMap({
   dropoff,
   rider,
   riders,
+  activeOrders,
   height = 260,
   showRoute = false,
   routeCoords,
   showGeolocate = false,
+  showHeatmap = false,
   zoom = 13,
   className,
   onMapClick,
 }: Props) {
   const [mapbox, setMapbox] = useState<MapboxRuntime | null>(null);
   const [routeGeoJSON, setRouteGeoJSON] = useState<any>(null);
+  const mapRef = useRef<any>(null);
+
+  // Compute straight-line multi-routes for admin dashboard
+  const activeOrdersGeoJSON = useMemo(() => {
+    if (!activeOrders || activeOrders.length === 0) return null;
+    return {
+      type: "FeatureCollection" as const,
+      features: activeOrders.map(o => ({
+        type: "Feature" as const,
+        geometry: {
+          type: "LineString" as const,
+          coordinates: [
+            [o.pickup.lng, o.pickup.lat],
+            [o.dropoff.lng, o.dropoff.lat]
+          ]
+        },
+        properties: { id: o.id }
+      }))
+    };
+  }, [activeOrders]);
 
   useEffect(() => {
     if (!TOKEN) return;
@@ -90,6 +115,12 @@ export function LiveMap({
     }
     return { longitude: 2.4183, latitude: 6.3654 };
   }, [pickup, dropoff, rider, riders]);
+
+  useEffect(() => {
+    if (mapRef.current && center) {
+      mapRef.current.flyTo({ center: [center.longitude, center.latitude], zoom, duration: 800 });
+    }
+  }, [center.longitude, center.latitude, zoom]);
 
   useEffect(() => {
     if (!showRoute || !TOKEN) {
@@ -164,6 +195,7 @@ export function LiveMap({
   return (
     <div className={`rounded-3xl overflow-hidden border border-white/5 ${className ?? ""}`} style={{ height }}>
       <Map
+        ref={mapRef}
         initialViewState={{ ...center, zoom }}
         mapboxAccessToken={TOKEN}
         mapStyle="mapbox://styles/mapbox/dark-v11"
@@ -179,6 +211,63 @@ export function LiveMap({
         {routeGeoJSON && (
           <Source id="route" type="geojson" data={routeGeoJSON}>
             <Layer {...routeLayer} />
+          </Source>
+        )}
+
+        {/* Admin Route Layers */}
+        {activeOrdersGeoJSON && (
+          <Source type="geojson" data={activeOrdersGeoJSON}>
+            <Layer
+              id="active-orders-line"
+              type="line"
+              layout={{ "line-join": "round", "line-cap": "round" }}
+              paint={{
+                "line-color": "#ff5a00",
+                "line-width": 4,
+                "line-opacity": 0.8,
+              }}
+            />
+          </Source>
+        )}
+
+        {/* Heatmap Layer */}
+        {showHeatmap && rider && (
+          <Source
+            type="geojson"
+            data={{
+              type: "FeatureCollection",
+              features: Array.from({ length: 50 }).map(() => ({
+                type: "Feature",
+                geometry: {
+                  type: "Point",
+                  coordinates: [
+                    rider.lng + (Math.random() - 0.5) * 0.05,
+                    rider.lat + (Math.random() - 0.5) * 0.05,
+                  ],
+                },
+                properties: { weight: Math.random() },
+              }))
+            } as any}
+          >
+            <Layer
+              id="demand-heatmap"
+              type="heatmap"
+              paint={{
+                "heatmap-weight": ["get", "weight"],
+                "heatmap-intensity": 1,
+                "heatmap-color": [
+                  "interpolate",
+                  ["linear"],
+                  ["heatmap-density"],
+                  0, "rgba(255, 90, 0, 0)",
+                  0.2, "rgba(255, 140, 0, 0.4)",
+                  0.5, "rgba(255, 60, 0, 0.7)",
+                  1, "rgba(255, 0, 0, 1)"
+                ],
+                "heatmap-radius": 30,
+                "heatmap-opacity": 0.6,
+              }}
+            />
           </Source>
         )}
 

@@ -12,13 +12,13 @@ export const Route = createFileRoute("/_authenticated/app/chat")({
   component: ChatListPage,
 });
 
-function timeAgo(iso: string | null | undefined, lang: string): string {
+function timeAgo(iso: string | null | undefined, t: (k: string) => string, lang: string): string {
   if (!iso) return "";
   const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
-  if (diff < 60) return lang === "fr" ? "maintenant" : "now";
-  if (diff < 3600) return `${Math.floor(diff / 60)}${lang === "fr" ? "min" : "m"}`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}${lang === "fr" ? "h" : "h"}`;
-  return new Date(iso).toLocaleDateString(lang === "fr" ? "fr-FR" : "en-GB", { day: "numeric", month: "short" });
+  if (diff < 60) return t("app.now");
+  if (diff < 3600) return `${Math.floor(diff / 60)}${t("auto.m")}`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
+  return new Date(iso).toLocaleDateString(t("auto.engb"), { day: "numeric", month: "short" });
 }
 
 function ChatListPage() {
@@ -121,7 +121,7 @@ function ChatListPage() {
                         {profile?.full_name ?? `User ${conv.otherId.slice(0, 6)}`}
                       </p>
                       <span className="text-[11px] text-muted-foreground shrink-0">
-                        {timeAgo(conv.last_message_at, lang)}
+                        {timeAgo(conv.last_message_at, t, lang)}
                       </span>
                     </div>
                     <div className="flex items-center gap-1.5 mt-0.5">

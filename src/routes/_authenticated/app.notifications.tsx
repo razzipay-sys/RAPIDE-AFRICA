@@ -32,19 +32,21 @@ const TYPE_COLOR = {
   kyc_update: "bg-yellow-500/15 text-yellow-400",
 } as const;
 
-function timeAgo(iso: string, lang: string): string {
-  const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
-  if (diff < 60) return lang === "fr" ? "maintenant" : "just now";
+function formatTime(iso: string, t: (k: string) => string, lang: string): string {
+  const d = new Date(iso);
+  const diff = (Date.now() - d.getTime()) / 1000;
+  if (diff < 60) return t("app.now");
   if (diff < 3600) {
     const m = Math.floor(diff / 60);
-    return lang === "fr" ? `il y a ${m}min` : `${m}m ago`;
+    return t("app.min_ago").replace("{val}", m.toString());
   }
   if (diff < 86400) {
     const h = Math.floor(diff / 3600);
-    return lang === "fr" ? `il y a ${h}h` : `${h}h ago`;
+    return t("app.h_ago").replace("{val}", h.toString());
   }
-  return new Date(iso).toLocaleDateString(lang === "fr" ? "fr-FR" : "en-GB", {
-    day: "numeric", month: "short",
+  return new Date(iso).toLocaleDateString(t("auto.engb"), {
+    hour: "2-digit",
+    minute: "2-digit",
   });
 }
 
@@ -150,7 +152,7 @@ function NotificationsPage() {
                       {notif.title}
                     </p>
                     <span className="text-[11px] text-muted-foreground shrink-0">
-                      {timeAgo(notif.created_at, lang)}
+                      {formatTime(notif.created_at, t, lang)}
                     </span>
                   </div>
                   {notif.body && (

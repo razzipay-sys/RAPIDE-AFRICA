@@ -189,7 +189,7 @@ function TrackPage() {
       await navigator.share({ title: `Rapide · ${order?.code}`, url }).catch(() => {});
     } else {
       await navigator.clipboard.writeText(url);
-      toast.success(lang === "fr" ? "Lien copié !" : "Link copied!");
+      toast.success(t("app.copied"));
     }
   };
 
@@ -209,7 +209,7 @@ function TrackPage() {
   const isActive = ["rider_assigned", "rider_arriving", "picked_up", "in_transit"].includes(order?.status ?? "");
   const isDelivered = order?.status === "delivered";
   const showOtp = order?.status === "in_transit" && order.delivery_otp;
-  const riderName = riderProfile?.full_name ?? (lang === "fr" ? "Coursier" : "Rider");
+  const riderName = riderProfile?.full_name ?? (t("track.rider") || "Rider");
   const vehicleLabel = riderLoc?.vehicle_type ?? "motorbike";
 
   return (
@@ -308,7 +308,7 @@ function TrackPage() {
                 <div className="flex items-center gap-1 mt-1">
                   <Clock className="h-3 w-3 text-primary" />
                   <span className="text-xs font-medium text-primary">
-                    {lang === "fr" ? `~${eta} min` : `~${eta} min away`}
+                    {t("track.eta_val")?.replace("{eta}", eta.toString()) ?? `~${eta} min`}
                   </span>
                 </div>
               )}
@@ -343,7 +343,7 @@ function TrackPage() {
             className="glass-strong rounded-2xl p-5 border border-primary/30"
           >
             <p className="text-xs text-muted-foreground text-center mb-3 uppercase tracking-wider">
-              {lang === "fr" ? "Code de livraison" : "Delivery code"}
+              {t("track.otp_code")}
             </p>
             <div className="flex gap-3 justify-center">
               {order!.delivery_otp!.split("").map((digit, i) => (
@@ -359,7 +359,7 @@ function TrackPage() {
               ))}
             </div>
             <p className="text-xs text-muted-foreground text-center mt-3">
-              {lang === "fr" ? "Communiquez ce code au coursier pour confirmer la livraison" : "Share this code with the rider to confirm delivery"}
+              {t("track.otp_desc")}
             </p>
           </motion.div>
         )}
@@ -380,11 +380,11 @@ function TrackPage() {
             🎉
           </motion.div>
           <p className="font-display text-xl font-bold text-primary-foreground">
-            {lang === "fr" ? "Colis livré !" : "Package delivered!"}
+            {t("track.delivered_title")}
           </p>
           <p className="text-sm text-primary-foreground/70 mt-1">
             {order?.delivered_at
-              ? new Date(order.delivered_at).toLocaleTimeString(lang === "fr" ? "fr-FR" : "en-GB", { hour: "2-digit", minute: "2-digit" })
+              ? new Date(order.delivered_at).toLocaleTimeString(t("auto.engb"), { hour: "2-digit", minute: "2-digit" })
               : ""}
           </p>
           {!order?.customer_rating && !ratingDone && (
@@ -451,13 +451,13 @@ function TrackPage() {
                   </p>
                   {eventForStep && (
                     <p className="text-[11px] text-muted-foreground mt-0.5">
-                      {new Date(eventForStep.created_at).toLocaleTimeString(lang === "fr" ? "fr-FR" : "en-GB", { hour: "2-digit", minute: "2-digit" })}
+                      {new Date(eventForStep.created_at).toLocaleTimeString(t("auto.engb"), { hour: "2-digit", minute: "2-digit" })}
                     </p>
                   )}
                 </div>
                 {isCurrent && !isDelivered && (
                   <span className="text-[10px] text-primary font-semibold uppercase tracking-wider shrink-0">
-                    {lang === "fr" ? "En cours" : "Now"}
+                    {t("app.now")}
                   </span>
                 )}
                 {done && !isCurrent && (
@@ -503,7 +503,7 @@ function TrackPage() {
               </div>
               {order.insurance && (
                 <div className="flex-1 text-center glass rounded-xl p-2.5">
-                  <p className="text-xs text-muted-foreground">{lang === "fr" ? "Assuré" : "Insured"}</p>
+                  <p className="text-xs text-muted-foreground">{t("track.insurance")}</p>
                   <Shield className="h-4 w-4 text-green-400 mx-auto mt-0.5" />
                 </div>
               )}

@@ -132,6 +132,23 @@ function AdminOps() {
     refetchInterval: 12000,
   });
 
+  const { data: activeOrders } = useQuery({
+    queryKey: ["admin-active-orders-map"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("orders")
+        .select("id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, status")
+        .in("status", ["rider_assigned", "rider_arriving", "picked_up", "in_transit"]);
+      
+      return (data ?? []).map((o) => ({
+        id: o.id,
+        pickup: { lat: Number(o.pickup_lat), lng: Number(o.pickup_lng) },
+        dropoff: { lat: Number(o.dropoff_lat), lng: Number(o.dropoff_lng) },
+      }));
+    },
+    refetchInterval: 12000,
+  });
+
   // 7-day revenue trend + user count
   const { data: trendStats } = useQuery({
     queryKey: ["admin-revenue-trend"],
@@ -388,12 +405,12 @@ function AdminOps() {
       <section>
         <h2 className="font-display text-lg font-bold mb-3 flex items-center gap-2">
           <MapIcon className="h-4 w-4 text-primary" />
-          Live Riders Map
+          Live Orders & Riders
           <span className="ml-auto text-xs font-normal text-muted-foreground">
-            {onlineRiders?.length ?? 0} online
+            {onlineRiders?.length ?? 0} online · {activeOrders?.length ?? 0} active
           </span>
         </h2>
-        <LiveMap riders={onlineRiders ?? []} height={340} zoom={12} />
+        <LiveMap riders={onlineRiders ?? []} activeOrders={activeOrders ?? []} height={340} zoom={12} />
       </section>
 
       {/* KYC Pending */}

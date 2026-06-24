@@ -48,10 +48,10 @@ function OrdersPage() {
     : orders?.filter((o) => FILTER_STATUSES[filter].includes(o.status));
 
   const filterLabels: Record<FilterType, string> = {
-    all: lang === "fr" ? "Toutes" : "All",
-    active: lang === "fr" ? "En cours" : "Active",
-    delivered: lang === "fr" ? "Livrées" : "Delivered",
-    cancelled: lang === "fr" ? "Annulées" : "Cancelled",
+    all: t("orders.filter.all"),
+    active: t("orders.filter.active"),
+    delivered: t("orders.filter.delivered"),
+    cancelled: t("orders.filter.cancelled"),
   };
 
   return (
@@ -121,7 +121,7 @@ function OrdersPage() {
                       <span className="font-mono text-xs text-muted-foreground">{o.code}</span>
                       <StatusDot status={o.status} />
                       <span className="text-xs text-muted-foreground">
-                        {new Date(o.created_at).toLocaleDateString(lang === "fr" ? "fr-FR" : "en-GB", {
+                        {new Date(o.created_at).toLocaleDateString(t("auto.engb"), {
                           day: "numeric", month: "short",
                         })}
                       </span>

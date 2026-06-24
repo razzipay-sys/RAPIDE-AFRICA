@@ -54,11 +54,11 @@ function RiderSignupPage() {
   };
 
   const validateStep1 = () => {
-    if (!fullName.trim()) { toast.error(lang === "fr" ? "Nom requis" : "Name required"); return false; }
-    if (!phone.trim())    { toast.error(lang === "fr" ? "Téléphone requis" : "Phone required"); return false; }
-    if (!email.trim())    { toast.error(lang === "fr" ? "Email requis" : "Email required"); return false; }
+    if (!fullName.trim()) { toast.error(t("auto.namerequired")); return false; }
+    if (!phone.trim())    { toast.error(t("auto.phonerequired")); return false; }
+    if (!email.trim())    { toast.error(t("auto.emailrequired")); return false; }
     if (password.length < 8) {
-      toast.error(lang === "fr" ? "Mot de passe : 8 caractères minimum" : "Password must be at least 8 characters");
+      toast.error(t("auto.passwordmustbea"));
       return false;
     }
     return true;
@@ -67,7 +67,7 @@ function RiderSignupPage() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!licensePlate.trim()) {
-      toast.error(lang === "fr" ? "Numéro de plaque requis" : "License plate required");
+      toast.error(t("auto.licenseplatereq"));
       return;
     }
     setLoading(true);
@@ -111,7 +111,7 @@ function RiderSignupPage() {
 
       if (authData.session) {
         // Immediately signed in (email confirmation disabled)
-        toast.success(lang === "fr" ? "Bienvenue dans la flotte Rapide !" : "Welcome to the Rapide fleet!");
+        toast.success(t("auto.welcometotherap"));
         navigate({ to: "/rider" });
       } else {
         // Email confirmation required
@@ -143,7 +143,7 @@ function RiderSignupPage() {
               className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition"
             >
               <ArrowLeft className="h-4 w-4" />
-              {lang === "fr" ? "Retour" : "Back"}
+              {t("auto.back")}
             </button>
           )}
         </div>
@@ -174,10 +174,10 @@ function RiderSignupPage() {
               exit="exit"
             >
               <h1 className="font-display text-2xl font-bold">
-                {lang === "fr" ? "Rejoindre la flotte" : "Join the fleet"}
+                {t("auto.jointhefleet")}
               </h1>
               <p className="mt-1 text-sm text-muted-foreground mb-6">
-                {lang === "fr" ? "Créez votre compte coursier" : "Create your rider account"}
+                {t("auto.createyourrider")}
               </p>
 
               <div className="space-y-3">
@@ -222,21 +222,21 @@ function RiderSignupPage() {
                 onClick={() => validateStep1() && goTo(2)}
                 className="mt-5 w-full rounded-xl bg-gradient-primary px-4 py-3 text-sm font-semibold text-primary-foreground shadow-glow flex items-center justify-center gap-2 hover:scale-[1.01] transition active:scale-[0.98]"
               >
-                {lang === "fr" ? "Suivant" : "Next"}
+                {t("auto.next")}
                 <ArrowRight className="h-4 w-4" />
               </button>
 
               <p className="mt-5 text-center text-sm text-muted-foreground">
-                {lang === "fr" ? "Déjà coursier ?" : "Already a rider?"}{" "}
+                {t("auto.alreadyarider")}{" "}
                 <Link to="/login" search={{ redirect: "/rider" }} className="text-primary font-medium">
                   {t("login.btn")}
                 </Link>
               </p>
 
               <p className="mt-3 text-center text-sm text-muted-foreground">
-                {lang === "fr" ? "Vous êtes client ?" : "Looking to send?"}{" "}
+                {t("auto.lookingtosend")}{" "}
                 <Link to="/signup" className="text-primary font-medium">
-                  {lang === "fr" ? "Inscription client" : "Customer signup"}
+                  {t("auto.customersignup")}
                 </Link>
               </p>
             </motion.div>
@@ -254,12 +254,10 @@ function RiderSignupPage() {
               onSubmit={handleSubmit}
             >
               <h2 className="font-display text-2xl font-bold">
-                {lang === "fr" ? "Votre véhicule" : "Your vehicle"}
+                {t("auto.yourvehicle")}
               </h2>
               <p className="mt-1 text-sm text-muted-foreground mb-6">
-                {lang === "fr"
-                  ? "Sélectionnez votre type de véhicule"
-                  : "Select your vehicle type"}
+                {t("auto.selectyourvehic")}
               </p>
 
               <div className="grid grid-cols-2 gap-2 mb-5">
@@ -279,7 +277,7 @@ function RiderSignupPage() {
                     >
                       <Icon className={`h-6 w-6 ${selected ? "text-primary" : "text-muted-foreground"}`} />
                       <span className="text-xs font-semibold">
-                        {lang === "fr" ? v.labelFr : v.labelEn}
+                        {t("signup." + v.id) ?? (lang === "fr" ? v.labelFr : v.labelEn)}
                       </span>
                     </button>
                   );
@@ -288,7 +286,7 @@ function RiderSignupPage() {
 
               <input
                 required
-                placeholder={lang === "fr" ? "Numéro de plaque (ex: BJ-1234-AB)" : "License plate (e.g. BJ-1234-AB)"}
+                placeholder={t("auto.licenseplateegb")}
                 value={licensePlate}
                 onChange={(e) => setLicensePlate(e.target.value)}
                 className="w-full rounded-xl bg-input/40 border border-border px-4 py-2.5 text-sm outline-none focus:border-primary mb-5 uppercase"
@@ -301,14 +299,12 @@ function RiderSignupPage() {
               >
                 {loading && <Loader2 className="h-4 w-4 animate-spin" />}
                 {loading
-                  ? (lang === "fr" ? "Création du compte…" : "Creating account…")
-                  : (lang === "fr" ? "Créer mon compte coursier" : "Create my rider account")}
+                  ? (t("auto.creatingaccount"))
+                  : (t("auto.createmyriderac"))}
               </button>
 
               <p className="mt-4 text-center text-xs text-muted-foreground">
-                {lang === "fr"
-                  ? "Vos documents seront demandés après inscription pour vérification KYC."
-                  : "Your documents will be requested after signup for KYC verification."}
+                {t("auto.yourdocumentswi")}
               </p>
             </motion.form>
           )}
@@ -330,19 +326,17 @@ function RiderSignupPage() {
                 </div>
               </div>
               <h2 className="font-display text-2xl font-bold mb-2">
-                {lang === "fr" ? "Vérifiez votre email" : "Check your email"}
+                {t("auto.checkyouremail")}
               </h2>
               <p className="text-sm text-muted-foreground mb-6">
-                {lang === "fr"
-                  ? `Un lien de confirmation a été envoyé à ${email}. Cliquez dessus pour activer votre compte coursier.`
-                  : `A confirmation link was sent to ${email}. Click it to activate your rider account.`}
+                {t("auto.confirmationlink", { email })}
               </p>
               <Link
                 to="/login"
                 search={{ redirect: "/rider" }}
                 className="inline-block rounded-xl bg-gradient-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-glow"
               >
-                {lang === "fr" ? "Aller à la connexion" : "Go to sign in"}
+                {t("auto.gotosignin")}
               </Link>
             </motion.div>
           )}
