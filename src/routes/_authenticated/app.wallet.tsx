@@ -133,7 +133,7 @@ function WalletPage() {
         user_id:     user!.id,
         category:    "payment",
         subject:     lang === "fr" ? "Demande de retrait" : "Withdrawal request",
-        description: lang === "fr"
+        message:     lang === "fr"
           ? `Retrait de ${fmtXOF(amountXof)} vers ${phone}. Solde actuel: ${fmtXOF(wallet?.balance_xof ?? 0)}.`
           : `Withdrawal of ${fmtXOF(amountXof)} to ${phone}. Current balance: ${fmtXOF(wallet?.balance_xof ?? 0)}.`,
         priority: "normal",
