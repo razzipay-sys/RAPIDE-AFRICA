@@ -148,12 +148,28 @@ function RootComponent() {
 function AuthInvalidator() {
   const router = useRouter();
   const qc = useQueryClient();
+
   useEffect(() => {
+    let t: number | undefined;
+    const schedule = () => {
+      // debounce invalidations to avoid rapid auth events locking the UI
+      if (t) window.clearTimeout(t);
+      t = window.setTimeout(() => {
+        router.invalidate();
+        qc.invalidateQueries();
+      }, 300);
+    };
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
-      router.invalidate();
-      qc.invalidateQueries();
+      schedule();
     });
-    return () => subscription.unsubscribe();
+
+    return () => {
+      if (t) window.clearTimeout(t);
+      subscription.unsubscribe();
+    };
   }, [router, qc]);
+
   return null;
 }
+

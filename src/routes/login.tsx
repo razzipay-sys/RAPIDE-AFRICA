@@ -1,5 +1,5 @@
 import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, useCallback, useMemo, memo, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Loader2 } from "lucide-react";
 import rapideLogo from "@/assets/rapide-logo.jpg";
@@ -15,11 +15,10 @@ export const Route = createFileRoute("/login")({
   beforeLoad: async ({ search }) => {
     const { data } = await supabase.auth.getSession();
     if (!data.session) return;
-    // Only allow relative redirects to prevent open-redirect attacks
     const dest = isSafeRedirect(search.redirect) ? search.redirect : "/app";
     throw redirect({ to: dest as any });
   },
-  component: LoginPage,
+  component: memo(LoginPage),
 });
 
 function LoginPage() {
@@ -29,49 +28,98 @@ function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
 
-  const safeRedirect = isSafeRedirect(search.redirect) ? search.redirect : "/app";
+  // Prevent hydration mismatches and initial render issues
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
-  const onSubmit = async (e: FormEvent) => {
+  const safeRedirect = useMemo(() => 
+    isSafeRedirect(search.redirect) ? search.redirect : "/app",
+    [search.redirect]
+  );
+
+  const handleEmailChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setEmail(e.target.value);
+  }, []);
+
+  const handlePasswordChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setPassword(e.target.value);
+  }, []);
+
+  const onSubmit = useCallback(async (e: FormEvent) => {
     e.preventDefault();
+    if (!email || !password) return;
+    
     setLoading(true);
-    const { data: authData, error } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
-    if (error) {
+    try {
+      const { data: authData, error } = await supabase.auth.signInWithPassword({ 
+        email, 
+        password 
+      });
+      
+      if (error) {
+        toast.error(sanitizeAuthError(error, lang as "fr" | "en"));
+        setLoading(false);
+        return;
+      }
+      
+      toast.success(t("login.toast_welcome"));
+
+      if (safeRedirect === "/app" && authData.user) {
+        const { data: roleData } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", authData.user.id)
+          .maybeSingle();
+          
+        if (roleData?.role === "admin") { 
+          navigate({ to: "/admin/" as any });
+          setLoading(false);
+          return; 
+        }
+        if (roleData?.role === "rider") { 
+          navigate({ to: "/rider" as any });
+          setLoading(false);
+          return; 
+        }
+      }
+      
+      navigate({ to: safeRedirect as any });
+    } catch (error) {
       toast.error(sanitizeAuthError(error, lang as "fr" | "en"));
-      return;
+    } finally {
+      setLoading(false);
     }
-    toast.success(t("login.toast_welcome"));
+  }, [email, password, safeRedirect, navigate, t, lang]);
 
-    // Role-based redirect only when no specific page was requested
-    if (safeRedirect === "/app" && authData.user) {
-      const { data: roleData } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", authData.user.id)
-        .maybeSingle();
-      if (roleData?.role === "admin") { navigate({ to: "/admin/" as any }); return; }
-      if (roleData?.role === "rider") { navigate({ to: "/rider" as any }); return; }
+  const signInWithGoogle = useCallback(async () => {
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: window.location.origin + "/app",
+          queryParams: { access_type: "offline", prompt: "select_account" },
+        },
+      });
+      if (error) toast.error(sanitizeAuthError(error, lang as "fr" | "en"));
+    } catch (error) {
+      toast.error(sanitizeAuthError(error, lang as "fr" | "en"));
     }
-    navigate({ to: safeRedirect as any });
-  };
+  }, [lang]);
 
-  const signInWithGoogle = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: window.location.origin + "/app",
-        queryParams: { access_type: "offline", prompt: "select_account" },
-      },
-    });
-    if (error) toast.error(sanitizeAuthError(error, lang as "fr" | "en"));
-  };
+  // Don't render anything until mounted to prevent hydration issues
+  if (!isMounted) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-hero px-4">
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, ease: "easeOut" }}
         className="glass-strong w-full max-w-md rounded-3xl p-8"
       >
         <Link to="/" className="flex items-center gap-2 mb-6">
@@ -100,24 +148,30 @@ function LoginPage() {
 
         <form onSubmit={onSubmit} className="space-y-3">
           <input
+            id="email"
+            name="email"
             type="email"
             required
             autoComplete="email"
+            inputMode="email"
             placeholder="Email"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={handleEmailChange}
             className="w-full rounded-xl bg-input/40 border border-border px-4 py-2.5 text-sm outline-none focus:border-primary"
           />
           <input
+            id="password"
+            name="password"
             type="password"
             required
             autoComplete="current-password"
             placeholder={t("login.password")}
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={handlePasswordChange}
             className="w-full rounded-xl bg-input/40 border border-border px-4 py-2.5 text-sm outline-none focus:border-primary"
           />
           <button
+            type="submit"
             disabled={loading}
             className="w-full rounded-xl bg-gradient-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-glow disabled:opacity-60 flex items-center justify-center gap-2"
           >
