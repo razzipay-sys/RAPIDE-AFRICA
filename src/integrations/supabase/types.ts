@@ -218,7 +218,7 @@ export type Database = {
           message: string
           category?: string | null
           status?: "open" | "in_progress" | "resolved" | "closed"
-          priority?: "low" | "medium" | "high" | "urgent"
+          priority?: "low" | "normal" | "high" | "urgent"
           updated_at?: string
           created_at?: string
         }
