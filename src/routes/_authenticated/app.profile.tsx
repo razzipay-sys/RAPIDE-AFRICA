@@ -266,7 +266,7 @@ function ProfilePage() {
           <ChevronRight className="h-4 w-4 text-muted-foreground" />
         </button>
         <button
-          onClick={() => setLang(t("auto.fr"))}
+          onClick={() => setLang(lang === "fr" ? "en" : "fr")}
           className="w-full p-4 flex items-center gap-3 text-left"
         >
           <Languages className="h-4 w-4 text-primary" />

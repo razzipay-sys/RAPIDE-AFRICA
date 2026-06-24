@@ -277,7 +277,7 @@ function RiderSignupPage() {
                     >
                       <Icon className={`h-6 w-6 ${selected ? "text-primary" : "text-muted-foreground"}`} />
                       <span className="text-xs font-semibold">
-                        {t("signup." + v.id) ?? (lang === "fr" ? v.labelFr : v.labelEn)}
+                        {lang === "fr" ? v.labelFr : v.labelEn}
                       </span>
                     </button>
                   );
@@ -329,7 +329,9 @@ function RiderSignupPage() {
                 {t("auto.checkyouremail")}
               </h2>
               <p className="text-sm text-muted-foreground mb-6">
-                {t("auto.confirmationlink", { email })}
+                {lang === "fr"
+                  ? `Un lien de confirmation a été envoyé à ${email}. Cliquez dessus pour activer votre compte coursier.`
+                  : `A confirmation link was sent to ${email}. Click it to activate your rider account.`}
               </p>
               <Link
                 to="/login"

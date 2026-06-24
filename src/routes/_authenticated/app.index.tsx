@@ -117,8 +117,8 @@ function Home() {
           <div className="block rounded-3xl bg-gradient-primary overflow-hidden shadow-glow">
             <div className="h-32 w-full relative z-0 pointer-events-none">
               <LiveMap 
-                pickup={activeOrder.pickup_lng ? [activeOrder.pickup_lng, activeOrder.pickup_lat] : undefined} 
-                dropoff={activeOrder.dropoff_lng ? [activeOrder.dropoff_lng, activeOrder.dropoff_lat] : undefined}
+                pickup={activeOrder.pickup_lat && activeOrder.pickup_lng ? { lat: Number(activeOrder.pickup_lat), lng: Number(activeOrder.pickup_lng) } : undefined} 
+                dropoff={activeOrder.dropoff_lat && activeOrder.dropoff_lng ? { lat: Number(activeOrder.dropoff_lat), lng: Number(activeOrder.dropoff_lng) } : undefined}
                 height={128}
                 zoom={11}
                 showRoute={true}

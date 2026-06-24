@@ -37,7 +37,7 @@ function groupByDate(messages: Message[], lang: string) {
   let last = "";
   for (const m of messages) {
     const d = new Date(m.created_at).toLocaleDateString(
-      t("auto.engb"),
+      lang === "fr" ? "fr-FR" : "en-GB",
       { weekday: "long", day: "numeric", month: "long" },
     );
     if (d !== last) {
@@ -470,7 +470,7 @@ function MessageBubble({
   lang: string;
 }) {
   const time = new Date(msg.created_at).toLocaleTimeString(
-    t("auto.engb"),
+    lang === "fr" ? "fr-FR" : "en-GB",
     { hour: "2-digit", minute: "2-digit" },
   );
 

@@ -110,9 +110,9 @@ function WalletPage() {
         type:        "topup",
         amount_xof:  amountXof,
         reference,
-        description: t("wallet.pending_topup_desc", { reference }) ?? (lang === "fr"
+        description: lang === "fr"
           ? `Rechargement Mobile Money en attente — réf. ${reference}`
-          : `Pending Mobile Money top-up — ref. ${reference}`),
+          : `Pending Mobile Money top-up — ref. ${reference}`,
       });
       if (error) throw error;
     },
@@ -133,9 +133,9 @@ function WalletPage() {
         user_id:     user!.id,
         category:    "payment",
         subject:     t("wallet.req_subj") || (t("auto.withdrawalreque")),
-        message:     t("wallet.req_msg", { amount: fmtXOF(amountXof), phone }) ?? (lang === "fr"
+        message:     lang === "fr"
           ? `L'utilisateur demande un retrait de ${fmtXOF(amountXof)} sur le numéro ${phone}.`
-          : `User requests a withdrawal of ${fmtXOF(amountXof)} to number ${phone}.`),
+          : `User requests a withdrawal of ${fmtXOF(amountXof)} to number ${phone}.`,
         priority: "normal",
         status:   "open",
       });
