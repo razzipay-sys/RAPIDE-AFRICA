@@ -3,13 +3,21 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import {
-  Users, Search, Shield, ShieldOff, User, Mail, Phone, Calendar, MoreHorizontal, ChevronDown,
+  FileText,
+  Search,
+  CheckCircle,
+  XCircle,
+  Clock,
+  Eye,
+  Check,
+  X,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { fmtXOF } from "@/lib/pricing";
 import { toast } from "sonner";
+import type { Database } from "@/integrations/supabase/types";
 
-export const Route = createFileRoute("/admin/users")({
+export const Route = createFileRoute("/_authenticated/admin/users")({
   component: AdminUsers,
 });
 

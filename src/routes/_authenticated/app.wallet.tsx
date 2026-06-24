@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   Copy,
   ShieldCheck,
+  Check,
   X,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";

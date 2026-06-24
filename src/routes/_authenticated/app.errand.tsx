@@ -41,7 +41,7 @@ function AppErrand() {
         dropoff_address: dropoff.address,
         dropoff_lat: dropoff.lat,
         dropoff_lng: dropoff.lng,
-        dropoff_contact_name: user?.full_name || "Me",
+        dropoff_contact_name: user?.user_metadata?.full_name || "Me",
         dropoff_contact_phone: user?.phone || "",
         parcel_category: "other",
         parcel_notes: description,
