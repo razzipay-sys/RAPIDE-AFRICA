@@ -8,12 +8,31 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 import { useEffect } from "react";
+import * as Sentry from "@sentry/react";
 
 import appCss from "../styles.css?url";
 import { ThemeProvider } from "@/lib/theme";
 import { LanguageProvider, useT } from "@/lib/i18n";
 import { Toaster } from "@/components/ui/sonner";
 import { supabase } from "@/integrations/supabase/client";
+
+// Initialise Sentry as early as possible — before the router renders.
+// VITE_SENTRY_DSN must be set in Vercel environment variables (Production scope).
+if (import.meta.env.VITE_SENTRY_DSN) {
+  Sentry.init({
+    dsn: import.meta.env.VITE_SENTRY_DSN as string,
+    environment: import.meta.env.MODE,
+    integrations: [
+      Sentry.browserTracingIntegration(),
+      Sentry.replayIntegration({ maskAllText: false, blockAllMedia: false }),
+    ],
+    // Capture 10% of transactions for performance monitoring in production
+    tracesSampleRate: import.meta.env.PROD ? 0.1 : 1.0,
+    // Capture 100% of sessions on error for session replay
+    replaysOnErrorSampleRate: 1.0,
+    replaysSessionSampleRate: 0.1,
+  });
+}
 
 function NotFoundComponent() {
   const { t } = useT();
@@ -40,6 +59,8 @@ function NotFoundComponent() {
 
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
+  // Report to Sentry so the team knows before users report it
+  Sentry.captureException(error);
   const router = useRouter();
   const { t } = useT();
 

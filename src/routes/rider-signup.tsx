@@ -94,14 +94,20 @@ function RiderSignupPage() {
         rating: 5,
         total_deliveries: 0,
       });
-      if (riderErr) console.warn("Rider record:", riderErr.message);
+      if (riderErr) {
+        toast.error(t("errors.unexpected"));
+        console.error("[rider-signup] rider upsert failed:", riderErr.message);
+      }
 
       // 3. Assign rider role
       const { error: roleErr } = await supabase.from("user_roles").upsert({
         user_id: authData.user.id,
         role: "rider",
       });
-      if (roleErr) console.warn("Role assignment:", roleErr.message);
+      if (roleErr) {
+        toast.error(t("errors.unexpected"));
+        console.error("[rider-signup] role assignment failed:", roleErr.message);
+      }
 
       if (authData.session) {
         // Immediately signed in (email confirmation disabled)

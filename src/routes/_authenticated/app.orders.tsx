@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
@@ -27,6 +27,7 @@ const FILTER_STATUSES: Record<FilterType, string[]> = {
 function OrdersPage() {
   const { user } = useAuth();
   const { t, lang } = useT();
+  const navigate = useNavigate();
   const [filter, setFilter] = useState<FilterType>("all");
 
   const { data: orders, isLoading } = useQuery({
@@ -93,7 +94,7 @@ function OrdersPage() {
         <EmptyState
           icon={Package}
           title={t("orders.empty")}
-          action={{ label: t("orders.send"), onClick: () => {} }}
+          action={{ label: t("orders.send"), onClick: () => navigate({ to: "/app/book" }) }}
         />
       )}
 

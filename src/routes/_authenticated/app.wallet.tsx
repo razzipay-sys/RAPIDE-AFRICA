@@ -1,21 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { ArrowDownLeft, ArrowUpRight, Wallet, Plus, ArrowLeft, CreditCard, Smartphone } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Wallet, Info } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { fmtXOF } from "@/lib/pricing";
 import { useT } from "@/lib/i18n";
 import { SkeletonListItem, SkeletonStatCard } from "@/components/rapide/SkeletonCard";
 import { EmptyState } from "@/components/rapide/EmptyState";
-import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/app/wallet")({
   component: WalletPage,
 });
-
-const QUICK_TOPUP = [1000, 2500, 5000, 10000];
 
 const TX_TYPE_LABEL: Record<string, { fr: string; en: string }> = {
   topup:      { fr: "Rechargement", en: "Top-up" },
@@ -29,8 +25,6 @@ const TX_TYPE_LABEL: Record<string, { fr: string; en: string }> = {
 function WalletPage() {
   const { user } = useAuth();
   const { t, lang } = useT();
-  const [topupOpen, setTopupOpen] = useState(false);
-  const [customAmount, setCustomAmount] = useState("");
 
   const { data: wallet, isLoading: walletLoading } = useQuery({
     queryKey: ["wallet", user?.id],
@@ -91,109 +85,33 @@ function WalletPage() {
               {lang === "fr" ? "Ce mois :" : "This month:"}{" "}
               <span className="text-green-400 font-medium">+{fmtXOF(thisMonthTotal)}</span>
             </p>
-
-            <div className="mt-5 grid grid-cols-2 gap-2">
-              <button
-                onClick={() => setTopupOpen(true)}
-                className="rounded-xl bg-gradient-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-glow flex items-center justify-center gap-2"
-              >
-                <Plus className="h-4 w-4" /> {t("wallet.topup")}
-              </button>
-              <button
-                onClick={() => toast.info(lang === "fr" ? "Retrait bientôt disponible" : "Withdrawal coming soon")}
-                className="rounded-xl glass px-4 py-2.5 text-sm font-semibold flex items-center justify-center gap-2"
-              >
-                <ArrowLeft className="h-4 w-4" /> {t("wallet.withdraw")}
-              </button>
-            </div>
           </div>
         </motion.div>
       )}
 
-      {/* Top-up modal overlay */}
-      {topupOpen && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 px-4 pb-4"
-          onClick={() => setTopupOpen(false)}
-        >
-          <motion.div
-            initial={{ y: 80 }}
-            animate={{ y: 0 }}
-            className="glass-strong w-full max-w-md rounded-3xl p-6"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 className="font-display text-xl font-bold mb-4">{t("wallet.topup")}</h2>
-
-            {/* Quick amounts */}
-            <div className="grid grid-cols-4 gap-2 mb-4">
-              {QUICK_TOPUP.map((amt) => (
-                <button
-                  key={amt}
-                  onClick={() => setCustomAmount(String(amt))}
-                  className={`rounded-xl py-2 text-sm font-semibold border transition ${
-                    customAmount === String(amt)
-                      ? "bg-primary/15 border-primary text-primary"
-                      : "glass border-border hover:border-primary/50"
-                  }`}
-                >
-                  {fmtXOF(amt)}
-                </button>
-              ))}
-            </div>
-
-            <input
-              type="number"
-              placeholder={lang === "fr" ? "Montant personnalisé (XOF)" : "Custom amount (XOF)"}
-              value={customAmount}
-              onChange={(e) => setCustomAmount(e.target.value)}
-              className="w-full rounded-xl bg-input/40 border border-border px-4 py-2.5 text-sm outline-none focus:border-primary mb-4"
-            />
-
-            {/* Payment methods */}
-            <p className="text-xs text-muted-foreground mb-2">
-              {lang === "fr" ? "Méthode de paiement" : "Payment method"}
-            </p>
-            <div className="space-y-2 mb-5">
-              <button
-                onClick={() => toast.info("Mobile Money integration coming soon")}
-                className="w-full glass rounded-xl p-3 flex items-center gap-3 hover:bg-white/5 transition"
-              >
-                <div className="h-8 w-8 rounded-lg bg-green-500/15 flex items-center justify-center">
-                  <Smartphone className="h-4 w-4 text-green-400" />
-                </div>
-                <div className="text-left">
-                  <p className="text-sm font-medium">Mobile Money</p>
-                  <p className="text-xs text-muted-foreground">MTN, Moov, Airtel</p>
-                </div>
-              </button>
-              <button
-                onClick={() => toast.info("Card payment coming soon")}
-                className="w-full glass rounded-xl p-3 flex items-center gap-3 hover:bg-white/5 transition"
-              >
-                <div className="h-8 w-8 rounded-lg bg-blue-500/15 flex items-center justify-center">
-                  <CreditCard className="h-4 w-4 text-blue-400" />
-                </div>
-                <div className="text-left">
-                  <p className="text-sm font-medium">{lang === "fr" ? "Carte bancaire" : "Bank card"}</p>
-                  <p className="text-xs text-muted-foreground">Visa, Mastercard</p>
-                </div>
-              </button>
-            </div>
-
-            <button
-              onClick={() => {
-                toast.success(lang === "fr" ? "Rechargement bientôt disponible" : "Top-up coming soon");
-                setTopupOpen(false);
-              }}
-              className="w-full rounded-xl bg-gradient-primary py-3 text-sm font-bold text-primary-foreground shadow-glow"
-            >
-              {customAmount ? `${t("wallet.topup")} ${fmtXOF(Number(customAmount))}` : t("wallet.topup")}
-            </button>
-          </motion.div>
-        </motion.div>
-      )}
+      {/* Top-up info banner */}
+      <motion.div
+        initial={{ opacity: 0, y: 4 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="glass rounded-2xl p-4 flex items-start gap-3 border border-primary/20"
+      >
+        <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+          <Info className="h-4 w-4 text-primary" />
+        </div>
+        <div>
+          <p className="text-sm font-medium">
+            {lang === "fr"
+              ? "Rechargement Mobile Money bientôt disponible"
+              : "Wallet top-up via Mobile Money launching soon"}
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            {lang === "fr"
+              ? "Contactez le support pour ajouter des fonds manuellement."
+              : "Contact support to add funds manually."}
+          </p>
+        </div>
+      </motion.div>
 
       {/* Transactions */}
       <section>
