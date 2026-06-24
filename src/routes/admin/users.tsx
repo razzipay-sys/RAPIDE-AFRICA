@@ -17,7 +17,7 @@ import { fmtXOF } from "@/lib/pricing";
 import { toast } from "sonner";
 import type { Database } from "@/integrations/supabase/types";
 
-export const Route = createFileRoute("/_authenticated/admin/users")({
+export const Route = createFileRoute("/admin/users")({
   component: AdminUsers,
 });
 

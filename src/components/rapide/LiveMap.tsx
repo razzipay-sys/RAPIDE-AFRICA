@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo, useRef } from "react";
 import { motion } from "framer-motion";
 import { MapPin, Navigation } from "lucide-react";
 import type { LayerProps } from "react-map-gl/mapbox";
+import "mapbox-gl/dist/mapbox-gl.css";
 
 const TOKEN = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined;
 
@@ -87,7 +88,6 @@ export function LiveMap({
     if (!TOKEN) return;
     let cancelled = false;
     void (async () => {
-      await import("mapbox-gl/dist/mapbox-gl.css");
       const mod = await import("react-map-gl/mapbox");
       if (cancelled) return;
       setMapbox({
