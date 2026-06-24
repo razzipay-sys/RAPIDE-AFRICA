@@ -110,9 +110,7 @@ function WalletPage() {
         type:        "topup",
         amount_xof:  amountXof,
         reference,
-        description: lang === "fr"
-          ? `Rechargement Mobile Money en attente — réf. ${reference}`
-          : `Pending Mobile Money top-up — ref. ${reference}`,
+        description: t("wallet.pending_topup" as any).replace("{reference}", reference),
       });
       if (error) throw error;
     },
@@ -132,20 +130,14 @@ function WalletPage() {
       const { error } = await supabase.from("support_tickets").insert({
         user_id:     user!.id,
         category:    "payment",
-        subject:     t("wallet.req_subj") || (t("auto.withdrawalreque")),
-        message:     lang === "fr"
-          ? `L'utilisateur demande un retrait de ${fmtXOF(amountXof)} sur le numéro ${phone}.`
-          : `User requests a withdrawal of ${fmtXOF(amountXof)} to number ${phone}.`,
+        subject:     t("wallet.req_subj" as any) || (t("auto.withdrawalreque")),
+        message:     t("wallet.withdrawal_msg" as any).replace("{amount}", fmtXOF(amountXof)).replace("{phone}", phone),
         priority: "normal",
-        status:   "open",
+        status:      "open",
       });
       if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success(
-        t("wallet.req_sent") || (t("auto.withdrawalreque"))
-      );
-      setWithdrawOpen(false);
+      
+      toast.success(t("wallet.toast_deposit" as any));setWithdrawOpen(false);
       setWithdrawAmount("");
       setWithdrawPhone("");
     },

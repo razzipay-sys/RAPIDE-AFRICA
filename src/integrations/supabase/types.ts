@@ -432,8 +432,11 @@ export type Database = {
           created_at: string
           full_name: string | null
           id: string
+          id_document_url: string | null
+          kyc_status: Database["public"]["Enums"]["kyc_status"]
           locale: string
           phone: string | null
+          phone_verified: boolean
           updated_at: string
         }
         Insert: {
@@ -441,8 +444,11 @@ export type Database = {
           created_at?: string
           full_name?: string | null
           id: string
+          id_document_url?: string | null
+          kyc_status?: Database["public"]["Enums"]["kyc_status"]
           locale?: string
           phone?: string | null
+          phone_verified?: boolean
           updated_at?: string
         }
         Update: {
@@ -450,8 +456,11 @@ export type Database = {
           created_at?: string
           full_name?: string | null
           id?: string
+          id_document_url?: string | null
+          kyc_status?: Database["public"]["Enums"]["kyc_status"]
           locale?: string
           phone?: string | null
+          phone_verified?: boolean
           updated_at?: string
         }
         Relationships: []
@@ -616,7 +625,7 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "customer" | "rider" | "merchant" | "admin" | "support" | "banned"
+      app_role: "admin" | "merchant" | "rider" | "super_admin" | "support" | "dispatcher" | "banned" | "customer"
       delivery_type: "standard" | "express" | "scheduled" | "multi_stop"
       kyc_status: "pending" | "in_review" | "approved" | "rejected"
       order_status:

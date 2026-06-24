@@ -23,10 +23,13 @@ type UserRow = {
   wallet_balance?: number;
   order_count?: number;
   is_banned?: boolean;
+  kyc_status?: string;
+  id_document_url?: string;
 };
 
 function AdminUsers() {
   const [search, setSearch] = useState("");
+  const [filterKyc, setFilterKyc] = useState(false);
   const [selected, setSelected] = useState<UserRow | null>(null);
   const qc = useQueryClient();
 
@@ -36,7 +39,7 @@ function AdminUsers() {
       let q = supabase
         .from("profiles")
         .select(`
-          id, full_name, phone, avatar_url, created_at,
+          id, full_name, phone, avatar_url, created_at, kyc_status, id_document_url,
           wallets (balance_xof),
           orders (id)
         `)
@@ -84,8 +87,48 @@ function AdminUsers() {
     onError: () => toast.error("Failed to update user"),
   });
 
+  const assignRole = useMutation({
+    mutationFn: async ({ userId, role, revoke }: { userId: string; role: Database["public"]["Enums"]["app_role"]; revoke?: boolean }) => {
+      if (revoke) {
+        const { error } = await supabase.from("user_roles").delete().eq("user_id", userId).eq("role", role);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("user_roles").upsert({ user_id: userId, role });
+        if (error) throw error;
+      }
+    },
+    onSuccess: (_, { role, revoke }) => {
+      toast.success(revoke ? `Role ${role} revoked` : `Role ${role} assigned`);
+      qc.invalidateQueries({ queryKey: ["admin-user-roles"] });
+    },
+    onError: () => toast.error("Failed to update role"),
+  });
+
+  const updateKyc = useMutation({
+    mutationFn: async ({ userId, status }: { userId: string; status: "approved" | "rejected" }) => {
+      const { error } = await supabase.from("profiles").update({ kyc_status: status }).eq("id", userId);
+      if (error) throw error;
+    },
+    onSuccess: (_, { status }) => {
+      toast.success(status === "approved" ? "KYC Approved" : "KYC Rejected");
+      qc.invalidateQueries({ queryKey: ["admin-users"] });
+    },
+    onError: () => toast.error("Failed to update KYC status"),
+  });
+
   const roleMap = Object.fromEntries(
     (roles ?? []).map((r) => [r.user_id, r.role])
+  );
+
+  const filteredUsers = users?.filter(
+    (u) => {
+      const matchesSearch = u.full_name?.toLowerCase().includes(search.toLowerCase()) || 
+             u.phone?.includes(search);
+      if (filterKyc) {
+        return matchesSearch && u.kyc_status === "in_review";
+      }
+      return matchesSearch;
+    }
   );
 
   const totalUsers = users?.length ?? 0;
@@ -105,16 +148,28 @@ function AdminUsers() {
         </div>
       </div>
 
-      {/* Search */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <input
-          type="text"
-          placeholder="Search by name..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full rounded-xl bg-input/40 border border-border pl-9 pr-4 py-2.5 text-sm outline-none focus:border-primary"
-        />
+      {/* Search & Filters */}
+      <div className="flex gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder="Search by name..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full rounded-xl bg-input/40 border border-border pl-9 pr-4 py-2.5 text-sm outline-none focus:border-primary"
+          />
+        </div>
+        <button
+          onClick={() => setFilterKyc(!filterKyc)}
+          className={`px-4 rounded-xl border text-sm font-medium transition ${
+            filterKyc 
+              ? "bg-orange-500/20 text-orange-400 border-orange-500/50 shadow-glow" 
+              : "bg-input/40 border-border text-muted-foreground hover:bg-input/60"
+          }`}
+        >
+          Pending KYC Only
+        </button>
       </div>
 
       {/* User table */}
@@ -138,7 +193,7 @@ function AdminUsers() {
                   </td>
                 </tr>
               ))}
-            {!isLoading && users?.map((u, idx) => {
+            {!isLoading && filteredUsers?.map((u, idx) => {
               const isBanned = roleMap[u.id] === "banned";
               const isAdmin = roleMap[u.id] === "admin";
               const initials = u.full_name
@@ -166,9 +221,29 @@ function AdminUsers() {
                           Admin
                         </span>
                       )}
+                      {roleMap[u.id] === "support" && (
+                        <span className="text-[10px] bg-blue-500/15 text-blue-400 px-1.5 py-0.5 rounded-full font-medium">
+                          Support
+                        </span>
+                      )}
+                      {roleMap[u.id] === "dispatcher" && (
+                        <span className="text-[10px] bg-yellow-500/15 text-yellow-400 px-1.5 py-0.5 rounded-full font-medium">
+                          Dispatcher
+                        </span>
+                      )}
                       {isBanned && (
                         <span className="text-[10px] bg-destructive/15 text-destructive px-1.5 py-0.5 rounded-full font-medium">
                           Banned
+                        </span>
+                      )}
+                      {u.kyc_status === "in_review" && (
+                        <span className="text-[10px] bg-orange-500/15 text-orange-400 px-1.5 py-0.5 rounded-full font-medium">
+                          KYC Review
+                        </span>
+                      )}
+                      {u.kyc_status === "approved" && (
+                        <span className="text-[10px] bg-green-500/15 text-green-400 px-1.5 py-0.5 rounded-full font-medium">
+                          KYC Approved
                         </span>
                       )}
                     </div>
@@ -179,18 +254,69 @@ function AdminUsers() {
                     {new Date(u.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "2-digit" })}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <button
-                      onClick={() => toggleBan.mutate({ userId: u.id, ban: !isBanned })}
-                      disabled={isAdmin || toggleBan.isPending}
-                      title={isBanned ? "Unban user" : "Ban user"}
-                      className={`h-7 w-7 rounded-lg flex items-center justify-center ml-auto transition ${
-                        isBanned
-                          ? "bg-green-500/15 text-green-400 hover:bg-green-500/25"
-                          : "bg-destructive/10 text-destructive hover:bg-destructive/20"
-                      } disabled:opacity-30 disabled:cursor-not-allowed`}
-                    >
-                      {isBanned ? <Shield className="h-3.5 w-3.5" /> : <ShieldOff className="h-3.5 w-3.5" />}
-                    </button>
+                    <div className="flex items-center justify-end gap-2">
+                      {u.kyc_status === "in_review" && (
+                        <div className="flex gap-1 mr-2">
+                          <button
+                            onClick={() => updateKyc.mutate({ userId: u.id, status: "approved" })}
+                            disabled={updateKyc.isPending}
+                            className="bg-green-500/20 text-green-400 px-2 py-1 rounded text-[10px] font-bold hover:bg-green-500/30"
+                          >
+                            Approve
+                          </button>
+                          <button
+                            onClick={() => updateKyc.mutate({ userId: u.id, status: "rejected" })}
+                            disabled={updateKyc.isPending}
+                            className="bg-destructive/20 text-destructive px-2 py-1 rounded text-[10px] font-bold hover:bg-destructive/30"
+                          >
+                            Reject
+                          </button>
+                          {u.id_document_url && (
+                            <a
+                              href={u.id_document_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="bg-primary/20 text-primary px-2 py-1 rounded text-[10px] font-bold hover:bg-primary/30"
+                            >
+                              View ID
+                            </a>
+                          )}
+                        </div>
+                      )}
+                      <select
+                        className="bg-transparent border border-border rounded-lg text-xs py-1 px-2 outline-none focus:border-primary disabled:opacity-50"
+                        value={roleMap[u.id] === "support" || roleMap[u.id] === "dispatcher" || roleMap[u.id] === "admin" ? roleMap[u.id] : "customer"}
+                        onChange={(e) => {
+                          const val = e.target.value as any;
+                          if (val === "customer") {
+                            const current = roleMap[u.id];
+                            if (current && current !== "banned") {
+                              assignRole.mutate({ userId: u.id, role: current, revoke: true });
+                            }
+                          } else {
+                            assignRole.mutate({ userId: u.id, role: val });
+                          }
+                        }}
+                        disabled={assignRole.isPending || isBanned}
+                      >
+                        <option value="customer" className="bg-background">Customer</option>
+                        <option value="support" className="bg-background">Support</option>
+                        <option value="dispatcher" className="bg-background">Dispatcher</option>
+                        <option value="admin" className="bg-background text-primary">Admin</option>
+                      </select>
+                      <button
+                        onClick={() => toggleBan.mutate({ userId: u.id, ban: !isBanned })}
+                        disabled={isAdmin || toggleBan.isPending}
+                        title={isBanned ? "Unban user" : "Ban user"}
+                        className={`h-7 w-7 rounded-lg flex items-center justify-center transition ${
+                          isBanned
+                            ? "bg-green-500/15 text-green-400 hover:bg-green-500/25"
+                            : "bg-destructive/10 text-destructive hover:bg-destructive/20"
+                        } disabled:opacity-30 disabled:cursor-not-allowed`}
+                      >
+                        {isBanned ? <Shield className="h-3.5 w-3.5" /> : <ShieldOff className="h-3.5 w-3.5" />}
+                      </button>
+                    </div>
                   </td>
                 </motion.tr>
               );

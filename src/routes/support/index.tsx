@@ -9,8 +9,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 
-export const Route = createFileRoute("/admin/support")({
-  component: AdminSupport,
+export const Route = createFileRoute("/support/")({
+  component: SupportDashboard,
 });
 
 type TicketStatus = "open" | "in_progress" | "resolved" | "closed";
@@ -37,7 +37,7 @@ function timeAgo(iso: string) {
   return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 }
 
-function AdminSupport() {
+function SupportDashboard() {
   const { user } = useAuth();
   const qc = useQueryClient();
   const [search, setSearch] = useState("");

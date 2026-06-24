@@ -277,7 +277,10 @@ function RiderSignupPage() {
                     >
                       <Icon className={`h-6 w-6 ${selected ? "text-primary" : "text-muted-foreground"}`} />
                       <span className="text-xs font-semibold">
-                        {lang === "fr" ? v.labelFr : v.labelEn}
+                        {v.type === "motorbike" ? t("auto.motorbike") :
+                         v.type === "bicycle" ? t("auto.bicycle") :
+                         v.type === "car" ? t("auto.car") :
+                         t("auto.van")}
                       </span>
                     </button>
                   );
@@ -329,9 +332,7 @@ function RiderSignupPage() {
                 {t("auto.checkyouremail")}
               </h2>
               <p className="text-sm text-muted-foreground mb-6">
-                {lang === "fr"
-                  ? `Un lien de confirmation a été envoyé à ${email}. Cliquez dessus pour activer votre compte coursier.`
-                  : `A confirmation link was sent to ${email}. Click it to activate your rider account.`}
+                {t("rider.confirmation_sent" as any).replace('{email}', email)}
               </p>
               <Link
                 to="/login"

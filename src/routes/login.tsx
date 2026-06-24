@@ -74,14 +74,20 @@ function LoginPage() {
           .eq("user_id", authData.user.id)
           .maybeSingle();
           
-        if (roleData?.role === "admin") { 
-          navigate({ to: "/admin/" as any });
-          setLoading(false);
+        if (roleData?.role === "admin" || roleData?.role === "super_admin") { 
+          navigate({ to: "/admin" as any }); 
           return; 
         }
+        if (roleData?.role === "support") {
+          navigate({ to: "/support" as any });
+          return;
+        }
+        if (roleData?.role === "dispatcher") {
+          navigate({ to: "/dispatcher" as any });
+          return;
+        }
         if (roleData?.role === "rider") { 
-          navigate({ to: "/rider" as any });
-          setLoading(false);
+          navigate({ to: "/rider" as any }); 
           return; 
         }
       }

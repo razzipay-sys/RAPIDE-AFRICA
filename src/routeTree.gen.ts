@@ -9,16 +9,20 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as RiderSignupRouteImport } from './routes/rider-signup'
+import { Route as SupportRouteImport } from './routes/support'
 import { Route as SignupRouteImport } from './routes/signup'
+import { Route as RiderSignupRouteImport } from './routes/rider-signup'
 import { Route as RiderRouteImport } from './routes/rider'
 import { Route as MerchantRouteImport } from './routes/merchant'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as DispatcherRouteImport } from './routes/dispatcher'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SupportIndexRouteImport } from './routes/support/index'
 import { Route as RiderIndexRouteImport } from './routes/rider/index'
 import { Route as MerchantIndexRouteImport } from './routes/merchant/index'
+import { Route as DispatcherIndexRouteImport } from './routes/dispatcher/index'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
 import { Route as RiderProfileRouteImport } from './routes/rider/profile'
 import { Route as RiderEarningsRouteImport } from './routes/rider/earnings'
@@ -28,7 +32,6 @@ import { Route as MerchantInvoicingRouteImport } from './routes/merchant/invoici
 import { Route as MerchantBulkRouteImport } from './routes/merchant/bulk'
 import { Route as MerchantApiKeysRouteImport } from './routes/merchant/api-keys'
 import { Route as AdminUsersRouteImport } from './routes/admin/users'
-import { Route as AdminSupportRouteImport } from './routes/admin/support'
 import { Route as AdminFinanceRouteImport } from './routes/admin/finance'
 import { Route as AdminDriversRouteImport } from './routes/admin/drivers'
 import { Route as AdminAnalyticsRouteImport } from './routes/admin/analytics'
@@ -43,14 +46,19 @@ import { Route as AuthenticatedAppBookRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedAppTrackOrderIdRouteImport } from './routes/_authenticated/app.track.$orderId'
 import { Route as AuthenticatedAppChatCidRouteImport } from './routes/_authenticated/app.chat.$cid'
 
-const RiderSignupRoute = RiderSignupRouteImport.update({
-  id: '/rider-signup',
-  path: '/rider-signup',
+const SupportRoute = SupportRouteImport.update({
+  id: '/support',
+  path: '/support',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
   path: '/signup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RiderSignupRoute = RiderSignupRouteImport.update({
+  id: '/rider-signup',
+  path: '/rider-signup',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RiderRoute = RiderRouteImport.update({
@@ -68,6 +76,11 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DispatcherRoute = DispatcherRouteImport.update({
+  id: '/dispatcher',
+  path: '/dispatcher',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminRoute = AdminRouteImport.update({
   id: '/admin',
   path: '/admin',
@@ -82,6 +95,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SupportIndexRoute = SupportIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => SupportRoute,
+} as any)
 const RiderIndexRoute = RiderIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -91,6 +109,11 @@ const MerchantIndexRoute = MerchantIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => MerchantRoute,
+} as any)
+const DispatcherIndexRoute = DispatcherIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => DispatcherRoute,
 } as any)
 const AdminIndexRoute = AdminIndexRouteImport.update({
   id: '/',
@@ -135,11 +158,6 @@ const MerchantApiKeysRoute = MerchantApiKeysRouteImport.update({
 const AdminUsersRoute = AdminUsersRouteImport.update({
   id: '/users',
   path: '/users',
-  getParentRoute: () => AdminRoute,
-} as any)
-const AdminSupportRoute = AdminSupportRouteImport.update({
-  id: '/support',
-  path: '/support',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminFinanceRoute = AdminFinanceRouteImport.update({
@@ -213,16 +231,17 @@ const AuthenticatedAppChatCidRoute = AuthenticatedAppChatCidRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteWithChildren
+  '/dispatcher': typeof DispatcherRouteWithChildren
   '/login': typeof LoginRoute
   '/merchant': typeof MerchantRouteWithChildren
   '/rider': typeof RiderRouteWithChildren
   '/rider-signup': typeof RiderSignupRoute
   '/signup': typeof SignupRoute
+  '/support': typeof SupportRouteWithChildren
   '/app': typeof AuthenticatedAppRouteWithChildren
   '/admin/analytics': typeof AdminAnalyticsRoute
   '/admin/drivers': typeof AdminDriversRoute
   '/admin/finance': typeof AdminFinanceRoute
-  '/admin/support': typeof AdminSupportRoute
   '/admin/users': typeof AdminUsersRoute
   '/merchant/api-keys': typeof MerchantApiKeysRoute
   '/merchant/bulk': typeof MerchantBulkRoute
@@ -232,8 +251,10 @@ export interface FileRoutesByFullPath {
   '/rider/earnings': typeof RiderEarningsRoute
   '/rider/profile': typeof RiderProfileRoute
   '/admin/': typeof AdminIndexRoute
+  '/dispatcher/': typeof DispatcherIndexRoute
   '/merchant/': typeof MerchantIndexRoute
   '/rider/': typeof RiderIndexRoute
+  '/support/': typeof SupportIndexRoute
   '/app/book': typeof AuthenticatedAppBookRoute
   '/app/chat': typeof AuthenticatedAppChatRouteWithChildren
   '/app/notifications': typeof AuthenticatedAppNotificationsRoute
@@ -252,7 +273,6 @@ export interface FileRoutesByTo {
   '/admin/analytics': typeof AdminAnalyticsRoute
   '/admin/drivers': typeof AdminDriversRoute
   '/admin/finance': typeof AdminFinanceRoute
-  '/admin/support': typeof AdminSupportRoute
   '/admin/users': typeof AdminUsersRoute
   '/merchant/api-keys': typeof MerchantApiKeysRoute
   '/merchant/bulk': typeof MerchantBulkRoute
@@ -262,8 +282,10 @@ export interface FileRoutesByTo {
   '/rider/earnings': typeof RiderEarningsRoute
   '/rider/profile': typeof RiderProfileRoute
   '/admin': typeof AdminIndexRoute
+  '/dispatcher': typeof DispatcherIndexRoute
   '/merchant': typeof MerchantIndexRoute
   '/rider': typeof RiderIndexRoute
+  '/support': typeof SupportIndexRoute
   '/app/book': typeof AuthenticatedAppBookRoute
   '/app/chat': typeof AuthenticatedAppChatRouteWithChildren
   '/app/notifications': typeof AuthenticatedAppNotificationsRoute
@@ -279,16 +301,17 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/admin': typeof AdminRouteWithChildren
+  '/dispatcher': typeof DispatcherRouteWithChildren
   '/login': typeof LoginRoute
   '/merchant': typeof MerchantRouteWithChildren
   '/rider': typeof RiderRouteWithChildren
   '/rider-signup': typeof RiderSignupRoute
   '/signup': typeof SignupRoute
+  '/support': typeof SupportRouteWithChildren
   '/_authenticated/app': typeof AuthenticatedAppRouteWithChildren
   '/admin/analytics': typeof AdminAnalyticsRoute
   '/admin/drivers': typeof AdminDriversRoute
   '/admin/finance': typeof AdminFinanceRoute
-  '/admin/support': typeof AdminSupportRoute
   '/admin/users': typeof AdminUsersRoute
   '/merchant/api-keys': typeof MerchantApiKeysRoute
   '/merchant/bulk': typeof MerchantBulkRoute
@@ -298,8 +321,10 @@ export interface FileRoutesById {
   '/rider/earnings': typeof RiderEarningsRoute
   '/rider/profile': typeof RiderProfileRoute
   '/admin/': typeof AdminIndexRoute
+  '/dispatcher/': typeof DispatcherIndexRoute
   '/merchant/': typeof MerchantIndexRoute
   '/rider/': typeof RiderIndexRoute
+  '/support/': typeof SupportIndexRoute
   '/_authenticated/app/book': typeof AuthenticatedAppBookRoute
   '/_authenticated/app/chat': typeof AuthenticatedAppChatRouteWithChildren
   '/_authenticated/app/notifications': typeof AuthenticatedAppNotificationsRoute
@@ -315,16 +340,17 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/admin'
+    | '/dispatcher'
     | '/login'
     | '/merchant'
     | '/rider'
     | '/rider-signup'
     | '/signup'
+    | '/support'
     | '/app'
     | '/admin/analytics'
     | '/admin/drivers'
     | '/admin/finance'
-    | '/admin/support'
     | '/admin/users'
     | '/merchant/api-keys'
     | '/merchant/bulk'
@@ -334,8 +360,10 @@ export interface FileRouteTypes {
     | '/rider/earnings'
     | '/rider/profile'
     | '/admin/'
+    | '/dispatcher/'
     | '/merchant/'
     | '/rider/'
+    | '/support/'
     | '/app/book'
     | '/app/chat'
     | '/app/notifications'
@@ -354,7 +382,6 @@ export interface FileRouteTypes {
     | '/admin/analytics'
     | '/admin/drivers'
     | '/admin/finance'
-    | '/admin/support'
     | '/admin/users'
     | '/merchant/api-keys'
     | '/merchant/bulk'
@@ -364,8 +391,10 @@ export interface FileRouteTypes {
     | '/rider/earnings'
     | '/rider/profile'
     | '/admin'
+    | '/dispatcher'
     | '/merchant'
     | '/rider'
+    | '/support'
     | '/app/book'
     | '/app/chat'
     | '/app/notifications'
@@ -380,16 +409,17 @@ export interface FileRouteTypes {
     | '/'
     | '/_authenticated'
     | '/admin'
+    | '/dispatcher'
     | '/login'
     | '/merchant'
     | '/rider'
     | '/rider-signup'
     | '/signup'
+    | '/support'
     | '/_authenticated/app'
     | '/admin/analytics'
     | '/admin/drivers'
     | '/admin/finance'
-    | '/admin/support'
     | '/admin/users'
     | '/merchant/api-keys'
     | '/merchant/bulk'
@@ -399,8 +429,10 @@ export interface FileRouteTypes {
     | '/rider/earnings'
     | '/rider/profile'
     | '/admin/'
+    | '/dispatcher/'
     | '/merchant/'
     | '/rider/'
+    | '/support/'
     | '/_authenticated/app/book'
     | '/_authenticated/app/chat'
     | '/_authenticated/app/notifications'
@@ -416,20 +448,22 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   AdminRoute: typeof AdminRouteWithChildren
+  DispatcherRoute: typeof DispatcherRouteWithChildren
   LoginRoute: typeof LoginRoute
   MerchantRoute: typeof MerchantRouteWithChildren
   RiderRoute: typeof RiderRouteWithChildren
   RiderSignupRoute: typeof RiderSignupRoute
   SignupRoute: typeof SignupRoute
+  SupportRoute: typeof SupportRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/rider-signup': {
-      id: '/rider-signup'
-      path: '/rider-signup'
-      fullPath: '/rider-signup'
-      preLoaderRoute: typeof RiderSignupRouteImport
+    '/support': {
+      id: '/support'
+      path: '/support'
+      fullPath: '/support'
+      preLoaderRoute: typeof SupportRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/signup': {
@@ -437,6 +471,13 @@ declare module '@tanstack/react-router' {
       path: '/signup'
       fullPath: '/signup'
       preLoaderRoute: typeof SignupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rider-signup': {
+      id: '/rider-signup'
+      path: '/rider-signup'
+      fullPath: '/rider-signup'
+      preLoaderRoute: typeof RiderSignupRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/rider': {
@@ -460,6 +501,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/dispatcher': {
+      id: '/dispatcher'
+      path: '/dispatcher'
+      fullPath: '/dispatcher'
+      preLoaderRoute: typeof DispatcherRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin': {
       id: '/admin'
       path: '/admin'
@@ -481,6 +529,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/support/': {
+      id: '/support/'
+      path: '/'
+      fullPath: '/support/'
+      preLoaderRoute: typeof SupportIndexRouteImport
+      parentRoute: typeof SupportRoute
+    }
     '/rider/': {
       id: '/rider/'
       path: '/'
@@ -494,6 +549,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/merchant/'
       preLoaderRoute: typeof MerchantIndexRouteImport
       parentRoute: typeof MerchantRoute
+    }
+    '/dispatcher/': {
+      id: '/dispatcher/'
+      path: '/'
+      fullPath: '/dispatcher/'
+      preLoaderRoute: typeof DispatcherIndexRouteImport
+      parentRoute: typeof DispatcherRoute
     }
     '/admin/': {
       id: '/admin/'
@@ -556,13 +618,6 @@ declare module '@tanstack/react-router' {
       path: '/users'
       fullPath: '/admin/users'
       preLoaderRoute: typeof AdminUsersRouteImport
-      parentRoute: typeof AdminRoute
-    }
-    '/admin/support': {
-      id: '/admin/support'
-      path: '/support'
-      fullPath: '/admin/support'
-      preLoaderRoute: typeof AdminSupportRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/finance': {
@@ -711,7 +766,6 @@ interface AdminRouteChildren {
   AdminAnalyticsRoute: typeof AdminAnalyticsRoute
   AdminDriversRoute: typeof AdminDriversRoute
   AdminFinanceRoute: typeof AdminFinanceRoute
-  AdminSupportRoute: typeof AdminSupportRoute
   AdminUsersRoute: typeof AdminUsersRoute
   AdminIndexRoute: typeof AdminIndexRoute
 }
@@ -720,12 +774,23 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminAnalyticsRoute: AdminAnalyticsRoute,
   AdminDriversRoute: AdminDriversRoute,
   AdminFinanceRoute: AdminFinanceRoute,
-  AdminSupportRoute: AdminSupportRoute,
   AdminUsersRoute: AdminUsersRoute,
   AdminIndexRoute: AdminIndexRoute,
 }
 
 const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
+
+interface DispatcherRouteChildren {
+  DispatcherIndexRoute: typeof DispatcherIndexRoute
+}
+
+const DispatcherRouteChildren: DispatcherRouteChildren = {
+  DispatcherIndexRoute: DispatcherIndexRoute,
+}
+
+const DispatcherRouteWithChildren = DispatcherRoute._addFileChildren(
+  DispatcherRouteChildren,
+)
 
 interface MerchantRouteChildren {
   MerchantApiKeysRoute: typeof MerchantApiKeysRoute
@@ -763,26 +828,29 @@ const RiderRouteChildren: RiderRouteChildren = {
 
 const RiderRouteWithChildren = RiderRoute._addFileChildren(RiderRouteChildren)
 
+interface SupportRouteChildren {
+  SupportIndexRoute: typeof SupportIndexRoute
+}
+
+const SupportRouteChildren: SupportRouteChildren = {
+  SupportIndexRoute: SupportIndexRoute,
+}
+
+const SupportRouteWithChildren =
+  SupportRoute._addFileChildren(SupportRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   AdminRoute: AdminRouteWithChildren,
+  DispatcherRoute: DispatcherRouteWithChildren,
   LoginRoute: LoginRoute,
   MerchantRoute: MerchantRouteWithChildren,
   RiderRoute: RiderRouteWithChildren,
   RiderSignupRoute: RiderSignupRoute,
   SignupRoute: SignupRoute,
+  SupportRoute: SupportRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

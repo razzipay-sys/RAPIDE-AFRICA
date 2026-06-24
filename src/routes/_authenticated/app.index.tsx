@@ -2,7 +2,7 @@ import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import {
-  ArrowRight, Bike, Package, Wallet, Zap, MapPin, Clock, Shield,
+  ArrowRight, Bike, Package, Wallet, Zap, MapPin, Clock, Shield, AlertCircle,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -60,7 +60,10 @@ function Home() {
   const { data: profile } = useQuery({
     queryKey: ["profile", user?.id],
     queryFn: async () => {
-      const { data } = await supabase.from("profiles").select("full_name").eq("id", user!.id).single();
+      const { data } = await supabase
+        .from("profiles")
+        .select("full_name, kyc_status")
+        .eq("id", user!.id).single();
       return data;
     },
     enabled: !!user,
@@ -107,6 +110,25 @@ function Home() {
           {firstName || t("app.welcome")} 👋
         </h1>
       </motion.div>
+      {/* KYC Verification Banner */}
+      {profile?.kyc_status !== "approved" && (
+        <Link
+          to="/app/verification"
+          className="block glass border border-orange-500/30 rounded-2xl p-4 bg-orange-500/5 hover:bg-orange-500/10 transition mt-4 z-10 relative"
+        >
+          <div className="flex gap-3">
+            <div className="mt-0.5">
+              <AlertCircle className="h-5 w-5 text-orange-400" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-orange-400 text-sm">Action Required</h3>
+              <p className="text-xs text-orange-400/80 mt-1">
+                Verify your identity to unlock package delivery features.
+              </p>
+            </div>
+          </div>
+        </Link>
+      )}
 
       {/* Active order banner */}
       {activeOrder && (

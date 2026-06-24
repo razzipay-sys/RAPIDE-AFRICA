@@ -114,17 +114,14 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       {/* Page content with transition */}
       <main className="mx-auto max-w-2xl px-4 pt-16">
-        <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={pathname}
             variants={pageVariants}
             initial="initial"
             animate="enter"
-            exit="exit"
           >
             {children}
           </motion.div>
-        </AnimatePresence>
       </main>
 
       {/* Bottom navigation */}

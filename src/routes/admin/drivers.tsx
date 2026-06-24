@@ -44,7 +44,7 @@ function AdminDrivers() {
         .from("riders")
         .select(`
           id, user_id, vehicle_type, license_plate, is_online, rating, total_deliveries, current_lat, current_lng,
-          profiles:user_id (full_name, phone, avatar_url),
+          profiles:user_id (full_name, phone, avatar_url, kyc_status),
           wallets:user_id (balance_xof),
           driver_documents (id, type, status, file_url, rejection_reason, created_at)
         `)
@@ -75,6 +75,18 @@ function AdminDrivers() {
       qc.invalidateQueries({ queryKey: ["admin-riders"] });
     },
     onError: () => toast.error("Failed to update document"),
+  });
+
+  const updateRiderKyc = useMutation({
+    mutationFn: async ({ userId, status }: { userId: string; status: "approved" | "rejected" }) => {
+      const { error } = await supabase.from("profiles").update({ kyc_status: status }).eq("id", userId);
+      if (error) throw error;
+    },
+    onSuccess: (_, { status }) => {
+      toast.success(status === "approved" ? "Rider KYC Approved" : "Rider KYC Rejected");
+      qc.invalidateQueries({ queryKey: ["admin-riders"] });
+    },
+    onError: () => toast.error("Failed to update KYC status"),
   });
 
   const filteredRiders = riders?.filter((r: any) => {
@@ -286,6 +298,43 @@ function AdminDrivers() {
                             {Number(rider.current_lat).toFixed(4)}, {Number(rider.current_lng).toFixed(4)}
                           </div>
                         )}
+                      </div>
+
+                      {/* Rider KYC Overall Status */}
+                      <div className="mt-4 pt-4 border-t border-border flex items-center justify-between px-4 pb-4">
+                        <div>
+                          <p className="text-xs font-semibold">Overall KYC Status</p>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">
+                            Approve rider to allow going online.
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`text-xs px-2 py-1 rounded-full font-bold ${
+                            rider.profiles?.kyc_status === 'approved' ? 'bg-green-500/20 text-green-400' :
+                            rider.profiles?.kyc_status === 'rejected' ? 'bg-destructive/20 text-destructive' :
+                            'bg-orange-500/20 text-orange-400'
+                          }`}>
+                            {rider.profiles?.kyc_status?.toUpperCase() || 'PENDING'}
+                          </span>
+                          {rider.profiles?.kyc_status !== 'approved' && (
+                            <button
+                              onClick={() => updateRiderKyc.mutate({ userId: rider.user_id, status: "approved" })}
+                              disabled={updateRiderKyc.isPending}
+                              className="px-3 py-1.5 rounded-lg bg-green-500/20 text-green-400 text-xs font-bold hover:bg-green-500/30 transition"
+                            >
+                              Approve Rider
+                            </button>
+                          )}
+                          {rider.profiles?.kyc_status !== 'rejected' && (
+                            <button
+                              onClick={() => updateRiderKyc.mutate({ userId: rider.user_id, status: "rejected" })}
+                              disabled={updateRiderKyc.isPending}
+                              className="px-3 py-1.5 rounded-lg bg-destructive/20 text-destructive text-xs font-bold hover:bg-destructive/30 transition"
+                            >
+                              Reject Rider
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </motion.div>
                   )}

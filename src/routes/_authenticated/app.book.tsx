@@ -157,18 +157,10 @@ function BookPage() {
         <div className="w-9" />
       </header>
 
-      <AnimatePresence mode="wait" custom={dir}>
+      <div className="relative overflow-hidden">
         {/* ── STEP 1: Addresses + Map ── */}
         {step === 1 && (
-          <motion.div
-            key="step1"
-            custom={dir}
-            variants={slideVariants}
-            initial="enter"
-            animate="center"
-            exit="exit"
-            className="space-y-4"
-          >
+          <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
             <div>
               <h1 className="font-display text-2xl font-bold">{t("book.step1.title")}</h1>
               <p className="text-sm text-muted-foreground mt-0.5">Choisissez les adresses de collecte et de livraison</p>
@@ -243,20 +235,12 @@ function BookPage() {
             >
               {t("book.next")} <ArrowRight className="h-4 w-4" />
             </button>
-          </motion.div>
+          </div>
         )}
 
-        {/* ── STEP 2: Contacts + Parcel ── */}
+        {/* ── STEP 2: Package Details ── */}
         {step === 2 && (
-          <motion.div
-            key="step2"
-            custom={dir}
-            variants={slideVariants}
-            initial="enter"
-            animate="center"
-            exit="exit"
-            className="space-y-4"
-          >
+          <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
             <div>
               <h1 className="font-display text-2xl font-bold">{t("book.step2.title")}</h1>
               <p className="text-sm text-muted-foreground mt-0.5">Informations sur le destinataire et le colis</p>
@@ -355,25 +339,17 @@ function BookPage() {
             />
 
             <button
-              onClick={() => validateStep2() && goTo(3)}
+          onClick={() => validateStep2() && goTo(3)}
               className="w-full rounded-xl bg-gradient-primary px-4 py-3 text-sm font-semibold text-primary-foreground shadow-glow flex items-center justify-center gap-2 hover:scale-[1.01] transition active:scale-[0.98]"
             >
               {t("book.next")} <ArrowRight className="h-4 w-4" />
             </button>
-          </motion.div>
+          </div>
         )}
 
-        {/* ── STEP 3: Delivery type + Pricing ── */}
+        {/* ── STEP 3: Quote & Confirmation ── */}
         {step === 3 && (
-          <motion.div
-            key="step3"
-            custom={dir}
-            variants={slideVariants}
-            initial="enter"
-            animate="center"
-            exit="exit"
-            className="space-y-4"
-          >
+          <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
             <div>
               <h1 className="font-display text-2xl font-bold">{t("book.step3.title")}</h1>
               <p className="text-sm text-muted-foreground mt-0.5">Choisissez votre type de livraison</p>
@@ -424,9 +400,9 @@ function BookPage() {
               {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
               {t("book.confirm")} · {fmtXOF(q.price_xof)}
             </button>
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
+      </div>
     </div>
   );
 }

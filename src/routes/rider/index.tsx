@@ -168,7 +168,7 @@ function RiderDashboard() {
     queryFn: async () => {
       const { data } = await supabase
         .from("profiles")
-        .select("full_name, avatar_url")
+        .select("full_name, avatar_url, kyc_status")
         .eq("id", user!.id)
         .single();
       return data;
@@ -281,6 +281,9 @@ function RiderDashboard() {
   const toggleOnline = useMutation({
     mutationFn: async () => {
       if (!rider) return;
+      if (profile?.kyc_status !== "approved") {
+        throw new Error("You must complete verification before going online");
+      }
       const next = !rider.is_online;
       const { error } = await supabase
         .from("riders")
@@ -380,10 +383,29 @@ function RiderDashboard() {
           </div>
         </div>
 
+        {profile?.kyc_status !== "approved" && (
+          <Link
+            to="/rider/documents"
+            className="block glass border border-orange-500/30 rounded-2xl p-4 bg-orange-500/5 hover:bg-orange-500/10 transition"
+          >
+            <div className="flex gap-3">
+              <div className="mt-0.5">
+                <CheckCircle2 className="h-5 w-5 text-orange-400" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-orange-400 text-sm">Action Required</h3>
+                <p className="text-xs text-orange-400/80 mt-1">
+                  Upload your documents to verify your account and go online.
+                </p>
+              </div>
+            </div>
+          </Link>
+        )}
+
         {/* Online/Offline Toggle */}
         <motion.button
           onClick={() => toggleOnline.mutate()}
-          disabled={toggleOnline.isPending || !rider}
+          disabled={toggleOnline.isPending || !rider || profile?.kyc_status !== "approved"}
           whileTap={{ scale: 0.97 }}
           className={`w-full rounded-3xl p-6 text-left transition-all duration-300 disabled:opacity-70 ${
             isOnline
