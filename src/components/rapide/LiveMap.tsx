@@ -35,6 +35,7 @@ type Props = {
   riders?: RiderPin[];
   height?: number;
   showRoute?: boolean;
+  routeCoords?: LatLng[];
   showGeolocate?: boolean;
   zoom?: number;
   className?: string;
@@ -48,12 +49,14 @@ export function LiveMap({
   riders,
   height = 260,
   showRoute = false,
+  routeCoords,
   showGeolocate = false,
   zoom = 13,
   className,
   onMapClick,
 }: Props) {
   const [mapbox, setMapbox] = useState<MapboxRuntime | null>(null);
+  const [routeGeoJSON, setRouteGeoJSON] = useState<any>(null);
 
   useEffect(() => {
     if (!TOKEN) return;
@@ -88,13 +91,50 @@ export function LiveMap({
     return { longitude: 2.4183, latitude: 6.3654 };
   }, [pickup, dropoff, rider, riders]);
 
-  const routeGeoJSON = useMemo(() => {
-    if (!showRoute || !pickup || !dropoff) return null;
-    const coords: [number, number][] = [[pickup.lng, pickup.lat]];
-    if (rider) coords.push([rider.lng, rider.lat]);
-    coords.push([dropoff.lng, dropoff.lat]);
-    return { type: "Feature" as const, geometry: { type: "LineString" as const, coordinates: coords }, properties: {} };
-  }, [showRoute, pickup, dropoff, rider]);
+  useEffect(() => {
+    if (!showRoute || !TOKEN) {
+      setRouteGeoJSON(null);
+      return;
+    }
+    
+    // Determine the path to draw
+    let waypoints: LatLng[] = [];
+    if (routeCoords && routeCoords.length >= 2) {
+      waypoints = routeCoords;
+    } else if (pickup && dropoff) {
+      waypoints = [pickup, dropoff];
+    }
+    
+    if (waypoints.length < 2) {
+      setRouteGeoJSON(null);
+      return;
+    }
+
+    let cancelled = false;
+    const fetchRoute = async () => {
+      try {
+        const coordsStr = waypoints.map(wp => `${wp.lng},${wp.lat}`).join(';');
+        const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${coordsStr}?geometries=geojson&access_token=${TOKEN}`;
+        const res = await fetch(url);
+        const data = await res.json();
+        
+        if (cancelled) return;
+        
+        if (data.routes && data.routes[0] && data.routes[0].geometry) {
+          setRouteGeoJSON({
+            type: "Feature",
+            geometry: data.routes[0].geometry,
+            properties: {}
+          });
+        }
+      } catch (err) {
+        console.error("Failed to fetch mapbox directions", err);
+      }
+    };
+
+    fetchRoute();
+    return () => { cancelled = true; };
+  }, [showRoute, routeCoords, pickup?.lat, pickup?.lng, dropoff?.lat, dropoff?.lng]);
 
   if (!TOKEN) {
     return (

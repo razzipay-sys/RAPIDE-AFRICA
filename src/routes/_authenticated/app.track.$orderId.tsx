@@ -234,6 +234,7 @@ function TrackPage() {
         dropoff={dropoff}
         rider={rider}
         showRoute
+        routeCoords={rider ? [rider, ["in_transit", "picked_up"].includes(order?.status ?? "") ? dropoff! : pickup!] : undefined}
         height={isActive ? 280 : 220}
         zoom={isActive && rider ? 14 : 12}
       />

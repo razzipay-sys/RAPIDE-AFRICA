@@ -200,7 +200,6 @@ function BookPage() {
                   height={220}
                   zoom={12}
                   onMapClick={mapInteractive ? handleMapClick : undefined}
-                  key={`${pickup.lat},${pickup.lng},${dropoff.lat},${dropoff.lng}`}
                 />
               </div>
 

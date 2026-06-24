@@ -451,6 +451,14 @@ function RiderDashboard() {
                     : undefined
                 }
                 showRoute
+                routeCoords={
+                  rider?.current_lat && rider?.current_lng && activeOrder
+                    ? [
+                        { lat: Number(rider.current_lat), lng: Number(rider.current_lng) },
+                        ["in_transit", "picked_up"].includes(activeOrder.status) ? dropoff! : pickup!
+                      ]
+                    : undefined
+                }
                 height={180}
                 zoom={13}
               />
