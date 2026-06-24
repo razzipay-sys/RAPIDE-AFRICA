@@ -14,6 +14,90 @@ export type Database = {
   }
   public: {
     Tables: {
+      route_batches: {
+        Row: {
+          id: string
+          merchant_id: string
+          status: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          merchant_id: string
+          status?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          merchant_id?: string
+          status?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "route_batches_merchant_id_fkey"
+            columns: ["merchant_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      escrows: {
+        Row: {
+          id: string
+          order_id: string
+          buyer_id: string
+          seller_id: string
+          amount_xof: number
+          status: Database["public"]["Enums"]["escrow_status"]
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          order_id: string
+          buyer_id: string
+          seller_id: string
+          amount_xof: number
+          status?: Database["public"]["Enums"]["escrow_status"]
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          order_id?: string
+          buyer_id?: string
+          seller_id?: string
+          amount_xof?: number
+          status?: Database["public"]["Enums"]["escrow_status"]
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "escrows_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "escrows_buyer_id_fkey"
+            columns: ["buyer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "escrows_seller_id_fkey"
+            columns: ["seller_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       merchant_api_keys: {
         Row: {
           id: string
@@ -344,6 +428,7 @@ export type Database = {
           price_xof: number
           rider_id: string | null
           rider_rating: number | null
+          route_batch_id: string | null
           scheduled_for: string | null
           status: Database["public"]["Enums"]["order_status"]
           updated_at: string
@@ -378,6 +463,7 @@ export type Database = {
           price_xof: number
           rider_id?: string | null
           rider_rating?: number | null
+          route_batch_id?: string | null
           scheduled_for?: string | null
           status?: Database["public"]["Enums"]["order_status"]
           updated_at?: string
@@ -412,11 +498,19 @@ export type Database = {
           price_xof?: number
           rider_id?: string | null
           rider_rating?: number | null
+          route_batch_id?: string | null
           scheduled_for?: string | null
           status?: Database["public"]["Enums"]["order_status"]
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "orders_route_batch_id_fkey"
+            columns: ["route_batch_id"]
+            isOneToOne: false
+            referencedRelation: "route_batches"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "orders_rider_id_fkey"
             columns: ["rider_id"]
@@ -626,7 +720,8 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "merchant" | "rider" | "super_admin" | "support" | "dispatcher" | "banned" | "customer"
-      delivery_type: "standard" | "express" | "scheduled" | "multi_stop"
+      delivery_type: "standard" | "express" | "scheduled" | "multi_stop" | "errand"
+      escrow_status: "held" | "released" | "disputed" | "refunded"
       kyc_status: "pending" | "in_review" | "approved" | "rejected"
       order_status:
         | "pending"

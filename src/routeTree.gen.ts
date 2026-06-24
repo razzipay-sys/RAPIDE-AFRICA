@@ -38,9 +38,13 @@ import { Route as AdminAnalyticsRouteImport } from './routes/admin/analytics'
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
 import { Route as AuthenticatedAppIndexRouteImport } from './routes/_authenticated/app.index'
 import { Route as AuthenticatedAppWalletRouteImport } from './routes/_authenticated/app.wallet'
+import { Route as AuthenticatedAppVerificationRouteImport } from './routes/_authenticated/app.verification'
+import { Route as AuthenticatedAppUssdRouteImport } from './routes/_authenticated/app.ussd'
 import { Route as AuthenticatedAppProfileRouteImport } from './routes/_authenticated/app.profile'
 import { Route as AuthenticatedAppOrdersRouteImport } from './routes/_authenticated/app.orders'
 import { Route as AuthenticatedAppNotificationsRouteImport } from './routes/_authenticated/app.notifications'
+import { Route as AuthenticatedAppEscrowRouteImport } from './routes/_authenticated/app.escrow'
+import { Route as AuthenticatedAppErrandRouteImport } from './routes/_authenticated/app.errand'
 import { Route as AuthenticatedAppChatRouteImport } from './routes/_authenticated/app.chat'
 import { Route as AuthenticatedAppBookRouteImport } from './routes/_authenticated/app.book'
 import { Route as AuthenticatedAppTrackOrderIdRouteImport } from './routes/_authenticated/app.track.$orderId'
@@ -190,6 +194,17 @@ const AuthenticatedAppWalletRoute = AuthenticatedAppWalletRouteImport.update({
   path: '/wallet',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
+const AuthenticatedAppVerificationRoute =
+  AuthenticatedAppVerificationRouteImport.update({
+    id: '/verification',
+    path: '/verification',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
+const AuthenticatedAppUssdRoute = AuthenticatedAppUssdRouteImport.update({
+  id: '/ussd',
+  path: '/ussd',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
 const AuthenticatedAppProfileRoute = AuthenticatedAppProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
@@ -206,6 +221,16 @@ const AuthenticatedAppNotificationsRoute =
     path: '/notifications',
     getParentRoute: () => AuthenticatedAppRoute,
   } as any)
+const AuthenticatedAppEscrowRoute = AuthenticatedAppEscrowRouteImport.update({
+  id: '/escrow',
+  path: '/escrow',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
+const AuthenticatedAppErrandRoute = AuthenticatedAppErrandRouteImport.update({
+  id: '/errand',
+  path: '/errand',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
 const AuthenticatedAppChatRoute = AuthenticatedAppChatRouteImport.update({
   id: '/chat',
   path: '/chat',
@@ -257,9 +282,13 @@ export interface FileRoutesByFullPath {
   '/support/': typeof SupportIndexRoute
   '/app/book': typeof AuthenticatedAppBookRoute
   '/app/chat': typeof AuthenticatedAppChatRouteWithChildren
+  '/app/errand': typeof AuthenticatedAppErrandRoute
+  '/app/escrow': typeof AuthenticatedAppEscrowRoute
   '/app/notifications': typeof AuthenticatedAppNotificationsRoute
   '/app/orders': typeof AuthenticatedAppOrdersRoute
   '/app/profile': typeof AuthenticatedAppProfileRoute
+  '/app/ussd': typeof AuthenticatedAppUssdRoute
+  '/app/verification': typeof AuthenticatedAppVerificationRoute
   '/app/wallet': typeof AuthenticatedAppWalletRoute
   '/app/': typeof AuthenticatedAppIndexRoute
   '/app/chat/$cid': typeof AuthenticatedAppChatCidRoute
@@ -288,9 +317,13 @@ export interface FileRoutesByTo {
   '/support': typeof SupportIndexRoute
   '/app/book': typeof AuthenticatedAppBookRoute
   '/app/chat': typeof AuthenticatedAppChatRouteWithChildren
+  '/app/errand': typeof AuthenticatedAppErrandRoute
+  '/app/escrow': typeof AuthenticatedAppEscrowRoute
   '/app/notifications': typeof AuthenticatedAppNotificationsRoute
   '/app/orders': typeof AuthenticatedAppOrdersRoute
   '/app/profile': typeof AuthenticatedAppProfileRoute
+  '/app/ussd': typeof AuthenticatedAppUssdRoute
+  '/app/verification': typeof AuthenticatedAppVerificationRoute
   '/app/wallet': typeof AuthenticatedAppWalletRoute
   '/app': typeof AuthenticatedAppIndexRoute
   '/app/chat/$cid': typeof AuthenticatedAppChatCidRoute
@@ -327,9 +360,13 @@ export interface FileRoutesById {
   '/support/': typeof SupportIndexRoute
   '/_authenticated/app/book': typeof AuthenticatedAppBookRoute
   '/_authenticated/app/chat': typeof AuthenticatedAppChatRouteWithChildren
+  '/_authenticated/app/errand': typeof AuthenticatedAppErrandRoute
+  '/_authenticated/app/escrow': typeof AuthenticatedAppEscrowRoute
   '/_authenticated/app/notifications': typeof AuthenticatedAppNotificationsRoute
   '/_authenticated/app/orders': typeof AuthenticatedAppOrdersRoute
   '/_authenticated/app/profile': typeof AuthenticatedAppProfileRoute
+  '/_authenticated/app/ussd': typeof AuthenticatedAppUssdRoute
+  '/_authenticated/app/verification': typeof AuthenticatedAppVerificationRoute
   '/_authenticated/app/wallet': typeof AuthenticatedAppWalletRoute
   '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
   '/_authenticated/app/chat/$cid': typeof AuthenticatedAppChatCidRoute
@@ -366,9 +403,13 @@ export interface FileRouteTypes {
     | '/support/'
     | '/app/book'
     | '/app/chat'
+    | '/app/errand'
+    | '/app/escrow'
     | '/app/notifications'
     | '/app/orders'
     | '/app/profile'
+    | '/app/ussd'
+    | '/app/verification'
     | '/app/wallet'
     | '/app/'
     | '/app/chat/$cid'
@@ -397,9 +438,13 @@ export interface FileRouteTypes {
     | '/support'
     | '/app/book'
     | '/app/chat'
+    | '/app/errand'
+    | '/app/escrow'
     | '/app/notifications'
     | '/app/orders'
     | '/app/profile'
+    | '/app/ussd'
+    | '/app/verification'
     | '/app/wallet'
     | '/app'
     | '/app/chat/$cid'
@@ -435,9 +480,13 @@ export interface FileRouteTypes {
     | '/support/'
     | '/_authenticated/app/book'
     | '/_authenticated/app/chat'
+    | '/_authenticated/app/errand'
+    | '/_authenticated/app/escrow'
     | '/_authenticated/app/notifications'
     | '/_authenticated/app/orders'
     | '/_authenticated/app/profile'
+    | '/_authenticated/app/ussd'
+    | '/_authenticated/app/verification'
     | '/_authenticated/app/wallet'
     | '/_authenticated/app/'
     | '/_authenticated/app/chat/$cid'
@@ -662,6 +711,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppWalletRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
+    '/_authenticated/app/verification': {
+      id: '/_authenticated/app/verification'
+      path: '/verification'
+      fullPath: '/app/verification'
+      preLoaderRoute: typeof AuthenticatedAppVerificationRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/ussd': {
+      id: '/_authenticated/app/ussd'
+      path: '/ussd'
+      fullPath: '/app/ussd'
+      preLoaderRoute: typeof AuthenticatedAppUssdRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
     '/_authenticated/app/profile': {
       id: '/_authenticated/app/profile'
       path: '/profile'
@@ -681,6 +744,20 @@ declare module '@tanstack/react-router' {
       path: '/notifications'
       fullPath: '/app/notifications'
       preLoaderRoute: typeof AuthenticatedAppNotificationsRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/escrow': {
+      id: '/_authenticated/app/escrow'
+      path: '/escrow'
+      fullPath: '/app/escrow'
+      preLoaderRoute: typeof AuthenticatedAppEscrowRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/errand': {
+      id: '/_authenticated/app/errand'
+      path: '/errand'
+      fullPath: '/app/errand'
+      preLoaderRoute: typeof AuthenticatedAppErrandRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
     '/_authenticated/app/chat': {
@@ -728,9 +805,13 @@ const AuthenticatedAppChatRouteWithChildren =
 interface AuthenticatedAppRouteChildren {
   AuthenticatedAppBookRoute: typeof AuthenticatedAppBookRoute
   AuthenticatedAppChatRoute: typeof AuthenticatedAppChatRouteWithChildren
+  AuthenticatedAppErrandRoute: typeof AuthenticatedAppErrandRoute
+  AuthenticatedAppEscrowRoute: typeof AuthenticatedAppEscrowRoute
   AuthenticatedAppNotificationsRoute: typeof AuthenticatedAppNotificationsRoute
   AuthenticatedAppOrdersRoute: typeof AuthenticatedAppOrdersRoute
   AuthenticatedAppProfileRoute: typeof AuthenticatedAppProfileRoute
+  AuthenticatedAppUssdRoute: typeof AuthenticatedAppUssdRoute
+  AuthenticatedAppVerificationRoute: typeof AuthenticatedAppVerificationRoute
   AuthenticatedAppWalletRoute: typeof AuthenticatedAppWalletRoute
   AuthenticatedAppIndexRoute: typeof AuthenticatedAppIndexRoute
   AuthenticatedAppTrackOrderIdRoute: typeof AuthenticatedAppTrackOrderIdRoute
@@ -739,9 +820,13 @@ interface AuthenticatedAppRouteChildren {
 const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppBookRoute: AuthenticatedAppBookRoute,
   AuthenticatedAppChatRoute: AuthenticatedAppChatRouteWithChildren,
+  AuthenticatedAppErrandRoute: AuthenticatedAppErrandRoute,
+  AuthenticatedAppEscrowRoute: AuthenticatedAppEscrowRoute,
   AuthenticatedAppNotificationsRoute: AuthenticatedAppNotificationsRoute,
   AuthenticatedAppOrdersRoute: AuthenticatedAppOrdersRoute,
   AuthenticatedAppProfileRoute: AuthenticatedAppProfileRoute,
+  AuthenticatedAppUssdRoute: AuthenticatedAppUssdRoute,
+  AuthenticatedAppVerificationRoute: AuthenticatedAppVerificationRoute,
   AuthenticatedAppWalletRoute: AuthenticatedAppWalletRoute,
   AuthenticatedAppIndexRoute: AuthenticatedAppIndexRoute,
   AuthenticatedAppTrackOrderIdRoute: AuthenticatedAppTrackOrderIdRoute,
@@ -854,3 +939,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

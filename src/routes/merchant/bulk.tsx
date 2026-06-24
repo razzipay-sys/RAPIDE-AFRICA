@@ -93,10 +93,21 @@ function MerchantBulk() {
       if (!valid.length) throw new Error("No valid rows");
       let success = 0;
       let failed = 0;
+      
+      const { data: batchData, error: batchErr } = await supabase
+        .from("route_batches")
+        .insert({ merchant_id: user.id })
+        .select("id")
+        .single();
+        
+      if (batchErr) throw new Error("Failed to create route batch");
+      const route_batch_id = batchData.id;
+
       // Batch inserts in chunks of 20
       for (let i = 0; i < valid.length; i += 20) {
         const chunk = valid.slice(i, i + 20).map((r) => ({
           customer_id: user.id,
+          route_batch_id,
           pickup_address: r.pickup_address,
           pickup_lat: 6.3676,   // Cotonou default – production would geocode
           pickup_lng: 2.4252,

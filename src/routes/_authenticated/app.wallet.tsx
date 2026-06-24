@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
@@ -8,10 +8,13 @@ import {
   Wallet,
   Plus,
   ArrowLeft,
+  Clock,
+  Building2,
   Smartphone,
+  Loader2,
   CheckCircle2,
   Copy,
-  Check,
+  ShieldCheck,
   X,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -233,6 +236,15 @@ function WalletPage() {
               >
                 <ArrowLeft className="h-4 w-4" /> {t("wallet.withdraw")}
               </button>
+            </div>
+            
+            <div className="mt-2">
+              <Link
+                to="/app/escrow"
+                className="w-full rounded-xl border border-green-500/20 bg-green-500/10 px-4 py-2.5 text-sm font-semibold flex items-center justify-center gap-2 text-green-600"
+              >
+                <ShieldCheck className="h-4 w-4" /> Escrow Protection
+              </Link>
             </div>
           </div>
         </motion.div>

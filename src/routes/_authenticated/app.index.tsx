@@ -2,7 +2,7 @@ import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import {
-  ArrowRight, Bike, Package, Wallet, Zap, MapPin, Clock, Shield, AlertCircle,
+  ArrowRight, Bike, Package, Wallet, Zap, MapPin, Clock, Shield, AlertCircle, ShoppingBag, Smartphone
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -40,7 +40,7 @@ function getGreeting(t: (key: string) => string): string {
 const QUICK_ACTIONS = [
   { icon: Zap, labelKey: "app.quick.express", to: "/app/book", color: "bg-primary/15 text-primary" },
   { icon: Clock, labelKey: "app.quick.scheduled", to: "/app/book", color: "bg-blue-500/15 text-blue-400" },
-  { icon: Shield, labelKey: "app.quick.insured", to: "/app/book", color: "bg-green-500/15 text-green-400" },
+  { icon: ShoppingBag, labelKey: "app.quick.errand", to: "/app/errand", color: "bg-pink-500/15 text-pink-500" },
   { icon: MapPin, labelKey: "app.quick.track", to: "/app/orders", color: "bg-purple-500/15 text-purple-400" },
 ] as const;
 
@@ -344,6 +344,18 @@ function Home() {
           </div>
         )}
       </section>
+
+      {/* Low Data / Offline Mode Link */}
+      <div className="mt-6 flex justify-center pb-6">
+        <button 
+          disabled
+          className="flex items-center gap-2 text-xs font-medium text-slate-400 bg-slate-100 py-2 px-4 rounded-full cursor-not-allowed"
+        >
+          <Smartphone className="h-4 w-4" />
+          Test Low Data Mode (USSD)
+          <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wider ml-1">Coming Soon</span>
+        </button>
+      </div>
     </div>
   );
 }

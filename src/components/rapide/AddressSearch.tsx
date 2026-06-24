@@ -2,6 +2,8 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { MapPin, Loader2, X } from "lucide-react";
 import type { GeoResult } from "@/lib/pricing";
 import { CITIES } from "@/lib/pricing";
+import { useAIAddress } from "@/hooks/use-ai-address";
+import { Sparkles } from "lucide-react";
 
 const TOKEN = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined;
 
@@ -21,6 +23,8 @@ export function AddressSearch({ label, icon, value, onChange, onFocus, placehold
   const [open, setOpen] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const containerRef = useRef<HTMLDivElement>(null);
+  
+  const { resolveAddress, isResolving } = useAIAddress();
 
   // Sync displayed text when value changes externally (e.g. map click)
   useEffect(() => {
@@ -129,6 +133,21 @@ export function AddressSearch({ label, icon, value, onChange, onFocus, placehold
               />
               {loading && (
                 <Loader2 className="h-3.5 w-3.5 text-muted-foreground animate-spin shrink-0" />
+              )}
+              {query.length > 10 && !loading && (
+                <button
+                  onClick={async (e) => {
+                    e.preventDefault();
+                    const res = await resolveAddress(query);
+                    if (res) select(res);
+                  }}
+                  disabled={isResolving}
+                  className="px-2 py-1 bg-indigo-50 text-indigo-600 rounded-lg text-[10px] font-semibold flex items-center gap-1 hover:bg-indigo-100 transition-colors"
+                  title="Use AI to find this description"
+                >
+                  {isResolving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                  AI
+                </button>
               )}
               {query && !loading && (
                 <button
