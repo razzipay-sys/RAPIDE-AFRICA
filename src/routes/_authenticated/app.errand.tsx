@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { ArrowLeft, ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AddressSearch } from "@/components/rapide/AddressSearch";
-import { useTranslation } from "react-i18next";
+import { useT } from "@/lib/i18n";
 import { useQueryClient } from "@tanstack/react-query";
 
 export const Route = createFileRoute("/_authenticated/app/errand")({
@@ -17,7 +17,7 @@ function AppErrand() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { t } = useTranslation();
+  const { t } = useT();
 
   const [description, setDescription] = useState("");
   const [budget, setBudget] = useState("");

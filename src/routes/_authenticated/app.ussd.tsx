@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { ArrowLeft, Phone, SignalHigh } from "lucide-react";
-import { useTranslation } from "react-i18next";
+import { useT } from "@/lib/i18n";
 import { useAuth } from "@/hooks/use-auth";
 
 export const Route = createFileRoute("/_authenticated/app/ussd")({
@@ -11,7 +11,7 @@ export const Route = createFileRoute("/_authenticated/app/ussd")({
 function USSDSimulator() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { t } = useTranslation();
+  const { t } = useT();
   
   const [input, setInput] = useState("");
   const [menu, setMenu] = useState<"dialer" | "main" | "status" | "book">("dialer");
