@@ -1,15 +1,19 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useMemo, useState, useCallback } from "react";
-import { ArrowLeft, ArrowRight, Package, Shield, Zap, Clock, Loader2, MapPin, User, Phone, CheckCircle2 } from "lucide-react";
+import { useMemo, useState, useCallback, lazy, Suspense } from "react";
+import { ArrowLeft, ArrowRight, Package, Shield, Zap, Clock, Loader2, MapPin, User, Phone, CheckCircle2, Map as MapIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { CITIES, haversineKm, quote, fmtXOF, type DeliveryType, type GeoResult } from "@/lib/pricing";
 import { toast } from "sonner";
 import { useT } from "@/lib/i18n";
-import { LiveMap, type LatLng } from "@/components/rapide/LiveMap";
 import { AddressSearch } from "@/components/rapide/AddressSearch";
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined;
+
+// Lazy-load the map ONLY when user clicks "Show Map"
+const LazyLiveMap = lazy(() =>
+  import("@/components/rapide/LiveMap").then((m) => ({ default: m.LiveMap }))
+);
 
 export const Route = createFileRoute("/_authenticated/app/book")({
   component: BookPage,
@@ -45,6 +49,7 @@ function BookPage() {
 
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
+  const [showMap, setShowMap] = useState(false);
 
   // Address State
   const [pickup, setPickup] = useState<GeoResult>(CITIES[0]);
@@ -68,7 +73,7 @@ function BookPage() {
   const distance = useMemo(() => haversineKm(pickup, dropoff), [pickup, dropoff]);
   const pricing = useMemo(() => quote({ distanceKm: distance, type, insurance, weightKg: weight }), [distance, type, insurance, weight]);
 
-  const handleMapClick = useCallback(async (latlng: LatLng) => {
+  const handleMapClick = useCallback(async (latlng: { lat: number; lng: number }) => {
     const result = await reverseGeocode(latlng.lat, latlng.lng);
     if (lastFocused === "pickup") setPickup(result);
     else setDropoff(result);
@@ -187,27 +192,57 @@ function BookPage() {
               </div>
             </div>
 
-            {/* Strict isolation container to prevent Mapbox from triggering resize loops */}
-            <div className="relative w-full h-[260px] rounded-3xl overflow-hidden border border-white/10 shadow-elegant bg-muted/20 isolate pointer-events-auto">
-              <div className="absolute inset-0 z-0">
-                 <LiveMap
+            {/* Map Area — only loads when user clicks */}
+            <div className="relative w-full h-[260px] rounded-3xl overflow-hidden border border-white/10 shadow-elegant bg-muted/20">
+              {showMap ? (
+                <Suspense fallback={
+                  <div className="absolute inset-0 flex items-center justify-center bg-muted/20">
+                    <div className="h-6 w-6 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+                  </div>
+                }>
+                  <LazyLiveMap
                     pickup={pickup}
                     dropoff={dropoff}
                     height={260}
                     zoom={12}
                     onMapClick={handleMapClick}
                   />
-              </div>
-              
-              {/* Map UI Overlays */}
-              <div className="absolute top-3 left-1/2 -translate-x-1/2 pointer-events-none z-10">
-                <div className="bg-background/80 backdrop-blur-md px-4 py-1.5 rounded-full shadow-lg border border-border/50 flex items-center gap-2">
-                   <div className={`h-2 w-2 rounded-full animate-pulse ${lastFocused === 'pickup' ? 'bg-primary' : 'bg-blue-500'}`} />
-                   <span className="text-[10px] font-medium text-foreground uppercase tracking-wider">
-                     Cible: {lastFocused === "pickup" ? "Collecte" : "Livraison"}
-                   </span>
-                </div>
-              </div>
+                </Suspense>
+              ) : (
+                /* Beautiful static placeholder — tap to load map */
+                <button
+                  type="button"
+                  onClick={() => setShowMap(true)}
+                  className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-gradient-to-br from-muted/40 via-background/60 to-muted/30 cursor-pointer group transition-all hover:from-muted/50 hover:to-muted/40"
+                >
+                  <div className="relative">
+                    <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                      <MapIcon className="h-7 w-7 text-primary" />
+                    </div>
+                    <div className="absolute -bottom-1 -right-1 h-6 w-6 rounded-full bg-primary flex items-center justify-center shadow-glow">
+                      <MapPin className="h-3 w-3 text-primary-foreground" />
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm font-semibold text-foreground">Ouvrir la carte</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">Touchez pour choisir sur la carte</p>
+                  </div>
+                </button>
+              )}
+
+              {/* Map UI Overlays (only shown when map is active) */}
+              {showMap && (
+                <>
+                  <div className="absolute top-3 left-1/2 -translate-x-1/2 pointer-events-none z-10">
+                    <div className="bg-background/80 backdrop-blur-md px-4 py-1.5 rounded-full shadow-lg border border-border/50 flex items-center gap-2">
+                       <div className={`h-2 w-2 rounded-full animate-pulse ${lastFocused === 'pickup' ? 'bg-primary' : 'bg-blue-500'}`} />
+                       <span className="text-[10px] font-medium text-foreground uppercase tracking-wider">
+                         Cible: {lastFocused === "pickup" ? "Collecte" : "Livraison"}
+                       </span>
+                    </div>
+                  </div>
+                </>
+              )}
 
               <div className="absolute bottom-3 right-3 pointer-events-none z-10">
                 <div className="bg-background/80 backdrop-blur-md px-3 py-1.5 rounded-xl border border-border/50 shadow-sm">
