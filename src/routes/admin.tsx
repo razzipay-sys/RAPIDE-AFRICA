@@ -11,13 +11,13 @@ export const Route = createFileRoute("/admin")({
       throw redirect({ to: "/login", search: { redirect: location.href } });
     }
     // Check admin role
-    const { data: role } = await supabase
+    const { data: roles } = await supabase
       .from("user_roles")
       .select("role")
-      .eq("user_id", data.session.user.id)
-      .in("role", ["admin", "super_admin"])
-      .maybeSingle();
-    if (!role) {
+      .eq("user_id", data.session.user.id);
+      
+    const hasRole = roles?.some(r => r.role === "admin" || r.role === "super_admin");
+    if (!hasRole) {
       throw redirect({ to: "/" });
     }
   },

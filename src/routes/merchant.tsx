@@ -10,13 +10,13 @@ export const Route = createFileRoute("/merchant")({
     if (!data.session) {
       throw redirect({ to: "/login", search: { redirect: location.href } });
     }
-    const { data: role } = await supabase
+    const { data: roles } = await supabase
       .from("user_roles")
       .select("role")
-      .eq("user_id", data.session.user.id)
-      .in("role", ["merchant", "admin"])
-      .maybeSingle();
-    if (!role) {
+      .eq("user_id", data.session.user.id);
+      
+    const hasRole = roles?.some(r => r.role === "merchant" || r.role === "admin");
+    if (!hasRole) {
       throw redirect({ to: "/" });
     }
   },
