@@ -1,7 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useMemo, useState, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, ArrowRight, Package, Shield, Zap, Clock, Loader2, MapPin, User, Phone } from "lucide-react";
+import { useMemo, useState, useCallback, useEffect } from "react";
+import { ArrowLeft, ArrowRight, Package, Shield, Zap, Clock, Loader2, MapPin, User, Phone, CheckCircle2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { CITIES, haversineKm, quote, fmtXOF, type DeliveryType, type GeoResult } from "@/lib/pricing";
@@ -30,19 +29,13 @@ async function reverseGeocode(lat: number, lng: number): Promise<GeoResult> {
   }
 }
 
-const slideVariants = {
-  enter: (dir: number) => ({ opacity: 0, x: dir * 28 }),
-  center: { opacity: 1, x: 0, transition: { duration: 0.22, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] } },
-  exit: (dir: number) => ({ opacity: 0, x: dir * -28, transition: { duration: 0.16 } }),
-};
-
 const CATEGORIES = [
-  { value: "document" as const,     label: "Document" },
-  { value: "food" as const,         label: "Nourriture" },
-  { value: "electronics" as const,  label: "Électronique" },
-  { value: "clothing" as const,     label: "Vêtement" },
-  { value: "fragile" as const,      label: "Fragile" },
-  { value: "other" as const,        label: "Autre" },
+  { value: "document" as const,     label: "Document",    icon: "📄" },
+  { value: "food" as const,         label: "Nourriture",  icon: "🍔" },
+  { value: "electronics" as const,  label: "Électronique",icon: "💻" },
+  { value: "clothing" as const,     label: "Vêtement",    icon: "👕" },
+  { value: "fragile" as const,      label: "Fragile",     icon: "🍷" },
+  { value: "other" as const,        label: "Autre",       icon: "📦" },
 ];
 
 function BookPage() {
@@ -51,36 +44,29 @@ function BookPage() {
   const { t } = useT();
 
   const [step, setStep] = useState(1);
-  const [dir, setDir] = useState(1);
   const [submitting, setSubmitting] = useState(false);
-  const [mapInteractive, setMapInteractive] = useState(false);
 
-  // Step 1 — addresses
+  // Address State
   const [pickup, setPickup] = useState<GeoResult>(CITIES[0]);
   const [dropoff, setDropoff] = useState<GeoResult>(CITIES[3]);
   const [lastFocused, setLastFocused] = useState<"pickup" | "dropoff">("pickup");
 
-  // Step 2 — contacts + parcel
+  // Detail State
   const [pickupName, setPickupName]   = useState("");
   const [pickupPhone, setPickupPhone] = useState("");
   const [dropName, setDropName]       = useState("");
   const [dropPhone, setDropPhone]     = useState("");
-  const [category, setCategory]       = useState<"document" | "food" | "electronics" | "clothing" | "fragile" | "other">("document");
+  const [category, setCategory]       = useState<typeof CATEGORIES[number]["value"]>("document");
   const [weight, setWeight]           = useState(2);
   const [notes, setNotes]             = useState("");
 
-  // Step 3 — delivery type + pricing
+  // Delivery Options
   const [type, setType]           = useState<DeliveryType>("standard");
   const [insurance, setInsurance] = useState(false);
 
+  // Memoized Calculations
   const distance = useMemo(() => haversineKm(pickup, dropoff), [pickup, dropoff]);
-  const q = useMemo(() => quote({ distanceKm: distance, type, insurance, weightKg: weight }), [distance, type, insurance, weight]);
-
-  const goTo = (n: number) => {
-    setDir(n > step ? 1 : -1);
-    setStep(n);
-    setMapInteractive(false);
-  };
+  const pricing = useMemo(() => quote({ distanceKm: distance, type, insurance, weightKg: weight }), [distance, type, insurance, weight]);
 
   const handleMapClick = useCallback(async (latlng: LatLng) => {
     const result = await reverseGeocode(latlng.lat, latlng.lng);
@@ -88,28 +74,24 @@ function BookPage() {
     else setDropoff(result);
   }, [lastFocused]);
 
-  const validateStep1 = () => {
-    if (!pickup.name.trim() || !dropoff.name.trim()) {
-      toast.error(t("book.pickup") + " / " + t("book.dropoff") + " requis");
-      return false;
+  const goToNext = () => {
+    if (step === 1) {
+      if (!pickup.name.trim() || !dropoff.name.trim()) {
+        toast.error("Adresses de collecte et livraison requises");
+        return;
+      }
+      if (pickup.lat === dropoff.lat && pickup.lng === dropoff.lng) {
+        toast.error("Les adresses doivent être différentes");
+        return;
+      }
+      setStep(2);
+    } else if (step === 2) {
+      if (!dropName.trim() || !dropPhone.trim()) {
+        toast.error("Le nom et le téléphone du destinataire sont requis");
+        return;
+      }
+      setStep(3);
     }
-    if (pickup.lat === dropoff.lat && pickup.lng === dropoff.lng) {
-      toast.error("Les adresses de collecte et de livraison doivent être différentes");
-      return false;
-    }
-    return true;
-  };
-
-  const validateStep2 = () => {
-    if (!dropName.trim()) {
-      toast.error("Le nom du destinataire est requis");
-      return false;
-    }
-    if (!dropPhone.trim()) {
-      toast.error("Le téléphone du destinataire est requis");
-      return false;
-    }
-    return true;
   };
 
   const submit = async () => {
@@ -124,309 +106,418 @@ function BookPage() {
       parcel_category: category, parcel_weight_kg: weight, parcel_notes: notes || null,
       delivery_type: type, insurance,
       distance_km: Number(distance.toFixed(2)),
-      price_xof: q.price_xof, commission_xof: q.commission_xof,
+      price_xof: pricing.price_xof, commission_xof: pricing.commission_xof,
       status: "pending",
     }).select("id").single();
+    
     setSubmitting(false);
+    
     if (error || !data) {
       toast.error(error?.message ?? "Erreur lors de la création de la commande");
       return;
     }
+    
     await supabase.from("order_events").insert({
       order_id: data.id, status: "pending", created_by: user.id, note: "Commande créée",
     });
+    
     toast.success(t("book.success"));
     navigate({ to: "/app/track/$orderId", params: { orderId: data.id } });
   };
 
   return (
-    <div className="space-y-5 pb-6">
+    <div className="flex flex-col h-[calc(100vh-80px)] max-h-[850px] overflow-hidden pb-6">
       {/* Header */}
-      <header className="flex items-center justify-between">
+      <header className="flex-none px-4 py-3 flex items-center justify-between bg-background/80 backdrop-blur-md sticky top-0 z-50">
         <button
-          onClick={() => step > 1 ? goTo(step - 1) : navigate({ to: "/app" })}
-          className="glass h-9 w-9 rounded-xl flex items-center justify-center"
+          onClick={() => step > 1 ? setStep(step - 1) : navigate({ to: "/app" })}
+          className="h-10 w-10 rounded-2xl bg-muted/50 flex items-center justify-center hover:bg-muted transition-colors"
         >
-          <ArrowLeft className="h-4 w-4" />
+          <ArrowLeft className="h-5 w-5 text-foreground" />
         </button>
-        <div className="flex gap-1.5">
+        <div className="flex gap-2">
           {[1, 2, 3].map((n) => (
-            <div key={n} className={`h-1.5 w-8 rounded-full transition-all duration-300 ${n <= step ? "bg-primary" : "bg-muted"}`} />
+            <div 
+              key={n} 
+              className={`h-2 rounded-full transition-all duration-500 ease-out ${n === step ? "w-8 bg-primary" : n < step ? "w-4 bg-primary/40" : "w-4 bg-muted"}`} 
+            />
           ))}
         </div>
-        <div className="w-9" />
+        <div className="w-10" /> {/* Spacer for alignment */}
       </header>
 
-      <div className="relative overflow-hidden">
-        {/* ── STEP 1: Addresses + Map ── */}
+      {/* Main Content Scroll Area */}
+      <main className="flex-1 overflow-y-auto px-4 pb-12 space-y-6 pt-4 relative">
+        
+        {/* Step 1: Locations */}
         {step === 1 && (
-          <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
+          <div className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-500">
             <div>
-              <h1 className="font-display text-2xl font-bold">{t("book.step1.title")}</h1>
-              <p className="text-sm text-muted-foreground mt-0.5">Choisissez les adresses de collecte et de livraison</p>
+              <h1 className="text-3xl font-display font-bold bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
+                {t("book.step1.title")}
+              </h1>
+              <p className="text-sm text-muted-foreground mt-1">
+                Définissez la route de votre colis.
+              </p>
             </div>
 
-            <AddressSearch
-              label={t("book.pickup")}
-              icon="A"
-              value={pickup}
-              onChange={setPickup}
-              onFocus={() => setLastFocused("pickup")}
-              placeholder={t("book.search_placeholder_pickup")}
-            />
-            <AddressSearch
-              label={t("book.dropoff")}
-              icon="B"
-              value={dropoff}
-              onChange={setDropoff}
-              onFocus={() => setLastFocused("dropoff")}
-              placeholder={t("book.search_placeholder_dropoff")}
-            />
-
-            {/* Map temporarily deactivated */}
-            <div className="relative rounded-3xl overflow-hidden bg-muted/20 border border-white/5 flex flex-col items-center justify-center py-10">
-               <MapPin className="h-8 w-8 text-muted-foreground/30 mb-2" />
-               <p className="text-xs text-muted-foreground/50">Carte temporairement désactivée</p>
+            <div className="space-y-3 relative">
+              {/* Visual connection line between dots */}
+              <div className="absolute left-6 top-[2.5rem] bottom-[2.5rem] w-px bg-border/80 border-dashed border-l z-0" />
+              
+              <div className="relative z-10">
+                <AddressSearch
+                  label={t("book.pickup")}
+                  icon="A"
+                  value={pickup}
+                  onChange={setPickup}
+                  onFocus={() => setLastFocused("pickup")}
+                  placeholder={t("book.search_placeholder_pickup")}
+                />
+              </div>
+              <div className="relative z-10">
+                <AddressSearch
+                  label={t("book.dropoff")}
+                  icon="B"
+                  value={dropoff}
+                  onChange={setDropoff}
+                  onFocus={() => setLastFocused("dropoff")}
+                  placeholder={t("book.search_placeholder_dropoff")}
+                />
+              </div>
             </div>
 
-            <p className="text-xs text-muted-foreground text-center">
-              Distance estimée : <span className="font-semibold text-foreground">{distance.toFixed(1)} km</span>
-            </p>
+            {/* Strict isolation container to prevent Mapbox from triggering resize loops */}
+            <div className="relative w-full h-[260px] rounded-3xl overflow-hidden border border-white/10 shadow-elegant bg-muted/20 isolate pointer-events-auto">
+              <div className="absolute inset-0 z-0">
+                 <LiveMap
+                    pickup={pickup}
+                    dropoff={dropoff}
+                    height={260}
+                    zoom={12}
+                    onMapClick={handleMapClick}
+                  />
+              </div>
+              
+              {/* Map UI Overlays */}
+              <div className="absolute top-3 left-1/2 -translate-x-1/2 pointer-events-none z-10">
+                <div className="bg-background/80 backdrop-blur-md px-4 py-1.5 rounded-full shadow-lg border border-border/50 flex items-center gap-2">
+                   <div className={`h-2 w-2 rounded-full animate-pulse ${lastFocused === 'pickup' ? 'bg-primary' : 'bg-blue-500'}`} />
+                   <span className="text-[10px] font-medium text-foreground uppercase tracking-wider">
+                     Cible: {lastFocused === "pickup" ? "Collecte" : "Livraison"}
+                   </span>
+                </div>
+              </div>
+
+              <div className="absolute bottom-3 right-3 pointer-events-none z-10">
+                <div className="bg-background/80 backdrop-blur-md px-3 py-1.5 rounded-xl border border-border/50 shadow-sm">
+                   <span className="text-xs font-bold text-foreground">{distance.toFixed(1)} km</span>
+                </div>
+              </div>
+            </div>
 
             <button
-              onClick={() => validateStep1() && goTo(2)}
-              className="w-full rounded-xl bg-gradient-primary px-4 py-3 text-sm font-semibold text-primary-foreground shadow-glow flex items-center justify-center gap-2 hover:scale-[1.01] transition active:scale-[0.98]"
+              onClick={goToNext}
+              className="w-full h-14 rounded-2xl bg-primary text-primary-foreground font-semibold flex items-center justify-center gap-2 hover:opacity-90 active:scale-[0.98] transition-all shadow-glow"
             >
-              {t("book.next")} <ArrowRight className="h-4 w-4" />
+              Continuer <ArrowRight className="h-5 w-5" />
             </button>
           </div>
         )}
 
-        {/* ── STEP 2: Package Details ── */}
+        {/* Step 2: Details */}
         {step === 2 && (
-          <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
+          <div className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-500">
             <div>
-              <h1 className="font-display text-2xl font-bold">{t("book.step2.title")}</h1>
-              <p className="text-sm text-muted-foreground mt-0.5">Informations sur le destinataire et le colis</p>
+              <h1 className="text-3xl font-display font-bold">Détails du Colis</h1>
+              <p className="text-sm text-muted-foreground mt-1">À qui l'envoyons-nous ?</p>
             </div>
 
-            {/* Recipient (required) */}
-            <div className="glass-strong rounded-2xl p-5 space-y-4">
-              <div className="flex items-center gap-2 mb-1">
-                <div className="h-6 w-6 rounded-lg bg-primary/15 text-primary flex items-center justify-center">
-                  <User className="h-3.5 w-3.5" />
+            {/* Recipient Card */}
+            <div className="bg-card border border-border rounded-3xl p-5 shadow-sm space-y-4">
+              <div className="flex items-center gap-3 border-b border-border/50 pb-3">
+                <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                  <User className="h-4 w-4" />
                 </div>
-                <p className="text-sm font-semibold">Destinataire <span className="text-primary text-xs">*requis</span></p>
-              </div>
-              <Field
-                label="Nom du destinataire"
-                value={dropName}
-                onChange={setDropName}
-                placeholder="Ex. : Kofi Mensah"
-                required
-              />
-              <Field
-                label="Téléphone du destinataire"
-                value={dropPhone}
-                onChange={setDropPhone}
-                placeholder="+229 01 XX XX XX"
-                type="tel"
-                required
-              />
-            </div>
-
-            {/* Sender (optional) */}
-            <div className="glass rounded-2xl p-5 space-y-4">
-              <div className="flex items-center gap-2 mb-1">
-                <div className="h-6 w-6 rounded-lg bg-muted/50 text-muted-foreground flex items-center justify-center">
-                  <Phone className="h-3.5 w-3.5" />
+                <div>
+                  <h3 className="font-semibold text-sm">Destinataire</h3>
+                  <p className="text-xs text-muted-foreground">Requis pour la livraison</p>
                 </div>
-                <p className="text-sm font-semibold text-muted-foreground">Expéditeur <span className="text-xs">(optionnel)</span></p>
               </div>
-              <Field
-                label="Votre nom"
-                value={pickupName}
-                onChange={setPickupName}
-                placeholder="Ex. : Ama Diallo"
-              />
-              <Field
-                label="Votre téléphone"
-                value={pickupPhone}
-                onChange={setPickupPhone}
-                placeholder="+229 01 XX XX XX"
-                type="tel"
-              />
+              
+              <div className="space-y-3">
+                <FloatingField
+                  label="Nom complet"
+                  value={dropName}
+                  onChange={setDropName}
+                  placeholder="Kofi Mensah"
+                />
+                <FloatingField
+                  label="Numéro de téléphone"
+                  value={dropPhone}
+                  onChange={setDropPhone}
+                  placeholder="+229 01 XX XX XX"
+                  type="tel"
+                />
+              </div>
             </div>
 
-            {/* Parcel category */}
-            <div>
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">{t("book.category")}</p>
-              <div className="grid grid-cols-3 gap-2">
+            {/* Sender Card (Optional) */}
+            <div className="bg-card border border-border rounded-3xl p-5 shadow-sm space-y-4">
+               <div className="flex items-center gap-3 border-b border-border/50 pb-3">
+                <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center text-muted-foreground">
+                  <Phone className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-sm">Expéditeur</h3>
+                  <p className="text-xs text-muted-foreground">Optionnel</p>
+                </div>
+              </div>
+              
+              <div className="space-y-3">
+                <FloatingField
+                  label="Votre nom"
+                  value={pickupName}
+                  onChange={setPickupName}
+                  placeholder="Ama Diallo"
+                />
+                <FloatingField
+                  label="Votre téléphone"
+                  value={pickupPhone}
+                  onChange={setPickupPhone}
+                  placeholder="+229 01 XX XX XX"
+                  type="tel"
+                />
+              </div>
+            </div>
+
+            {/* Parcel Type */}
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold pl-1">Que contient le colis ?</h3>
+              <div className="grid grid-cols-2 gap-3">
                 {CATEGORIES.map((c) => (
                   <button
                     key={c.value}
                     type="button"
                     onClick={() => setCategory(c.value)}
-                    className={`rounded-xl px-3 py-2.5 text-sm border transition ${
-                      category === c.value ? "border-primary bg-primary/10 text-primary" : "border-border glass"
+                    className={`flex items-center gap-3 rounded-2xl p-3 border transition-all duration-200 ${
+                      category === c.value 
+                        ? "border-primary bg-primary/5 shadow-sm scale-[1.02]" 
+                        : "border-border bg-card hover:bg-muted/50"
                     }`}
                   >
-                    {c.label}
+                    <span className="text-xl">{c.icon}</span>
+                    <span className={`text-sm font-medium ${category === c.value ? "text-primary" : "text-foreground/80"}`}>
+                      {c.label}
+                    </span>
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* Weight */}
-            <div className="glass rounded-2xl p-4">
-              <p className="text-xs text-muted-foreground">{t("book.weight")} : <span className="text-foreground font-semibold">{weight} kg</span></p>
+            {/* Weight Slider */}
+            <div className="bg-card border border-border rounded-3xl p-5 shadow-sm space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold">Poids estimé</h3>
+                <span className="text-lg font-display font-bold text-primary">{weight} kg</span>
+              </div>
               <input
                 type="range"
                 min={1}
                 max={20}
                 value={weight}
                 onChange={(e) => setWeight(Number(e.target.value))}
-                className="w-full mt-2 accent-[var(--primary)]"
+                className="w-full accent-primary h-2 bg-muted rounded-full appearance-none cursor-pointer"
               />
-              <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
-                <span>1 kg</span><span>20 kg</span>
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>1 kg</span>
+                <span>20 kg</span>
               </div>
             </div>
 
             {/* Notes */}
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder={t("book.notes_placeholder")}
-              rows={3}
-              className="w-full rounded-2xl bg-input/40 border border-border p-4 text-sm outline-none focus:border-primary resize-none"
-            />
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold pl-1">Instructions spéciales</h3>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Ex: Attention fragile, sonner à la porte bleue..."
+                rows={3}
+                className="w-full rounded-3xl bg-card border border-border p-4 text-sm outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all resize-none"
+              />
+            </div>
 
             <button
-          onClick={() => validateStep2() && goTo(3)}
-              className="w-full rounded-xl bg-gradient-primary px-4 py-3 text-sm font-semibold text-primary-foreground shadow-glow flex items-center justify-center gap-2 hover:scale-[1.01] transition active:scale-[0.98]"
+              onClick={goToNext}
+              className="w-full h-14 rounded-2xl bg-primary text-primary-foreground font-semibold flex items-center justify-center gap-2 hover:opacity-90 active:scale-[0.98] transition-all shadow-glow"
             >
-              {t("book.next")} <ArrowRight className="h-4 w-4" />
+              Voir le devis <ArrowRight className="h-5 w-5" />
             </button>
           </div>
         )}
 
-        {/* ── STEP 3: Quote & Confirmation ── */}
+        {/* Step 3: Checkout */}
         {step === 3 && (
-          <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
-            <div>
-              <h1 className="font-display text-2xl font-bold">{t("book.step3.title")}</h1>
-              <p className="text-sm text-muted-foreground mt-0.5">Choisissez votre type de livraison</p>
+          <div className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-500">
+             <div>
+              <h1 className="text-3xl font-display font-bold">Confirmation</h1>
+              <p className="text-sm text-muted-foreground mt-1">Finalisez votre course</p>
             </div>
 
-            <div className="space-y-2">
-              <TypeOption active={type === "standard"} onClick={() => setType("standard")} icon={Package}
-                title={t("book.std.title")} desc={t("book.std.desc")} />
-              <TypeOption active={type === "express"}  onClick={() => setType("express")}  icon={Zap}
-                title={t("book.exp.title")} desc={t("book.exp.desc")} />
-              <TypeOption active={type === "scheduled"} onClick={() => setType("scheduled")} icon={Clock}
-                title={t("book.sched.title")} desc={t("book.sched.desc")} />
+            {/* Delivery Speeds */}
+            <div className="space-y-3">
+              <TypeCard 
+                active={type === "standard"} onClick={() => setType("standard")} 
+                icon={Package} title={t("book.std.title")} desc={t("book.std.desc")} 
+              />
+              <TypeCard 
+                active={type === "express"} onClick={() => setType("express")} 
+                icon={Zap} title={t("book.exp.title")} desc={t("book.exp.desc")} 
+                isPremium
+              />
+              <TypeCard 
+                active={type === "scheduled"} onClick={() => setType("scheduled")} 
+                icon={Clock} title={t("book.sched.title")} desc={t("book.sched.desc")} 
+              />
             </div>
 
+            {/* Add-ons */}
             <button
               type="button"
               onClick={() => setInsurance(!insurance)}
-              className={`w-full rounded-2xl p-4 flex items-center justify-between border transition ${
-                insurance ? "border-primary bg-primary/10" : "border-border glass"
+              className={`w-full rounded-3xl p-4 flex items-center justify-between border transition-all duration-300 ${
+                insurance ? "border-primary bg-primary/5 shadow-sm" : "border-border bg-card"
               }`}
             >
-              <span className="flex items-center gap-3 text-sm"><Shield className="h-4 w-4 text-primary" /> {t("book.insurance")}</span>
-              <span className={`h-5 w-5 rounded-full border-2 flex-shrink-0 ${insurance ? "border-primary bg-primary" : "border-muted-foreground"}`} />
+              <div className="flex items-center gap-3">
+                 <div className={`h-10 w-10 rounded-full flex items-center justify-center ${insurance ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
+                   <Shield className="h-5 w-5" />
+                 </div>
+                 <div className="text-left">
+                   <p className="text-sm font-semibold">Assurance colis</p>
+                   <p className="text-xs text-muted-foreground">Couverture jusqu'à 50,000 FCFA</p>
+                 </div>
+              </div>
+              <div className={`h-6 w-6 rounded-full border-2 flex items-center justify-center transition-colors ${insurance ? "border-primary bg-primary" : "border-muted-foreground/30"}`}>
+                {insurance && <CheckCircle2 className="h-4 w-4 text-white" />}
+              </div>
             </button>
 
-            {/* Summary */}
-            <div className="glass-strong rounded-2xl p-5 space-y-2">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Récapitulatif</p>
-              <Row label="De" value={pickup.name} truncate />
-              <Row label="Vers" value={dropoff.name} truncate />
-              <Row label="Destinataire" value={`${dropName} · ${dropPhone}`} />
-              <Row label={t("book.distance")} value={`${distance.toFixed(1)} km`} />
-              <Row label="Type" value={type} />
-              {insurance && <Row label="Assurance" value="Incluse" />}
-              <Row label={t("book.commission")} value={fmtXOF(q.commission_xof)} muted />
-              <div className="h-px bg-border my-2" />
-              <div className="flex items-baseline justify-between">
-                <span className="text-sm text-muted-foreground">{t("book.total")}</span>
-                <span className="font-display text-2xl font-bold text-gradient-primary">{fmtXOF(q.price_xof)}</span>
+            {/* Receipt Summary */}
+            <div className="bg-card border border-border rounded-3xl p-6 shadow-sm relative overflow-hidden">
+              {/* Decorative top jagged edge logic (visual only) */}
+              <div className="absolute top-0 left-0 right-0 h-1 flex justify-around opacity-20">
+                {Array.from({length: 20}).map((_, i) => <div key={i} className="w-2 h-2 bg-background rotate-45 -translate-y-1.5" />)}
+              </div>
+              
+              <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-4 text-center">Reçu de Livraison</h3>
+              
+              <div className="space-y-3">
+                <ReceiptRow label="Départ" value={pickup.name} truncate />
+                <ReceiptRow label="Arrivée" value={dropoff.name} truncate />
+                <ReceiptRow label="Poids" value={`${weight} kg`} />
+                <ReceiptRow label="Distance" value={`${distance.toFixed(1)} km`} />
+                <div className="my-3 border-t border-dashed border-border" />
+                <ReceiptRow label="Frais de base" value={fmtXOF(pricing.price_xof - (insurance ? 500 : 0))} />
+                {insurance && <ReceiptRow label="Assurance" value="500 FCFA" />}
+                
+                <div className="mt-4 pt-4 border-t border-border flex items-end justify-between">
+                  <span className="text-sm font-medium">Total à payer</span>
+                  <span className="text-3xl font-display font-bold text-primary">{fmtXOF(pricing.price_xof)}</span>
+                </div>
               </div>
             </div>
 
-            <button
-              onClick={submit}
-              disabled={submitting}
-              className="w-full rounded-xl bg-gradient-primary px-4 py-3.5 text-sm font-semibold text-primary-foreground shadow-glow disabled:opacity-60 flex items-center justify-center gap-2 hover:scale-[1.01] transition active:scale-[0.98]"
-            >
-              {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-              {t("book.confirm")} · {fmtXOF(q.price_xof)}
-            </button>
+            {/* Submit Button */}
+            <div className="pt-2">
+              <button
+                onClick={submit}
+                disabled={submitting}
+                className="w-full h-14 rounded-2xl bg-gradient-primary text-primary-foreground font-semibold flex items-center justify-center gap-3 hover:shadow-glow active:scale-[0.98] transition-all disabled:opacity-70"
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 className="h-5 w-5 animate-spin" /> Traitement...
+                  </>
+                ) : (
+                  <>
+                    Confirmer la commande
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         )}
-      </div>
+
+      </main>
     </div>
   );
 }
 
-function Field({
-  label, value, onChange, placeholder, type = "text", required = false,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  placeholder?: string;
-  type?: string;
-  required?: boolean;
-}) {
+// Helper Components
+function FloatingField({ label, value, onChange, placeholder, type = "text" }: { label: string, value: string, onChange: (v: string) => void, placeholder?: string, type?: string }) {
+  const [focused, setFocused] = useState(false);
+  const active = focused || value.length > 0;
+  
   return (
-    <div>
-      <label className="block text-xs text-muted-foreground mb-1">
-        {label}{required && <span className="text-primary ml-0.5">*</span>}
+    <div className="relative">
+      <label 
+        className={`absolute left-4 transition-all duration-200 pointer-events-none z-10 ${
+          active ? "text-[10px] top-1.5 text-primary font-semibold" : "text-sm top-4 text-muted-foreground"
+        }`}
+      >
+        {label}
       </label>
       <input
         type={type}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className={`w-full rounded-xl bg-input/40 border px-3 py-2.5 text-sm outline-none transition focus:border-primary ${
-          required && !value.trim() ? "border-destructive/40" : "border-border"
-        }`}
+        onChange={e => onChange(e.target.value)}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        placeholder={focused ? placeholder : ""}
+        className="w-full h-14 bg-background border border-border rounded-2xl px-4 pt-5 pb-1 text-sm font-medium outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all relative z-0"
       />
     </div>
   );
 }
 
-function TypeOption({ active, onClick, icon: Icon, title, desc }: {
-  active: boolean; onClick: () => void; icon: React.ElementType; title: string; desc: string;
-}) {
+function TypeCard({ active, onClick, icon: Icon, title, desc, isPremium }: { active: boolean, onClick: () => void, icon: any, title: string, desc: string, isPremium?: boolean }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`w-full rounded-2xl p-4 flex items-center gap-3 border transition text-left ${
-        active ? "border-primary bg-primary/10" : "border-border glass"
+      className={`w-full rounded-3xl p-4 flex items-center gap-4 border transition-all duration-300 text-left relative overflow-hidden ${
+        active ? "border-primary bg-primary/5 shadow-sm" : "border-border bg-card hover:bg-muted/30"
       }`}
     >
-      <div className="h-10 w-10 rounded-xl bg-primary/15 text-primary flex items-center justify-center shrink-0">
-        <Icon className="h-5 w-5" />
+      {isPremium && active && (
+        <div className="absolute top-0 right-0 w-16 h-16 pointer-events-none">
+          <div className="absolute top-2 -right-4 bg-primary text-[8px] font-bold text-white uppercase py-0.5 px-6 rotate-45">
+            Rapide
+          </div>
+        </div>
+      )}
+      
+      <div className={`h-12 w-12 rounded-2xl flex items-center justify-center shrink-0 transition-colors ${
+        active ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+      }`}>
+        <Icon className="h-6 w-6" />
       </div>
+      
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold">{title}</p>
-        <p className="text-xs text-muted-foreground">{desc}</p>
+        <p className={`text-base font-semibold ${active ? "text-primary" : "text-foreground"}`}>{title}</p>
+        <p className="text-xs text-muted-foreground leading-relaxed">{desc}</p>
       </div>
-      <div className={`h-5 w-5 rounded-full border-2 shrink-0 ${active ? "border-primary bg-primary" : "border-muted-foreground"}`} />
     </button>
   );
 }
 
-function Row({ label, value, muted, truncate }: { label: string; value: string; muted?: boolean; truncate?: boolean }) {
+function ReceiptRow({ label, value, truncate }: { label: string, value: string, truncate?: boolean }) {
   return (
-    <div className="flex items-baseline justify-between gap-3 text-sm">
+    <div className="flex items-center justify-between gap-4 text-sm">
       <span className="text-muted-foreground shrink-0">{label}</span>
-      <span className={`${muted ? "text-muted-foreground" : "font-medium"} ${truncate ? "truncate text-right" : ""}`}>{value}</span>
+      <div className="flex-1 border-b border-dotted border-border/50 mx-2 self-end mb-1" />
+      <span className={`font-semibold ${truncate ? "truncate max-w-[50%] text-right" : ""}`}>{value}</span>
     </div>
   );
 }
