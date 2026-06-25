@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MapPin } from "lucide-react";
+import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 
 const TOKEN = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined;
@@ -81,7 +82,6 @@ export function LiveMap({
     let cancelled = false;
 
     (async () => {
-      const mapboxgl = (await import("mapbox-gl")).default;
       if (cancelled || !containerRef.current) return;
 
       mapboxgl.accessToken = TOKEN;
@@ -121,11 +121,7 @@ export function LiveMap({
     return () => {
       cancelled = true;
       if (map) {
-        // Defer map removal to prevent WebGL context destruction from blocking 
-        // the main thread during React unmounts and page navigation animations.
-        setTimeout(() => {
-          try { map.remove(); } catch {}
-        }, 300);
+        try { map.remove(); } catch {}
       }
       mapRef.current = null;
       initRef.current = false;
@@ -143,10 +139,7 @@ export function LiveMap({
     markersRef.current.forEach((m) => { try { m.remove(); } catch {} });
     markersRef.current = [];
 
-    let mapboxgl: any;
     (async () => {
-      mapboxgl = (await import("mapbox-gl")).default;
-
       // Pickup marker
       if (pickup) {
         const el = document.createElement("div");

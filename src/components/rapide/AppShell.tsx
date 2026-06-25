@@ -115,7 +115,6 @@ export function AppShell({ children }: { children: ReactNode }) {
       {/* Page content with transition */}
       <main className="mx-auto max-w-2xl px-4 pt-16">
           <motion.div
-            key={pathname}
             variants={pageVariants}
             initial="initial"
             animate="enter"
