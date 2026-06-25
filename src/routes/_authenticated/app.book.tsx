@@ -156,7 +156,7 @@ function BookPage() {
         
         {/* Step 1: Locations */}
         {step === 1 && (
-          <div className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-500">
+          <div className="space-y-6">
             <div>
               <h1 className="text-3xl font-display font-bold bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
                 {t("book.step1.title")}
@@ -262,7 +262,7 @@ function BookPage() {
 
         {/* Step 2: Details */}
         {step === 2 && (
-          <div className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-500">
+          <div className="space-y-6">
             <div>
               <h1 className="text-3xl font-display font-bold">Détails du Colis</h1>
               <p className="text-sm text-muted-foreground mt-1">À qui l'envoyons-nous ?</p>
@@ -393,7 +393,7 @@ function BookPage() {
 
         {/* Step 3: Checkout */}
         {step === 3 && (
-          <div className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-500">
+          <div className="space-y-6">
              <div>
               <h1 className="text-3xl font-display font-bold">Confirmation</h1>
               <p className="text-sm text-muted-foreground mt-1">Finalisez votre course</p>

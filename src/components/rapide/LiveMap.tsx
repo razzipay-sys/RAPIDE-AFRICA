@@ -121,7 +121,8 @@ export function LiveMap({
     return () => {
       cancelled = true;
       if (map) {
-        try { map.remove(); } catch {}
+        // Defer removal to prevent blocking the UI thread on unmount
+        setTimeout(() => { try { map.remove(); } catch {} }, 500);
       }
       mapRef.current = null;
       initRef.current = false;
