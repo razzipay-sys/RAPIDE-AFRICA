@@ -183,46 +183,10 @@ function BookPage() {
               placeholder={t("book.search_placeholder_dropoff")}
             />
 
-            {/* Map with interaction gate to prevent scroll-lock on mobile */}
-            <div className="relative rounded-3xl overflow-hidden">
-              <div style={{ pointerEvents: mapInteractive ? "auto" : "none" }}>
-                <LiveMap
-                  pickup={pickup}
-                  dropoff={dropoff}
-                  height={220}
-                  zoom={12}
-                  onMapClick={mapInteractive ? handleMapClick : undefined}
-                />
-              </div>
-
-              {!mapInteractive ? (
-                <button
-                  type="button"
-                  onClick={() => setMapInteractive(true)}
-                  className="absolute inset-0 flex items-center justify-center bg-black/10 hover:bg-black/20 transition-colors"
-                >
-                  <span className="glass-strong rounded-full px-4 py-2 text-xs font-medium flex items-center gap-2 shadow-elegant">
-                    <MapPin className="h-3.5 w-3.5 text-primary" />
-                    Appuyer pour choisir sur la carte
-                  </span>
-                </button>
-              ) : (
-                <div className="absolute top-2 left-0 right-0 flex justify-center pointer-events-none">
-                  <span className="glass rounded-full px-3 py-1 text-[10px] text-muted-foreground pointer-events-none">
-                    {lastFocused === "pickup" ? "Placement : point de collecte" : "Placement : destination"}
-                  </span>
-                </div>
-              )}
-
-              {mapInteractive && (
-                <button
-                  type="button"
-                  onClick={() => setMapInteractive(false)}
-                  className="absolute bottom-3 left-1/2 -translate-x-1/2 glass-strong rounded-full px-5 py-2 text-xs font-semibold shadow-elegant"
-                >
-                  Terminé
-                </button>
-              )}
+            {/* Map temporarily deactivated */}
+            <div className="relative rounded-3xl overflow-hidden bg-muted/20 border border-white/5 flex flex-col items-center justify-center py-10">
+               <MapPin className="h-8 w-8 text-muted-foreground/30 mb-2" />
+               <p className="text-xs text-muted-foreground/50">Carte temporairement désactivée</p>
             </div>
 
             <p className="text-xs text-muted-foreground text-center">
