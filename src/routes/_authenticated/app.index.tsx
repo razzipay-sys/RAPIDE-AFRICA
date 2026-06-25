@@ -1,6 +1,7 @@
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
+import { lazy, Suspense } from "react";
 import {
   ArrowRight, Bike, Package, Wallet, Zap, MapPin, Clock, Shield, AlertCircle, ShoppingBag, Smartphone
 } from "lucide-react";
@@ -10,7 +11,10 @@ import { fmtXOF } from "@/lib/pricing";
 import { useT } from "@/lib/i18n";
 import { StatusBadge, StatusDot } from "@/components/rapide/StatusBadge";
 import { SkeletonOrderCard, SkeletonStatCard } from "@/components/rapide/SkeletonCard";
-import { LiveMap } from "@/components/rapide/LiveMap";
+
+const LazyLiveMap = lazy(() =>
+  import("@/components/rapide/LiveMap").then((m) => ({ default: m.LiveMap }))
+);
 
 export const Route = createFileRoute("/_authenticated/app/")({
   beforeLoad: async () => {
@@ -138,13 +142,15 @@ function Home() {
         >
           <div className="block rounded-3xl bg-gradient-primary overflow-hidden shadow-glow">
             <div className="h-32 w-full relative z-0 pointer-events-none">
-              <LiveMap 
-                pickup={activeOrder.pickup_lat && activeOrder.pickup_lng ? { lat: Number(activeOrder.pickup_lat), lng: Number(activeOrder.pickup_lng) } : undefined} 
-                dropoff={activeOrder.dropoff_lat && activeOrder.dropoff_lng ? { lat: Number(activeOrder.dropoff_lat), lng: Number(activeOrder.dropoff_lng) } : undefined}
-                height={128}
-                zoom={11}
-                showRoute={true}
-              />
+              <Suspense fallback={<div className="w-full h-full bg-primary/20" />}>
+                <LazyLiveMap 
+                  pickup={activeOrder.pickup_lat && activeOrder.pickup_lng ? { lat: Number(activeOrder.pickup_lat), lng: Number(activeOrder.pickup_lng) } : undefined} 
+                  dropoff={activeOrder.dropoff_lat && activeOrder.dropoff_lng ? { lat: Number(activeOrder.dropoff_lat), lng: Number(activeOrder.dropoff_lng) } : undefined}
+                  height={128}
+                  zoom={11}
+                  showRoute={true}
+                />
+              </Suspense>
               <div className="absolute inset-0 bg-gradient-to-t from-primary/95 via-primary/50 to-transparent" />
             </div>
             

@@ -121,7 +121,11 @@ export function LiveMap({
     return () => {
       cancelled = true;
       if (map) {
-        try { map.remove(); } catch {}
+        // Defer map removal to prevent WebGL context destruction from blocking 
+        // the main thread during React unmounts and page navigation animations.
+        setTimeout(() => {
+          try { map.remove(); } catch {}
+        }, 300);
       }
       mapRef.current = null;
       initRef.current = false;
