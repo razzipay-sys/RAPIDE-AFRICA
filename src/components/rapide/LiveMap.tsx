@@ -111,6 +111,12 @@ export function LiveMap({
         setLoaded(true);
       });
 
+      map.on("error", (e: any) => {
+        console.error("Mapbox error:", e);
+        if (cancelled) return;
+        setLoaded(true); // stop spinning even if error
+      });
+
       if (onMapClick) {
         map.on("click", (e: any) => {
           onMapClick({ lat: e.lngLat.lat, lng: e.lngLat.lng });

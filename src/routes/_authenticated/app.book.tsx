@@ -10,10 +10,7 @@ import { AddressSearch } from "@/components/rapide/AddressSearch";
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined;
 
-// Lazy-load the map ONLY when user clicks "Show Map"
-const LazyLiveMap = lazy(() =>
-  import("@/components/rapide/LiveMap").then((m) => ({ default: m.LiveMap }))
-);
+import { LiveMap } from "@/components/rapide/LiveMap";
 
 export const Route = createFileRoute("/_authenticated/app/book")({
   component: BookPage,
@@ -155,7 +152,7 @@ function BookPage() {
       <main className="flex-1 overflow-y-auto px-4 pb-12 space-y-6 pt-4 relative">
         
         {/* Step 1: Locations */}
-        <div className={step === 1 ? "space-y-6" : "hidden"}>
+        <div className={step === 1 ? "space-y-6" : "absolute opacity-0 pointer-events-none -z-10"}>
             <div>
               <h1 className="text-3xl font-display font-bold bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
                 {t("book.step1.title")}
@@ -194,19 +191,13 @@ function BookPage() {
             {/* Map Area — only loads when user clicks */}
             <div className="relative w-full h-[260px] rounded-3xl overflow-hidden border border-white/10 shadow-elegant bg-muted/20">
               {showMap ? (
-                <Suspense fallback={
-                  <div className="absolute inset-0 flex items-center justify-center bg-muted/20">
-                    <div className="h-6 w-6 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-                  </div>
-                }>
-                  <LazyLiveMap
+                  <LiveMap
                     pickup={pickup}
                     dropoff={dropoff}
                     height={260}
                     zoom={12}
                     onMapClick={handleMapClick}
                   />
-                </Suspense>
               ) : (
                 /* Beautiful static placeholder — tap to load map */
                 <button
