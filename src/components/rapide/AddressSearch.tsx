@@ -5,8 +5,6 @@ import { CITIES } from "@/lib/pricing";
 import { useAIAddress } from "@/hooks/use-ai-address";
 import { Sparkles } from "lucide-react";
 
-const TOKEN = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined;
-
 type Props = {
   label: string;
   icon: string;
@@ -34,19 +32,16 @@ export function AddressSearch({ label, icon, value, onChange, onFocus, placehold
 
   const search = useCallback(async (q: string) => {
     if (!q.trim() || q.length < 3) { setResults([]); return; }
-    if (!TOKEN) return;
     setLoading(true);
     try {
-      const url =
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(q)}.json` +
-        `?country=BJ&proximity=2.4183,6.3654&language=fr&limit=6&access_token=${TOKEN}`;
-      const res = await fetch(url);
+      const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&countrycodes=bj&format=json&addressdetails=1&limit=6`;
+      const res = await fetch(url, { headers: { "User-Agent": "RapideAfricaApp/1.0" } });
       const data = await res.json();
       setResults(
-        (data.features ?? []).map((f: { place_name: string; center: [number, number] }) => ({
-          name: f.place_name,
-          lng: f.center[0],
-          lat: f.center[1],
+        (data ?? []).map((f: any) => ({
+          name: f.display_name,
+          lng: parseFloat(f.lon),
+          lat: parseFloat(f.lat),
         })),
       );
       setOpen(true);

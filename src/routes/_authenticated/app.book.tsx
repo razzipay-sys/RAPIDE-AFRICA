@@ -8,8 +8,6 @@ import { toast } from "sonner";
 import { useT } from "@/lib/i18n";
 import { AddressSearch } from "@/components/rapide/AddressSearch";
 
-const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined;
-
 import { LiveMap } from "@/components/rapide/LiveMap";
 
 export const Route = createFileRoute("/_authenticated/app/book")({
@@ -17,13 +15,13 @@ export const Route = createFileRoute("/_authenticated/app/book")({
 });
 
 async function reverseGeocode(lat: number, lng: number): Promise<GeoResult> {
-  if (!MAPBOX_TOKEN) return { name: `${lat.toFixed(5)}, ${lng.toFixed(5)}`, lat, lng };
   try {
     const res = await fetch(
-      `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?language=fr&limit=1&access_token=${MAPBOX_TOKEN}`,
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`,
+      { headers: { "User-Agent": "RapideAfricaApp/1.0" } }
     );
     const data = await res.json();
-    const name: string = data.features?.[0]?.place_name ?? `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+    const name: string = data.display_name ?? `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
     return { name, lat, lng };
   } catch {
     return { name: `${lat.toFixed(5)}, ${lng.toFixed(5)}`, lat, lng };
