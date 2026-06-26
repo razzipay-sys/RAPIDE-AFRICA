@@ -35,7 +35,9 @@ export const Route = createFileRoute("/_authenticated/app/")({
     });
 
     const roleList = roles.map((r) => r.role);
-    if (roleList.includes("admin")) throw redirect({ to: "/admin/" as any });
+    if (roleList.includes("admin") || roleList.includes("super_admin")) throw redirect({ to: "/admin/" as any });
+    if (roleList.includes("support")) throw redirect({ to: "/support" as any });
+    if (roleList.includes("dispatcher")) throw redirect({ to: "/dispatcher" as any });
     if (roleList.includes("rider")) throw redirect({ to: "/rider" as any });
   },
   component: Home,

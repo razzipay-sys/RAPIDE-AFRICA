@@ -67,31 +67,6 @@ function LoginPage() {
       
       toast.success(t("login.toast_welcome"));
 
-      if (safeRedirect === "/app" && authData.user) {
-        const { data: roleData } = await supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", authData.user.id)
-          .maybeSingle();
-          
-        if (roleData?.role === "admin" || roleData?.role === "super_admin") { 
-          navigate({ to: "/admin" as any }); 
-          return; 
-        }
-        if (roleData?.role === "support") {
-          navigate({ to: "/support" as any });
-          return;
-        }
-        if (roleData?.role === "dispatcher") {
-          navigate({ to: "/dispatcher" as any });
-          return;
-        }
-        if (roleData?.role === "rider") { 
-          navigate({ to: "/rider" as any }); 
-          return; 
-        }
-      }
-      
       navigate({ to: safeRedirect as any });
     } catch (error) {
       toast.error(sanitizeAuthError(error, lang as "fr" | "en"));
