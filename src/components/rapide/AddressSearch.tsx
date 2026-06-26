@@ -64,7 +64,7 @@ export function AddressSearch({ label, icon, value, onChange, onFocus, placehold
     onChange(r);
   };
 
-  // Close dropdown when clicking outside
+  // Ensure clicking outside closes the dropdown
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
@@ -74,37 +74,6 @@ export function AddressSearch({ label, icon, value, onChange, onFocus, placehold
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
-
-  // No Mapbox token — fallback to city dropdown
-  if (!TOKEN) {
-    return (
-      <div className="glass rounded-2xl p-4">
-        <div className="flex items-center gap-3">
-          <div className="h-8 w-8 rounded-lg bg-primary/15 text-primary flex items-center justify-center text-xs font-bold">
-            {icon}
-          </div>
-          <div className="flex-1">
-            <p className="text-xs text-muted-foreground">{label}</p>
-            <select
-              value={value?.name ?? ""}
-              onChange={(e) => {
-                const city = CITIES.find((c) => c.name === e.target.value);
-                if (city) onChange(city);
-              }}
-              className="w-full bg-transparent text-sm font-medium outline-none"
-            >
-              {CITIES.map((c) => (
-                <option key={c.name} value={c.name} className="bg-background">
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <MapPin className="h-4 w-4 text-muted-foreground" />
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div ref={containerRef} className="relative">
