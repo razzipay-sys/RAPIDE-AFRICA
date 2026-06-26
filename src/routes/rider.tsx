@@ -12,18 +12,25 @@ async function handleSignOut() {
 }
 
 export const Route = createFileRoute("/rider")({
-  beforeLoad: async ({ location }) => {
+  beforeLoad: async ({ location, context }) => {
     const { data } = await supabase.auth.getSession();
     if (!data.session) {
       throw redirect({ to: "/login", search: { redirect: location.href } });
     }
     // Ensure the user actually has the rider role
-    const { data: roles } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", data.session.user.id);
+    const roles = await context.queryClient.fetchQuery({
+      queryKey: ["user_roles", data.session.user.id],
+      queryFn: async () => {
+        const { data: rolesData } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", data.session.user.id);
+        return rolesData ?? [];
+      },
+      staleTime: 1000 * 60 * 5,
+    });
       
-    const hasRole = roles?.some(r => r.role === "rider" || r.role === "admin");
+    const hasRole = roles.some((r: any) => r.role === "rider" || r.role === "admin");
     if (!hasRole) {
       throw redirect({ to: "/app" });
     }

@@ -431,14 +431,17 @@ const LangCtx = createContext<{ lang: Lang; setLang: (l: Lang) => void; t: (k: k
 });
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
-  const [lang, setLangState] = useState<Lang>("fr");
-  useEffect(() => {
-    const saved = (typeof window !== "undefined" && (localStorage.getItem("lang") as Lang)) || null;
-    if (saved === "fr" || saved === "en") setLangState(saved);
-  }, []);
+  const [lang, setLangState] = useState<"fr" | "en">(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("rapide_lang");
+      if (saved === "fr" || saved === "en") return saved;
+      return navigator.language.startsWith("fr") ? "fr" : "en";
+    }
+    return "en";
+  });
   const setLang = (l: Lang) => {
     setLangState(l);
-    if (typeof window !== "undefined") localStorage.setItem("lang", l);
+    if (typeof window !== "undefined") localStorage.setItem("rapide_lang", l);
     if (typeof document !== "undefined") document.documentElement.lang = l;
   };
   const t = (k: keyof typeof dict) => dict[k]?.[lang] ?? (k as string);

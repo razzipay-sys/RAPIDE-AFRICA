@@ -5,18 +5,25 @@ import { LayoutDashboard, DollarSign, BarChart3, Settings, Users, Bike, Headphon
 import rapideLogo from "@/assets/rapide-logo.jpg";
 
 export const Route = createFileRoute("/admin")({
-  beforeLoad: async ({ location }) => {
+  beforeLoad: async ({ location, context }) => {
     const { data } = await supabase.auth.getSession();
     if (!data.session) {
       throw redirect({ to: "/login", search: { redirect: location.href } });
     }
     // Check admin role
-    const { data: roles } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", data.session.user.id);
+    const roles = await context.queryClient.fetchQuery({
+      queryKey: ["user_roles", data.session.user.id],
+      queryFn: async () => {
+        const { data: rolesData } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", data.session.user.id);
+        return rolesData ?? [];
+      },
+      staleTime: 1000 * 60 * 5,
+    });
       
-    const hasRole = roles?.some(r => r.role === "admin" || r.role === "super_admin");
+    const hasRole = roles.some((r: any) => r.role === "admin" || r.role === "super_admin");
     if (!hasRole) {
       throw redirect({ to: "/" });
     }

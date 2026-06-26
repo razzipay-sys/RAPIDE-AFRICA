@@ -11,6 +11,7 @@ import {
   Eye,
   Check,
   X,
+  Users
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { fmtXOF } from "@/lib/pricing";

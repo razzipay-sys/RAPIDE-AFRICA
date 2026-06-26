@@ -479,7 +479,6 @@ function BookPage() {
               </button>
             </div>
           </div>
-        </div>
 
       </main>
     </div>

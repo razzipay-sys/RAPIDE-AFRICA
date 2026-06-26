@@ -17,17 +17,24 @@ const LazyLiveMap = lazy(() =>
 );
 
 export const Route = createFileRoute("/_authenticated/app/")({
-  beforeLoad: async () => {
+  beforeLoad: async ({ context }) => {
     const { data } = await supabase.auth.getSession();
     if (!data.session) return;
 
     // Check for elevated roles and redirect to their home dashboard
-    const { data: roles } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", data.session.user.id);
+    const roles = await context.queryClient.fetchQuery({
+      queryKey: ["user_roles", data.session.user.id],
+      queryFn: async () => {
+        const { data: rolesData } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", data.session.user.id);
+        return rolesData ?? [];
+      },
+      staleTime: 1000 * 60 * 5,
+    });
 
-    const roleList = (roles ?? []).map((r) => r.role);
+    const roleList = roles.map((r) => r.role);
     if (roleList.includes("admin")) throw redirect({ to: "/admin/" as any });
     if (roleList.includes("rider")) throw redirect({ to: "/rider" as any });
   },
