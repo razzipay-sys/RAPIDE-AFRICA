@@ -155,14 +155,13 @@ function BookPage() {
       <main className="flex-1 overflow-y-auto px-4 pb-12 space-y-6 pt-4 relative">
         
         {/* Step 1: Locations */}
-        {step === 1 && (
-          <div className="space-y-6">
+        <div className={step === 1 ? "space-y-6" : "hidden"}>
             <div>
               <h1 className="text-3xl font-display font-bold bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
                 {t("book.step1.title")}
               </h1>
               <p className="text-sm text-muted-foreground mt-1">
-                Définissez la route de votre colis.
+                {t("book.step1.desc")}
               </p>
             </div>
 
@@ -224,8 +223,8 @@ function BookPage() {
                     </div>
                   </div>
                   <div className="text-center">
-                    <p className="text-sm font-semibold text-foreground">Ouvrir la carte</p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">Touchez pour choisir sur la carte</p>
+                    <p className="text-sm font-semibold text-foreground">{t("book.open_map")}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">{t("book.tap_map_desc")}</p>
                   </div>
                 </button>
               )}
@@ -237,7 +236,7 @@ function BookPage() {
                     <div className="bg-background/80 backdrop-blur-md px-4 py-1.5 rounded-full shadow-lg border border-border/50 flex items-center gap-2">
                        <div className={`h-2 w-2 rounded-full animate-pulse ${lastFocused === 'pickup' ? 'bg-primary' : 'bg-blue-500'}`} />
                        <span className="text-[10px] font-medium text-foreground uppercase tracking-wider">
-                         Cible: {lastFocused === "pickup" ? "Collecte" : "Livraison"}
+                         {t("book.target")} {lastFocused === "pickup" ? t("book.target_pickup") : t("book.target_dropoff")}
                        </span>
                     </div>
                   </div>
@@ -252,20 +251,19 @@ function BookPage() {
             </div>
 
             <button
+              type="button"
               onClick={goToNext}
               className="w-full h-14 rounded-2xl bg-primary text-primary-foreground font-semibold flex items-center justify-center gap-2 hover:opacity-90 active:scale-[0.98] transition-all shadow-glow"
             >
-              Continuer <ArrowRight className="h-5 w-5" />
+              {t("book.continue")} <ArrowRight className="h-5 w-5" />
             </button>
           </div>
-        )}
 
         {/* Step 2: Details */}
-        {step === 2 && (
-          <div className="space-y-6">
+        <div className={step === 2 ? "space-y-6" : "hidden"}>
             <div>
-              <h1 className="text-3xl font-display font-bold">Détails du Colis</h1>
-              <p className="text-sm text-muted-foreground mt-1">À qui l'envoyons-nous ?</p>
+              <h1 className="text-3xl font-display font-bold">{t("book.step2.title")}</h1>
+              <p className="text-sm text-muted-foreground mt-1">{t("book.step2.desc")}</p>
             </div>
 
             {/* Recipient Card */}
@@ -275,20 +273,20 @@ function BookPage() {
                   <User className="h-4 w-4" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-sm">Destinataire</h3>
-                  <p className="text-xs text-muted-foreground">Requis pour la livraison</p>
+                  <h3 className="font-semibold text-sm">{t("book.recipient")}</h3>
+                  <p className="text-xs text-muted-foreground">{t("book.recipient_desc")}</p>
                 </div>
               </div>
               
               <div className="space-y-3">
                 <FloatingField
-                  label="Nom complet"
+                  label={t("book.full_name")}
                   value={dropName}
                   onChange={setDropName}
                   placeholder="Kofi Mensah"
                 />
                 <FloatingField
-                  label="Numéro de téléphone"
+                  label={t("book.phone_number")}
                   value={dropPhone}
                   onChange={setDropPhone}
                   placeholder="+229 01 XX XX XX"
@@ -304,20 +302,20 @@ function BookPage() {
                   <Phone className="h-4 w-4" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-sm">Expéditeur</h3>
-                  <p className="text-xs text-muted-foreground">Optionnel</p>
+                  <h3 className="font-semibold text-sm">{t("book.sender")}</h3>
+                  <p className="text-xs text-muted-foreground">{t("book.optional")}</p>
                 </div>
               </div>
               
               <div className="space-y-3">
                 <FloatingField
-                  label="Votre nom"
+                  label={t("book.your_name")}
                   value={pickupName}
                   onChange={setPickupName}
                   placeholder="Ama Diallo"
                 />
                 <FloatingField
-                  label="Votre téléphone"
+                  label={t("book.your_phone")}
                   value={pickupPhone}
                   onChange={setPickupPhone}
                   placeholder="+229 01 XX XX XX"
@@ -328,7 +326,7 @@ function BookPage() {
 
             {/* Parcel Type */}
             <div className="space-y-3">
-              <h3 className="text-sm font-semibold pl-1">Que contient le colis ?</h3>
+              <h3 className="text-sm font-semibold pl-1">{t("book.what_inside")}</h3>
               <div className="grid grid-cols-2 gap-3">
                 {CATEGORIES.map((c) => (
                   <button
@@ -343,7 +341,7 @@ function BookPage() {
                   >
                     <span className="text-xl">{c.icon}</span>
                     <span className={`text-sm font-medium ${category === c.value ? "text-primary" : "text-foreground/80"}`}>
-                      {c.label}
+                      {t(`book.cat.${c.value}` as keyof typeof dict)}
                     </span>
                   </button>
                 ))}
@@ -353,7 +351,7 @@ function BookPage() {
             {/* Weight Slider */}
             <div className="bg-card border border-border rounded-3xl p-5 shadow-sm space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold">Poids estimé</h3>
+                <h3 className="text-sm font-semibold">{t("book.weight")}</h3>
                 <span className="text-lg font-display font-bold text-primary">{weight} kg</span>
               </div>
               <input
@@ -372,31 +370,30 @@ function BookPage() {
 
             {/* Notes */}
             <div className="space-y-2">
-              <h3 className="text-sm font-semibold pl-1">Instructions spéciales</h3>
+              <h3 className="text-sm font-semibold pl-1">{t("book.special_instructions")}</h3>
               <textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Ex: Attention fragile, sonner à la porte bleue..."
+                placeholder={t("book.notes_placeholder")}
                 rows={3}
                 className="w-full rounded-3xl bg-card border border-border p-4 text-sm outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all resize-none"
               />
             </div>
 
             <button
+              type="button"
               onClick={goToNext}
               className="w-full h-14 rounded-2xl bg-primary text-primary-foreground font-semibold flex items-center justify-center gap-2 hover:opacity-90 active:scale-[0.98] transition-all shadow-glow"
             >
-              Voir le devis <ArrowRight className="h-5 w-5" />
+              {t("book.get_quote")} <ArrowRight className="h-5 w-5" />
             </button>
           </div>
-        )}
 
-        {/* Step 3: Checkout */}
-        {step === 3 && (
-          <div className="space-y-6">
+        {/* Step 3: Confirmation */}
+        <div className={step === 3 ? "space-y-6" : "hidden"}>
              <div>
-              <h1 className="text-3xl font-display font-bold">Confirmation</h1>
-              <p className="text-sm text-muted-foreground mt-1">Finalisez votre course</p>
+              <h1 className="text-3xl font-display font-bold">{t("book.step3.title")}</h1>
+              <p className="text-sm text-muted-foreground mt-1">{t("book.step3.desc")}</p>
             </div>
 
             {/* Delivery Speeds */}
@@ -429,8 +426,8 @@ function BookPage() {
                    <Shield className="h-5 w-5" />
                  </div>
                  <div className="text-left">
-                   <p className="text-sm font-semibold">Assurance colis</p>
-                   <p className="text-xs text-muted-foreground">Couverture jusqu'à 50,000 FCFA</p>
+                   <p className="text-sm font-semibold">{t("book.insurance")}</p>
+                   <p className="text-xs text-muted-foreground">{t("book.insurance_desc")}</p>
                  </div>
               </div>
               <div className={`h-6 w-6 rounded-full border-2 flex items-center justify-center transition-colors ${insurance ? "border-primary bg-primary" : "border-muted-foreground/30"}`}>
@@ -445,19 +442,19 @@ function BookPage() {
                 {Array.from({length: 20}).map((_, i) => <div key={i} className="w-2 h-2 bg-background rotate-45 -translate-y-1.5" />)}
               </div>
               
-              <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-4 text-center">Reçu de Livraison</h3>
+              <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-4 text-center">{t("book.receipt")}</h3>
               
               <div className="space-y-3">
-                <ReceiptRow label="Départ" value={pickup.name} truncate />
-                <ReceiptRow label="Arrivée" value={dropoff.name} truncate />
-                <ReceiptRow label="Poids" value={`${weight} kg`} />
-                <ReceiptRow label="Distance" value={`${distance.toFixed(1)} km`} />
+                <ReceiptRow label={t("book.departure")} value={pickup.name} truncate />
+                <ReceiptRow label={t("book.arrival")} value={dropoff.name} truncate />
+                <ReceiptRow label={t("book.weight")} value={`${weight} kg`} />
+                <ReceiptRow label={t("book.distance")} value={`${distance.toFixed(1)} km`} />
                 <div className="my-3 border-t border-dashed border-border" />
-                <ReceiptRow label="Frais de base" value={fmtXOF(pricing.price_xof - (insurance ? 500 : 0))} />
-                {insurance && <ReceiptRow label="Assurance" value="500 FCFA" />}
+                <ReceiptRow label={t("book.base_fare")} value={fmtXOF(pricing.price_xof - (insurance ? 500 : 0))} />
+                {insurance && <ReceiptRow label={t("book.insurance")} value="500 FCFA" />}
                 
                 <div className="mt-4 pt-4 border-t border-border flex items-end justify-between">
-                  <span className="text-sm font-medium">Total à payer</span>
+                  <span className="text-sm font-medium">{t("book.total_pay")}</span>
                   <span className="text-3xl font-display font-bold text-primary">{fmtXOF(pricing.price_xof)}</span>
                 </div>
               </div>
@@ -472,17 +469,17 @@ function BookPage() {
               >
                 {submitting ? (
                   <>
-                    <Loader2 className="h-5 w-5 animate-spin" /> Traitement...
+                    <Loader2 className="h-5 w-5 animate-spin" /> {t("book.processing")}
                   </>
                 ) : (
                   <>
-                    Confirmer la commande
+                    {t("book.confirm_order")}
                   </>
                 )}
               </button>
             </div>
           </div>
-        )}
+        </div>
 
       </main>
     </div>

@@ -121,8 +121,9 @@ export function LiveMap({
     return () => {
       cancelled = true;
       if (map) {
-        // Defer removal to prevent blocking the UI thread on unmount
-        setTimeout(() => { try { map.remove(); } catch {} }, 500);
+        // We intentionally DO NOT call map.remove() here.
+        // Mapbox GL JS has a known bug causing WebGL deadlock on Android WebViews during unmount.
+        // This causes the entire browser tab to permanently freeze.
       }
       mapRef.current = null;
       initRef.current = false;
