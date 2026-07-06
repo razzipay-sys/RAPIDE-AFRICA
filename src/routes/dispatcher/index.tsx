@@ -20,11 +20,13 @@ function DispatcherDashboard() {
     queryFn: async () => {
       const { data } = await supabase
         .from("orders")
-        .select(`
-          id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, 
+        .select(
+          `
+          id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng,
           status, price_xof, created_at, delivery_type,
-          profiles:user_id (full_name, phone)
-        `)
+          profiles:customer_id (full_name, phone)
+        `,
+        )
         .eq("status", "searching_rider")
         .order("created_at", { ascending: true });
       return data ?? [];
@@ -37,10 +39,12 @@ function DispatcherDashboard() {
     queryFn: async () => {
       const { data } = await supabase
         .from("riders")
-        .select(`
+        .select(
+          `
           id, current_lat, current_lng, is_online,
-          profiles!riders_id_fkey (full_name, phone)
-        `)
+          profiles:user_id (full_name, phone)
+        `,
+        )
         .eq("is_online", true);
       return data ?? [];
     },
@@ -79,10 +83,22 @@ function DispatcherDashboard() {
 
       {/* Live Map Overview */}
       <div className="relative rounded-3xl overflow-hidden glass h-64 border border-white/10">
-        <LiveMap 
-          riders={riders?.map(r => ({ lat: Number(r.current_lat), lng: Number(r.current_lng), id: r.id }))}
-          pickup={selectedOrder ? { lat: Number(selectedOrder.pickup_lat), lng: Number(selectedOrder.pickup_lng) } : undefined}
-          dropoff={selectedOrder ? { lat: Number(selectedOrder.dropoff_lat), lng: Number(selectedOrder.dropoff_lng) } : undefined}
+        <LiveMap
+          riders={riders?.map((r) => ({
+            lat: Number(r.current_lat),
+            lng: Number(r.current_lng),
+            id: r.id,
+          }))}
+          pickup={
+            selectedOrder
+              ? { lat: Number(selectedOrder.pickup_lat), lng: Number(selectedOrder.pickup_lng) }
+              : undefined
+          }
+          dropoff={
+            selectedOrder
+              ? { lat: Number(selectedOrder.dropoff_lat), lng: Number(selectedOrder.dropoff_lng) }
+              : undefined
+          }
           showRoute={!!selectedOrder}
         />
         <div className="absolute top-4 left-4 z-10">
@@ -97,7 +113,7 @@ function DispatcherDashboard() {
         <h2 className="text-lg font-bold mb-3 flex items-center gap-2">
           <Package className="h-5 w-5 text-primary" /> Unassigned Orders
         </h2>
-        
+
         {loadingOrders ? (
           <div className="space-y-3">
             {[1, 2].map((i) => (
@@ -127,13 +143,18 @@ function DispatcherDashboard() {
                     <span className="text-[10px] uppercase tracking-wider bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded-full font-bold">
                       {o.delivery_type}
                     </span>
-                    <p className="font-semibold text-sm mt-1">{o.profiles?.full_name ?? "Unknown Customer"}</p>
+                    <p className="font-semibold text-sm mt-1">
+                      {o.profiles?.full_name ?? "Unknown Customer"}
+                    </p>
                     <p className="text-[10px] text-muted-foreground">{o.profiles?.phone}</p>
                   </div>
                   <div className="text-right">
                     <p className="font-bold text-primary">{o.price_xof} XOF</p>
                     <p className="text-[10px] text-muted-foreground">
-                      {new Date(o.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {new Date(o.created_at).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
                     </p>
                   </div>
                 </div>
@@ -152,14 +173,19 @@ function DispatcherDashboard() {
                       ) : (
                         <div className="space-y-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
                           {riders.map((r: any) => (
-                            <div key={r.id} className="flex items-center justify-between bg-black/20 rounded-xl p-2">
+                            <div
+                              key={r.id}
+                              className="flex items-center justify-between bg-black/20 rounded-xl p-2"
+                            >
                               <div className="flex items-center gap-2">
                                 <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center">
                                   <Users className="h-3 w-3 text-primary" />
                                 </div>
                                 <div>
                                   <p className="text-xs font-semibold">{r.profiles?.full_name}</p>
-                                  <p className="text-[9px] text-muted-foreground">{r.profiles?.phone}</p>
+                                  <p className="text-[9px] text-muted-foreground">
+                                    {r.profiles?.phone}
+                                  </p>
                                 </div>
                               </div>
                               <button

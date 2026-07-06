@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Upload, FileText, CheckCircle2, Clock, ShieldCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -11,47 +11,63 @@ export const Route = createFileRoute("/_authenticated/app/verification")({
 });
 
 function VerificationScreen() {
-  const { profile, user } = useAuth();
+  const { user } = useAuth();
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [file, setFile] = useState<File | null>(null);
 
+  // useAuth() only exposes the raw auth user, not the profiles row — fetch
+  // it directly (kyc_status lives on profiles, not on the auth session).
+  const { data: profile } = useQuery({
+    queryKey: ["profile", user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, kyc_status")
+        .eq("id", user!.id)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+  });
+
   const uploadDoc = useMutation({
     mutationFn: async () => {
-      if (!file || !profile) return;
-      
-      const fileExt = file.name.split('.').pop();
-      const fileName = `user_${profile.id}-${Math.random()}.${fileExt}`;
+      if (!file || !user) return;
+
+      const fileExt = file.name.split(".").pop();
+      const fileName = `user_${user.id}-${Math.random()}.${fileExt}`;
       const filePath = `kyc_documents/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
-        .from('documents')
+        .from("documents")
         .upload(filePath, file, { upsert: true });
 
       if (uploadError) throw uploadError;
 
-      const { data: { publicUrl } } = supabase.storage
-        .from('documents')
-        .getPublicUrl(filePath);
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("documents").getPublicUrl(filePath);
 
       const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ 
+        .from("profiles")
+        .update({
           id_document_url: publicUrl,
-          kyc_status: 'in_review'
+          kyc_status: "in_review",
         })
-        .eq('id', profile.id);
+        .eq("id", user.id);
 
       if (updateError) throw updateError;
     },
     onSuccess: () => {
       toast.success("Document submitted for review");
-      qc.invalidateQueries({ queryKey: ["profile"] });
+      qc.invalidateQueries({ queryKey: ["profile", user?.id] });
       navigate({ to: "/app" });
     },
     onError: (error: any) => {
       toast.error(error.message || "Upload failed");
-    }
+    },
   });
 
   return (
@@ -69,16 +85,19 @@ function VerificationScreen() {
         </div>
         <h2 className="font-bold text-lg mb-2">Verify Your Identity</h2>
         <p className="text-sm text-muted-foreground mb-6">
-          To ensure community safety, we require users to upload a valid government ID before sending packages.
+          To ensure community safety, we require users to upload a valid government ID before
+          sending packages.
         </p>
 
-        {profile?.kyc_status === 'approved' ? (
+        {profile?.kyc_status === "approved" ? (
           <div className="flex flex-col items-center justify-center py-6 text-center border-t border-white/10 pt-6">
             <CheckCircle2 className="h-12 w-12 text-green-400 mb-3" />
             <h3 className="font-bold text-lg mb-1">Fully Verified</h3>
-            <p className="text-sm text-muted-foreground">Thank you for keeping our platform secure.</p>
+            <p className="text-sm text-muted-foreground">
+              Thank you for keeping our platform secure.
+            </p>
           </div>
-        ) : profile?.kyc_status === 'in_review' ? (
+        ) : profile?.kyc_status === "in_review" ? (
           <div className="flex flex-col items-center justify-center py-6 text-center border-t border-white/10 pt-6">
             <Clock className="h-12 w-12 text-yellow-400 mb-3" />
             <h3 className="font-bold text-lg mb-1">Under Review</h3>
@@ -102,7 +121,9 @@ function VerificationScreen() {
                     {file ? file.name : "Tap to upload National ID"}
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    {file ? `${(file.size / 1024 / 1024).toFixed(2)} MB` : "JPEG, PNG or PDF (Max 5MB)"}
+                    {file
+                      ? `${(file.size / 1024 / 1024).toFixed(2)} MB`
+                      : "JPEG, PNG or PDF (Max 5MB)"}
                   </p>
                 </div>
               </div>

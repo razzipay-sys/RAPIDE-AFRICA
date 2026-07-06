@@ -35,23 +35,44 @@ const dict: Dict = {
 
   // ── Features ──
   "feat.tag": { fr: "Plateforme", en: "Platform" },
-  "feat.title": { fr: "Une infrastructure pensée pour l'Afrique", en: "Infrastructure built for Africa" },
+  "feat.title": {
+    fr: "Une infrastructure pensée pour l'Afrique",
+    en: "Infrastructure built for Africa",
+  },
   "feat.desc": {
     fr: "Chaque détail a été conçu pour la réalité du terrain : routes denses, réseaux mobiles variables, paiements diversifiés.",
     en: "Every detail engineered for the real world: dense roads, variable mobile networks, diverse payments.",
   },
   "feat.1.t": { fr: "Envoi instantané", en: "Instant send" },
-  "feat.1.d": { fr: "Réservez un coursier en quelques secondes, à toute heure.", en: "Book a rider in seconds, any time of day." },
+  "feat.1.d": {
+    fr: "Réservez un coursier en quelques secondes, à toute heure.",
+    en: "Book a rider in seconds, any time of day.",
+  },
   "feat.2.t": { fr: "Suivi en direct", en: "Live tracking" },
-  "feat.2.d": { fr: "Visualisez chaque trajet en temps réel sur une carte fluide.", en: "See every trip in real time on a fluid map." },
+  "feat.2.d": {
+    fr: "Visualisez chaque trajet en temps réel sur une carte fluide.",
+    en: "See every trip in real time on a fluid map.",
+  },
   "feat.3.t": { fr: "Livraison programmée", en: "Scheduled delivery" },
-  "feat.3.d": { fr: "Planifiez vos envois à la minute près, jusqu'à 30 jours à l'avance.", en: "Schedule deliveries to the minute, up to 30 days ahead." },
+  "feat.3.d": {
+    fr: "Planifiez vos envois à la minute près, jusqu'à 30 jours à l'avance.",
+    en: "Schedule deliveries to the minute, up to 30 days ahead.",
+  },
   "feat.4.t": { fr: "Colis assurés", en: "Insured parcels" },
-  "feat.4.d": { fr: "Protection optionnelle et vérification OTP à la livraison.", en: "Optional insurance and OTP verification at delivery." },
+  "feat.4.d": {
+    fr: "Protection optionnelle et vérification OTP à la livraison.",
+    en: "Optional insurance and OTP verification at delivery.",
+  },
   "feat.5.t": { fr: "Paiements mobiles", en: "Mobile payments" },
-  "feat.5.d": { fr: "Mobile Money, carte bancaire, portefeuille Rapide, espèces.", en: "Mobile Money, bank cards, Rapide wallet, cash." },
+  "feat.5.d": {
+    fr: "Mobile Money, carte bancaire, portefeuille Rapide, espèces.",
+    en: "Mobile Money, bank cards, Rapide wallet, cash.",
+  },
   "feat.6.t": { fr: "Multi-villes", en: "Multi-city" },
-  "feat.6.d": { fr: "Cotonou, Porto-Novo, Parakou — et bientôt toute l'Afrique de l'Ouest.", en: "Cotonou, Porto-Novo, Parakou — and soon all of West Africa." },
+  "feat.6.d": {
+    fr: "Cotonou, Porto-Novo, Parakou — et bientôt toute l'Afrique de l'Ouest.",
+    en: "Cotonou, Porto-Novo, Parakou — and soon all of West Africa.",
+  },
 
   // ── Network ──
   "net.tag": { fr: "Réseau", en: "Network" },
@@ -64,19 +85,31 @@ const dict: Dict = {
 
   // ── Audiences ──
   "aud.b.tag": { fr: "Entreprises", en: "Business" },
-  "aud.b.t": { fr: "Pilotez votre logistique depuis un seul tableau de bord.", en: "Run your logistics from a single dashboard." },
-  "aud.b.d": { fr: "Importation en masse, facturation automatique, API ouverte, équipe multi-utilisateurs.", en: "Bulk import, automated invoicing, open API, multi-user teams." },
+  "aud.b.t": {
+    fr: "Pilotez votre logistique depuis un seul tableau de bord.",
+    en: "Run your logistics from a single dashboard.",
+  },
+  "aud.b.d": {
+    fr: "Importation en masse, facturation automatique, API ouverte, équipe multi-utilisateurs.",
+    en: "Bulk import, automated invoicing, open API, multi-user teams.",
+  },
   "aud.b.c": { fr: "Découvrir Rapide Business", en: "Discover Rapide Business" },
   "aud.r.tag": { fr: "Coursiers", en: "Riders" },
   "aud.r.t": { fr: "Gagnez plus, roulez intelligent.", en: "Earn more, ride smarter." },
-  "aud.r.d": { fr: "Demandes optimisées par IA, paiements instantanés, bonus de performance.", en: "AI-optimized requests, instant payouts, performance bonuses." },
+  "aud.r.d": {
+    fr: "Demandes optimisées par IA, paiements instantanés, bonus de performance.",
+    en: "AI-optimized requests, instant payouts, performance bonuses.",
+  },
   "aud.r.c": { fr: "Rejoindre la flotte", en: "Join the fleet" },
 
   // ── CTA ──
   "cta.title1": { fr: "Prêt à", en: "Ready to" },
   "cta.title2": { fr: "livrer plus vite", en: "deliver faster" },
   "cta.title3": { fr: "?", en: "?" },
-  "cta.desc": { fr: "Téléchargez l'application Rapide et envoyez votre premier colis en moins de deux minutes.", en: "Download the Rapide app and send your first parcel in under two minutes." },
+  "cta.desc": {
+    fr: "Téléchargez l'application Rapide et envoyez votre premier colis en moins de deux minutes.",
+    en: "Download the Rapide app and send your first parcel in under two minutes.",
+  },
   "cta.btn1": { fr: "Commencer maintenant", en: "Start now" },
   "cta.btn2": { fr: "Parler à un commercial", en: "Talk to sales" },
 
@@ -85,7 +118,10 @@ const dict: Dict = {
   "foot.terms": { fr: "Conditions", en: "Terms" },
   "foot.support": { fr: "Support", en: "Support" },
   "foot.careers": { fr: "Carrières", en: "Careers" },
-  "foot.rights": { fr: "© 2026 Rapide. Tous droits réservés.", en: "© 2026 Rapide. All rights reserved." },
+  "foot.rights": {
+    fr: "© 2026 Rapide. Tous droits réservés.",
+    en: "© 2026 Rapide. All rights reserved.",
+  },
 
   // ── Login ──
   "login.title": { fr: "Connexion", en: "Sign in" },
@@ -100,7 +136,10 @@ const dict: Dict = {
 
   // ── Signup ──
   "signup.title": { fr: "Créer un compte", en: "Create account" },
-  "signup.subtitle": { fr: "Commencez à envoyer en moins de 2 minutes.", en: "Start sending in under 2 minutes." },
+  "signup.subtitle": {
+    fr: "Commencez à envoyer en moins de 2 minutes.",
+    en: "Start sending in under 2 minutes.",
+  },
   "signup.google": { fr: "Continuer avec Google", en: "Continue with Google" },
   "signup.fullname": { fr: "Nom complet", en: "Full name" },
   "signup.phone": { fr: "Téléphone (+229...)", en: "Phone (+229...)" },
@@ -109,7 +148,10 @@ const dict: Dict = {
   "signup.has_account": { fr: "Déjà un compte ?", en: "Already have an account?" },
   "signup.login": { fr: "Se connecter", en: "Sign in" },
   "signup.toast_success": { fr: "Compte créé", en: "Account created" },
-  "signup.toast_verify": { fr: "Vérifiez votre email pour confirmer votre compte", en: "Check your email to confirm your account" },
+  "signup.toast_verify": {
+    fr: "Vérifiez votre email pour confirmer votre compte",
+    en: "Check your email to confirm your account",
+  },
 
   // ── App dashboard ──
   "app.hello": { fr: "Bonjour", en: "Hello" },
@@ -166,10 +208,23 @@ const dict: Dict = {
   "wallet.withdraw": { fr: "Retirer", en: "Withdraw" },
   "wallet.transactions": { fr: "Transactions", en: "Transactions" },
   "wallet.no_tx": { fr: "Aucune transaction.", en: "No transactions." },
+  "wallet.status_pending": { fr: "En attente", en: "Pending" },
+  "wallet.status_rejected": { fr: "Rejeté", en: "Rejected" },
+
+  // ── USSD / Low Data Mode ──
+  "ussd.title": { fr: "Mode données réduites", en: "Low Data Mode" },
+  "ussd.coming_soon": { fr: "Bientôt disponible", en: "Coming soon" },
+  "ussd.coming_soon_desc": {
+    fr: "Le mode USSD (*123#) pour suivre vos commandes et recharger votre portefeuille sans connexion internet arrive bientôt.",
+    en: "USSD mode (*123#) for checking orders and topping up your wallet without an internet connection is on its way.",
+  },
 
   // ── Track ──
   "track.rider_on_way": { fr: "Coursier en route", en: "Rider on the way" },
-  "track.searching": { fr: "Recherche d'un coursier à proximité…", en: "Searching for a nearby rider…" },
+  "track.searching": {
+    fr: "Recherche d'un coursier à proximité…",
+    en: "Searching for a nearby rider…",
+  },
   "track.live": { fr: "Suivi en direct", en: "Live tracking" },
   "track.amount": { fr: "Montant", en: "Amount" },
   "track.s.pending": { fr: "Recherche d'un coursier", en: "Searching for a rider" },
@@ -180,7 +235,10 @@ const dict: Dict = {
   "track.s.delivered": { fr: "Livré", en: "Delivered" },
   "track.eta": { fr: "Arrivée dans", en: "Arriving in" },
   "track.otp_code": { fr: "Code de livraison", en: "Delivery code" },
-  "track.otp_desc": { fr: "Communiquez ce code au coursier pour confirmer la remise", en: "Share this code with your rider to confirm handoff" },
+  "track.otp_desc": {
+    fr: "Communiquez ce code au coursier pour confirmer la remise",
+    en: "Share this code with your rider to confirm handoff",
+  },
   "track.rider": { fr: "Votre coursier", en: "Your rider" },
   "track.order_details": { fr: "Détails de la commande", en: "Order details" },
   "track.distance": { fr: "Distance", en: "Distance" },
@@ -188,7 +246,10 @@ const dict: Dict = {
   "track.insurance": { fr: "Assurance", en: "Insurance" },
   "track.timeline": { fr: "Suivi détaillé", en: "Detailed timeline" },
   "track.delivered_title": { fr: "Livraison effectuée !", en: "Delivered!" },
-  "track.delivered_sub": { fr: "Votre colis est arrivé à destination.", en: "Your parcel has arrived safely." },
+  "track.delivered_sub": {
+    fr: "Votre colis est arrivé à destination.",
+    en: "Your parcel has arrived safely.",
+  },
   "track.rate_now": { fr: "Évaluer la course", en: "Rate this trip" },
   "track.share": { fr: "Partager", en: "Share" },
   "track.contact_rider": { fr: "Contacter", en: "Contact" },
@@ -208,7 +269,10 @@ const dict: Dict = {
   "book.distance_est": { fr: "km estimés", en: "km estimated" },
   "book.category": { fr: "Catégorie", en: "Category" },
   "book.weight": { fr: "Poids estimé", en: "Estimated weight" },
-  "book.notes_placeholder": { fr: "Instructions pour le coursier (optionnel)", en: "Instructions for the rider (optional)" },
+  "book.notes_placeholder": {
+    fr: "Instructions pour le coursier (optionnel)",
+    en: "Instructions for the rider (optional)",
+  },
   "book.distance": { fr: "Distance", en: "Distance" },
   "book.commission": { fr: "Commission Rapide", en: "Rapide Commission" },
   "book.total": { fr: "Total", en: "Total" },
@@ -220,18 +284,30 @@ const dict: Dict = {
   "book.exp.desc": { fr: "Livré sous 25 min · +50%", en: "Delivered within 25 min · +50%" },
   "book.sched.title": { fr: "Programmé", en: "Scheduled" },
   "book.sched.desc": { fr: "Choisissez l'heure · -10%", en: "Choose the time · -10%" },
-  "book.search_placeholder_pickup": { fr: "Rechercher l'adresse de ramassage…", en: "Search pickup address…" },
-  "book.search_placeholder_dropoff": { fr: "Rechercher l'adresse de livraison…", en: "Search dropoff address…" },
+  "book.search_placeholder_pickup": {
+    fr: "Rechercher l'adresse de ramassage…",
+    en: "Search pickup address…",
+  },
+  "book.search_placeholder_dropoff": {
+    fr: "Rechercher l'adresse de livraison…",
+    en: "Search dropoff address…",
+  },
   "book.tap_map": { fr: "Touchez la carte pour placer un point", en: "Tap the map to place a pin" },
   "book.recipient_err": { fr: "Renseignez le destinataire", en: "Please fill in the recipient" },
-  "book.success": { fr: "Commande créée — recherche d'un coursier", en: "Order created — searching for a rider" },
+  "book.success": {
+    fr: "Commande créée — recherche d'un coursier",
+    en: "Order created — searching for a rider",
+  },
   "book.cat.document": { fr: "Documents", en: "Documents" },
   "book.cat.food": { fr: "Repas", en: "Meal" },
   "book.cat.electronics": { fr: "Électronique", en: "Electronics" },
   "book.cat.clothing": { fr: "Vêtements", en: "Clothing" },
   "book.cat.fragile": { fr: "Fragile", en: "Fragile" },
   "book.cat.other": { fr: "Autre", en: "Other" },
-  "book.step1.desc": { fr: "Définissez la route de votre colis.", en: "Set the route for your parcel." },
+  "book.step1.desc": {
+    fr: "Définissez la route de votre colis.",
+    en: "Set the route for your parcel.",
+  },
   "book.open_map": { fr: "Ouvrir la carte", en: "Open map" },
   "book.tap_map_desc": { fr: "Touchez pour choisir sur la carte", en: "Tap to choose on the map" },
   "book.target": { fr: "Cible :", en: "Target:" },
@@ -258,6 +334,16 @@ const dict: Dict = {
   "book.total_pay": { fr: "Total à payer", en: "Total to pay" },
   "book.confirm_order": { fr: "Confirmer la commande", en: "Confirm order" },
   "book.processing": { fr: "Traitement...", en: "Processing..." },
+  "book.use_current_location": { fr: "Utiliser ma position actuelle", en: "Use current location" },
+  "book.locating": { fr: "Localisation…", en: "Locating…" },
+  "book.location_error": {
+    fr: "Impossible d'obtenir votre position",
+    en: "Couldn't get your location",
+  },
+  "book.location_unsupported": {
+    fr: "Géolocalisation non prise en charge",
+    en: "Geolocation not supported",
+  },
 
   // ── AppShell tabs ──
   "tab.home": { fr: "Accueil", en: "Home" },
@@ -270,7 +356,10 @@ const dict: Dict = {
   // ── Chat ──
   "chat.title": { fr: "Messages", en: "Messages" },
   "chat.empty": { fr: "Aucune conversation", en: "No conversations" },
-  "chat.empty_sub": { fr: "Vos échanges avec les coursiers apparaîtront ici.", en: "Your exchanges with riders will appear here." },
+  "chat.empty_sub": {
+    fr: "Vos échanges avec les coursiers apparaîtront ici.",
+    en: "Your exchanges with riders will appear here.",
+  },
   "chat.type": { fr: "Écrire un message…", en: "Write a message…" },
   "chat.send": { fr: "Envoyer", en: "Send" },
   "chat.translate": { fr: "Traduire", en: "Translate" },
@@ -311,7 +400,10 @@ const dict: Dict = {
 
   // ── Driver documents ──
   "docs.title": { fr: "Documents", en: "Documents" },
-  "docs.subtitle": { fr: "Téléchargez vos documents pour commencer à livrer.", en: "Upload your documents to start delivering." },
+  "docs.subtitle": {
+    fr: "Téléchargez vos documents pour commencer à livrer.",
+    en: "Upload your documents to start delivering.",
+  },
   "docs.upload": { fr: "Télécharger", en: "Upload" },
   "docs.change": { fr: "Modifier", en: "Change" },
   "docs.license": { fr: "Permis de conduire", en: "Driver's License" },
@@ -328,9 +420,15 @@ const dict: Dict = {
   "auto.namerequired": { fr: "Nom requis", en: "Name required" },
   "auto.phonerequired": { fr: "Téléphone requis", en: "Phone required" },
   "auto.emailrequired": { fr: "Email requis", en: "Email required" },
-  "auto.passwordmustbea": { fr: "Mot de passe : 8 caractères minimum", en: "Password must be at least 8 characters" },
+  "auto.passwordmustbea": {
+    fr: "Mot de passe : 8 caractères minimum",
+    en: "Password must be at least 8 characters",
+  },
   "auto.licenseplatereq": { fr: "Numéro de plaque requis", en: "License plate required" },
-  "auto.welcometotherap": { fr: "Bienvenue dans la flotte Rapide !", en: "Welcome to the Rapide fleet!" },
+  "auto.welcometotherap": {
+    fr: "Bienvenue dans la flotte Rapide !",
+    en: "Welcome to the Rapide fleet!",
+  },
   "auto.back": { fr: "Retour", en: "Back" },
   "auto.jointhefleet": { fr: "Rejoindre la flotte", en: "Join the fleet" },
   "auto.createyourrider": { fr: "Créez votre compte coursier", en: "Create your rider account" },
@@ -339,7 +437,10 @@ const dict: Dict = {
   "auto.lookingtosend": { fr: "Vous êtes client ?", en: "Looking to send?" },
   "auto.customersignup": { fr: "Inscription client", en: "Customer signup" },
   "auto.yourvehicle": { fr: "Votre véhicule", en: "Your vehicle" },
-  "auto.licenseplateegb": { fr: "Numéro de plaque (ex: BJ-1234-AB)", en: "License plate (e.g. BJ-1234-AB)" },
+  "auto.licenseplateegb": {
+    fr: "Numéro de plaque (ex: BJ-1234-AB)",
+    en: "License plate (e.g. BJ-1234-AB)",
+  },
   "auto.creatingaccount": { fr: "Création du compte…", en: "Creating account…" },
   "auto.createmyriderac": { fr: "Créer mon compte coursier", en: "Create my rider account" },
   "auto.checkyouremail": { fr: "Vérifiez votre email", en: "Check your email" },
@@ -347,15 +448,27 @@ const dict: Dict = {
   "auto.bicycle": { fr: "Vélo", en: "Bicycle" },
   "auto.car": { fr: "Voiture", en: "Car" },
   "auto.van": { fr: "Camion", en: "Van" },
-  "rider.confirmation_sent": { fr: "Un lien de confirmation a été envoyé à {email}. Cliquez dessus pour activer votre compte coursier.", en: "A confirmation link was sent to {email}. Click it to activate your rider account." },
+  "rider.confirmation_sent": {
+    fr: "Un lien de confirmation a été envoyé à {email}. Cliquez dessus pour activer votre compte coursier.",
+    en: "A confirmation link was sent to {email}. Click it to activate your rider account.",
+  },
   "auto.gotosignin": { fr: "Aller à la connexion", en: "Go to sign in" },
-  "auto.selectyourvehic": { fr: "Sélectionnez votre type de véhicule", en: "Select your vehicle type" },
-  "auto.yourdocumentswi": { fr: "Vos documents seront demandés après inscription pour vérification KYC.", en: "Your documents will be requested after signup for KYC verification." },
+  "auto.selectyourvehic": {
+    fr: "Sélectionnez votre type de véhicule",
+    en: "Select your vehicle type",
+  },
+  "auto.yourdocumentswi": {
+    fr: "Vos documents seront demandés après inscription pour vérification KYC.",
+    en: "Your documents will be requested after signup for KYC verification.",
+  },
   "chat.file_too_large": { fr: "Fichier trop grand (max 5 Mo)", en: "File too large (max 5 MB)" },
   "chat.format_unsupported": { fr: "Format non supporté", en: "Unsupported format" },
   "auto.engb": { fr: "fr-FR", en: "en-GB" },
   "auto.m": { fr: "min", en: "m" },
-  "profile.no_addresses": { fr: "Vous n'avez pas encore d'adresses sauvegardées.", en: "You don't have any saved addresses yet." },
+  "profile.no_addresses": {
+    fr: "Vous n'avez pas encore d'adresses sauvegardées.",
+    en: "You don't have any saved addresses yet.",
+  },
   "auto.fr": { fr: "en", en: "fr" },
   "app.copied": { fr: "Lien copié !", en: "Link copied!" },
   "auto.withdrawalreque": { fr: "Demande de retrait", en: "Withdrawal request" },
@@ -365,13 +478,19 @@ const dict: Dict = {
   "auto.amountinxof": { fr: "Montant en XOF", en: "Amount in XOF" },
   "auto.continue": { fr: "Continuer", en: "Continue" },
   "auto.enteranamount": { fr: "Entrer un montant", en: "Enter an amount" },
-  "wallet.transfer_instr": { fr: "Faites un dépôt Mobile Money (MTN/Moov) vers ce numéro. Indiquez la référence de transaction ci-dessous.", en: "Make a Mobile Money deposit (MTN/Moov) to this number. Provide the transaction reference below." },
+  "wallet.transfer_instr": {
+    fr: "Faites un dépôt Mobile Money (MTN/Moov) vers ce numéro. Indiquez la référence de transaction ci-dessous.",
+    en: "Make a Mobile Money deposit (MTN/Moov) to this number. Provide the transaction reference below.",
+  },
   "auto.referencerequir": { fr: "Référence (obligatoire)", en: "Reference (required)" },
   "auto.recording": { fr: "Enregistrement…", en: "Recording…" },
   "auto.ivecompletedthe": { fr: "J'ai effectué le transfert", en: "I've completed the transfer" },
   "auto.requestrecorded": { fr: "Demande enregistrée !", en: "Request recorded!" },
   "auto.reference": { fr: "Référence :", en: "Reference:" },
-  "wallet.ref_help": { fr: "Le code de transaction reçu par SMS après votre dépôt.", en: "The transaction code received via SMS after your deposit." },
+  "wallet.ref_help": {
+    fr: "Le code de transaction reçu par SMS après votre dépôt.",
+    en: "The transaction code received via SMS after your deposit.",
+  },
   "auto.afterverificati": { fr: "après vérification.", en: "after verification." },
   "auto.close": { fr: "Fermer", en: "Close" },
   "auto.amountxof": { fr: "Montant (XOF)", en: "Amount (XOF)" },
@@ -379,9 +498,18 @@ const dict: Dict = {
   "auto.insufficientbal": { fr: "Solde insuffisant.", en: "Insufficient balance." },
   "auto.sending": { fr: "Envoi…", en: "Sending…" },
   "auto.requestwithdraw": { fr: "Demander le retrait", en: "Request withdrawal" },
-  "auto.withdrawalreque_submitted": { fr: "Demande de retrait envoyée. Vous serez contacté sous 24h.", en: "Withdrawal request submitted. Our team will contact you within 24h." },
-  "auto.yourbalancewill": { fr: "⚡ Votre solde sera crédité dans les 2h après vérification du transfert.", en: "⚡ Your balance will be credited within 2h after transfer verification." },
-  "auto.entertheamounta": { fr: "Renseignez le montant et le numéro Mobile Money sur lequel vous souhaitez recevoir le virement.", en: "Enter the amount and Mobile Money number you'd like the payout sent to." },
+  "auto.withdrawalreque_submitted": {
+    fr: "Demande de retrait envoyée. Vous serez contacté sous 24h.",
+    en: "Withdrawal request submitted. Our team will contact you within 24h.",
+  },
+  "auto.yourbalancewill": {
+    fr: "⚡ Votre solde sera crédité dans les 2h après vérification du transfert.",
+    en: "⚡ Your balance will be credited within 2h after transfer verification.",
+  },
+  "auto.entertheamounta": {
+    fr: "Renseignez le montant et le numéro Mobile Money sur lequel vous souhaitez recevoir le virement.",
+    en: "Enter the amount and Mobile Money number you'd like the payout sent to.",
+  },
 
   // ── Support ──
   "support.title": { fr: "Support", en: "Support" },
@@ -403,7 +531,10 @@ const dict: Dict = {
   "rider.go_online": { fr: "Passer en ligne", en: "Go online" },
   "rider.go_offline": { fr: "Passer hors ligne", en: "Go offline" },
   "rider.accepting": { fr: "Accepte les commandes", en: "Accepting orders" },
-  "rider.not_accepting": { fr: "N'accepte pas de nouvelles commandes", en: "Not accepting new orders" },
+  "rider.not_accepting": {
+    fr: "N'accepte pas de nouvelles commandes",
+    en: "Not accepting new orders",
+  },
   "rider.today_earnings": { fr: "Gains du jour", en: "Today's earnings" },
   "rider.deliveries": { fr: "Livraisons", en: "Deliveries" },
   "rider.documents": { fr: "Documents", en: "Documents" },
@@ -416,15 +547,25 @@ const dict: Dict = {
 
   // ── Errors / 404 ──
   "err.404.title": { fr: "Page introuvable", en: "Page not found" },
-  "err.404.desc": { fr: "Cette page n'existe pas ou a été déplacée.", en: "This page doesn't exist or has been moved." },
+  "err.404.desc": {
+    fr: "Cette page n'existe pas ou a été déplacée.",
+    en: "This page doesn't exist or has been moved.",
+  },
   "err.404.back": { fr: "Retour à l'accueil", en: "Back to home" },
   "err.500.title": { fr: "Une erreur est survenue", en: "An error occurred" },
-  "err.500.desc": { fr: "Quelque chose s'est mal passé. Essayez de rafraîchir la page.", en: "Something went wrong. Try refreshing the page." },
+  "err.500.desc": {
+    fr: "Quelque chose s'est mal passé. Essayez de rafraîchir la page.",
+    en: "Something went wrong. Try refreshing the page.",
+  },
   "err.500.retry": { fr: "Réessayer", en: "Retry" },
   "err.500.home": { fr: "Accueil", en: "Home" },
 };
 
-const LangCtx = createContext<{ lang: Lang; setLang: (l: Lang) => void; t: (k: keyof typeof dict) => string }>({
+const LangCtx = createContext<{
+  lang: Lang;
+  setLang: (l: Lang) => void;
+  t: (k: keyof typeof dict) => string;
+}>({
   lang: "fr",
   setLang: () => {},
   t: (k) => k as string,

@@ -32,19 +32,27 @@ export const Route = createFileRoute("/_authenticated/app/wallet")({
 
 // Rapide Mobile Money receiving numbers (update with real ops numbers before launch)
 const MOMO_NUMBERS: { network: string; number: string; color: string }[] = [
-  { network: "MTN MoMo",  number: "+229 01 20 00 00", color: "bg-yellow-500/15 text-yellow-400 border-yellow-500/30" },
-  { network: "Moov Money", number: "+229 01 30 00 00", color: "bg-blue-500/15 text-blue-400 border-blue-500/30"   },
+  {
+    network: "MTN MoMo",
+    number: "+229 01 20 00 00",
+    color: "bg-yellow-500/15 text-yellow-400 border-yellow-500/30",
+  },
+  {
+    network: "Moov Money",
+    number: "+229 01 30 00 00",
+    color: "bg-blue-500/15 text-blue-400 border-blue-500/30",
+  },
 ];
 
 const QUICK_TOPUP = [1_000, 2_500, 5_000, 10_000, 25_000];
 
 const TX_TYPE_LABEL: Record<string, { fr: string; en: string }> = {
-  topup:      { fr: "Rechargement", en: "Top-up" },
-  payment:    { fr: "Paiement",     en: "Payment" },
-  refund:     { fr: "Remboursement",en: "Refund"  },
-  payout:     { fr: "Paiement coursier", en: "Rider payout" },
-  bonus:      { fr: "Bonus",        en: "Bonus"   },
-  commission: { fr: "Commission",   en: "Commission" },
+  topup: { fr: "Rechargement", en: "Top-up" },
+  payment: { fr: "Paiement", en: "Payment" },
+  refund: { fr: "Remboursement", en: "Refund" },
+  payout: { fr: "Paiement coursier", en: "Rider payout" },
+  bonus: { fr: "Bonus", en: "Bonus" },
+  commission: { fr: "Commission", en: "Commission" },
 };
 
 // ── Generate a short human-readable reference for the transfer ──────────────
@@ -60,16 +68,16 @@ function WalletPage() {
   const qc = useQueryClient();
 
   // Top-up modal state
-  const [open, setOpen]             = useState(false);
-  const [step, setStep]             = useState<Step>("amount");
-  const [amount, setAmount]         = useState("");
-  const [ref, setRef]               = useState("");
-  const [copied, setCopied]         = useState(false);
+  const [open, setOpen] = useState(false);
+  const [step, setStep] = useState<Step>("amount");
+  const [amount, setAmount] = useState("");
+  const [ref, setRef] = useState("");
+  const [copied, setCopied] = useState(false);
 
   // Withdrawal request state
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState("");
-  const [withdrawPhone, setWithdrawPhone]   = useState("");
+  const [withdrawPhone, setWithdrawPhone] = useState("");
 
   const { data: wallet, isLoading: walletLoading } = useQuery({
     queryKey: ["wallet", user?.id],
@@ -109,10 +117,10 @@ function WalletPage() {
 
       // Insert pending top-up record (negative reference so ops can filter)
       const { error } = await supabase.from("wallet_transactions").insert({
-        wallet_id:   w.id,
-        user_id:     user!.id,
-        type:        "topup",
-        amount_xof:  amountXof,
+        wallet_id: w.id,
+        user_id: user!.id,
+        type: "topup",
+        amount_xof: amountXof,
         reference,
         description: t("wallet.pending_topup" as any).replace("{reference}", reference),
       });
@@ -132,16 +140,19 @@ function WalletPage() {
   const requestWithdrawal = useMutation({
     mutationFn: async ({ amountXof, phone }: { amountXof: number; phone: string }) => {
       const { error } = await supabase.from("support_tickets").insert({
-        user_id:     user!.id,
-        category:    "payment",
-        subject:     t("wallet.req_subj" as any) || (t("auto.withdrawalreque")),
-        message:     t("wallet.withdrawal_msg" as any).replace("{amount}", fmtXOF(amountXof)).replace("{phone}", phone),
+        user_id: user!.id,
+        category: "payment",
+        subject: t("wallet.req_subj" as any) || t("auto.withdrawalreque"),
+        message: t("wallet.withdrawal_msg" as any)
+          .replace("{amount}", fmtXOF(amountXof))
+          .replace("{phone}", phone),
         priority: "normal",
-        status:      "open",
+        status: "open",
       });
       if (error) throw error;
-      
-      toast.success(t("wallet.toast_deposit" as any));setWithdrawOpen(false);
+
+      toast.success(t("wallet.toast_deposit" as any));
+      setWithdrawOpen(false);
       setWithdrawAmount("");
       setWithdrawPhone("");
     },
@@ -151,15 +162,19 @@ function WalletPage() {
     },
   });
 
-  const thisMonthTotal = txs
-    ?.filter((tx) => {
-      const d = new Date(tx.created_at);
-      const now = new Date();
-      return d.getMonth() === now.getMonth()
-        && d.getFullYear() === now.getFullYear()
-        && tx.type === "topup";
-    })
-    .reduce((s, tx) => s + Number(tx.amount_xof), 0) ?? 0;
+  const thisMonthTotal =
+    txs
+      ?.filter((tx) => {
+        const d = new Date(tx.created_at);
+        const now = new Date();
+        return (
+          d.getMonth() === now.getMonth() &&
+          d.getFullYear() === now.getFullYear() &&
+          tx.type === "topup" &&
+          tx.status === "completed"
+        );
+      })
+      .reduce((s, tx) => s + Number(tx.amount_xof), 0) ?? 0;
 
   // ── Helpers ────────────────────────────────────────────────────────────────
   function openTopup() {
@@ -178,7 +193,7 @@ function WalletPage() {
   function handleAmountConfirm() {
     const n = Number(amount);
     if (!n || n < 500) {
-      toast.error(t("wallet.min_amount") ?? (t("auto.minimumamountxo")));
+      toast.error(t("wallet.min_amount") ?? t("auto.minimumamountxo"));
       return;
     }
     setStep("instructions");
@@ -211,14 +226,16 @@ function WalletPage() {
           <div className="absolute -right-8 -bottom-8 h-32 w-32 rounded-full bg-primary/10" />
           <div className="relative">
             <div className="flex items-center justify-between mb-1">
-              <p className="text-xs text-muted-foreground uppercase tracking-wider">{t("wallet.balance")}</p>
+              <p className="text-xs text-muted-foreground uppercase tracking-wider">
+                {t("wallet.balance")}
+              </p>
               <Wallet className="h-5 w-5 text-primary" />
             </div>
             <p className="font-display text-4xl font-bold text-gradient-primary">
               {fmtXOF(wallet?.balance_xof ?? 0)}
             </p>
             <p className="text-xs text-muted-foreground mt-2">
-              {t("wallet.this_month") ?? (t("auto.thismonth"))}{" "}
+              {t("wallet.this_month") ?? t("auto.thismonth")}{" "}
               <span className="text-green-400 font-medium">+{fmtXOF(thisMonthTotal)}</span>
             </p>
 
@@ -238,7 +255,7 @@ function WalletPage() {
                 <ArrowLeft className="h-4 w-4" /> {t("wallet.withdraw")}
               </button>
             </div>
-            
+
             <div className="mt-2">
               <Link
                 to="/app/escrow"
@@ -274,10 +291,13 @@ function WalletPage() {
               <div className="flex items-center justify-between mb-5">
                 <h3 className="font-display text-2xl font-bold">
                   {step === "done"
-                    ? (t("wallet.topup_recorded") ?? (t("auto.topuprecorded")))
+                    ? (t("wallet.topup_recorded") ?? t("auto.topuprecorded"))
                     : t("wallet.topup_title")}
                 </h3>
-                <button onClick={closeTopup} className="text-muted-foreground hover:text-foreground">
+                <button
+                  onClick={closeTopup}
+                  className="text-muted-foreground hover:text-foreground"
+                >
                   <X className="h-5 w-5" />
                 </button>
               </div>
@@ -304,7 +324,7 @@ function WalletPage() {
                   <input
                     type="number"
                     id="topup-amount-input"
-                    placeholder={t("wallet.amount_xof") ?? (t("auto.amountinxof"))}
+                    placeholder={t("wallet.amount_xof") ?? t("auto.amountinxof")}
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
                     className="w-full rounded-xl bg-input/40 border border-border px-4 py-2.5 text-sm outline-none focus:border-primary mb-4"
@@ -316,8 +336,8 @@ function WalletPage() {
                     className="w-full rounded-xl bg-gradient-primary py-3 text-sm font-bold text-primary-foreground shadow-glow"
                   >
                     {amount && Number(amount) >= 500
-                      ? `${t("wallet.continue") ?? (t("auto.continue"))} — ${fmtXOF(Number(amount))}`
-                      : (t("wallet.enter_amount") ?? (t("auto.enteranamount")))}
+                      ? `${t("wallet.continue") ?? t("auto.continue")} — ${fmtXOF(Number(amount))}`
+                      : (t("wallet.enter_amount") ?? t("auto.enteranamount"))}
                   </button>
                 </motion.div>
               )}
@@ -325,14 +345,15 @@ function WalletPage() {
               {/* Step 2: Transfer instructions */}
               {step === "instructions" && (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
-                  <p className="text-sm text-muted-foreground">
-                    {t("wallet.transfer_instr")}
-                  </p>
+                  <p className="text-sm text-muted-foreground">{t("wallet.transfer_instr")}</p>
 
                   {/* MoMo numbers */}
                   <div className="space-y-2">
                     {MOMO_NUMBERS.map((m) => (
-                      <div key={m.network} className={`rounded-xl border p-3 flex items-center gap-3 ${m.color}`}>
+                      <div
+                        key={m.network}
+                        className={`rounded-xl border p-3 flex items-center gap-3 ${m.color}`}
+                      >
                         <Smartphone className="h-4 w-4 shrink-0" />
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-semibold">{m.network}</p>
@@ -346,22 +367,26 @@ function WalletPage() {
                   <div className="glass rounded-xl p-3 flex items-center justify-between gap-3">
                     <div>
                       <p className="text-xs text-muted-foreground">
-                        {t("wallet.ref_required") ?? (t("auto.referencerequir"))}
+                        {t("wallet.ref_required") ?? t("auto.referencerequir")}
                       </p>
-                      <p className="font-mono font-bold text-primary text-lg tracking-wider">{ref}</p>
+                      <p className="font-mono font-bold text-primary text-lg tracking-wider">
+                        {ref}
+                      </p>
                     </div>
                     <button
                       id="copy-ref-btn"
                       onClick={copyRef}
                       className="h-9 w-9 rounded-lg glass flex items-center justify-center text-muted-foreground hover:text-foreground transition"
                     >
-                      {copied ? <Check className="h-4 w-4 text-green-400" /> : <Copy className="h-4 w-4" />}
+                      {copied ? (
+                        <Check className="h-4 w-4 text-green-400" />
+                      ) : (
+                        <Copy className="h-4 w-4" />
+                      )}
                     </button>
                   </div>
 
-                  <p className="text-xs text-muted-foreground">
-                    {t("auto.yourbalancewill")}
-                  </p>
+                  <p className="text-xs text-muted-foreground">{t("auto.yourbalancewill")}</p>
 
                   <button
                     id="topup-done-btn"
@@ -370,8 +395,8 @@ function WalletPage() {
                     className="w-full rounded-xl bg-gradient-primary py-3 text-sm font-bold text-primary-foreground shadow-glow disabled:opacity-60"
                   >
                     {confirmTopup.isPending
-                      ? (t("wallet.recording") ?? (t("auto.recording")))
-                      : (t("wallet.completed_transfer") ?? (t("auto.ivecompletedthe")))}
+                      ? (t("wallet.recording") ?? t("auto.recording"))
+                      : (t("wallet.completed_transfer") ?? t("auto.ivecompletedthe"))}
                   </button>
                 </motion.div>
               )}
@@ -388,9 +413,7 @@ function WalletPage() {
                       <CheckCircle2 className="h-8 w-8 text-green-400" />
                     </div>
                   </div>
-                  <p className="font-display text-lg font-bold mb-2">
-                    {t("auto.requestrecorded")}
-                  </p>
+                  <p className="font-display text-lg font-bold mb-2">{t("auto.requestrecorded")}</p>
                   <p className="text-sm text-muted-foreground mb-1">
                     {t("auto.reference")}{" "}
                     <span className="font-mono font-bold text-primary">{ref}</span>
@@ -434,20 +457,19 @@ function WalletPage() {
             >
               <div className="flex items-center justify-between mb-5">
                 <h2 className="font-display text-xl font-bold">{t("wallet.withdraw")}</h2>
-                <button onClick={() => setWithdrawOpen(false)} className="text-muted-foreground hover:text-foreground">
+                <button
+                  onClick={() => setWithdrawOpen(false)}
+                  className="text-muted-foreground hover:text-foreground"
+                >
                   <X className="h-5 w-5" />
                 </button>
               </div>
 
-              <p className="text-sm text-muted-foreground mb-4">
-                {t("auto.entertheamounta")}
-              </p>
+              <p className="text-sm text-muted-foreground mb-4">{t("auto.entertheamounta")}</p>
 
               <div className="space-y-3 mb-5">
                 <div>
-                  <p className="text-xs text-muted-foreground mb-1">
-                    {t("auto.amountxof")}
-                  </p>
+                  <p className="text-xs text-muted-foreground mb-1">{t("auto.amountxof")}</p>
                   <input
                     id="withdraw-amount-input"
                     type="number"
@@ -458,9 +480,7 @@ function WalletPage() {
                   />
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground mb-1">
-                    {t("auto.mobilemoneynumb")}
-                  </p>
+                  <p className="text-xs text-muted-foreground mb-1">{t("auto.mobilemoneynumb")}</p>
                   <input
                     id="withdraw-phone-input"
                     type="tel"
@@ -473,19 +493,17 @@ function WalletPage() {
               </div>
 
               {wallet && Number(withdrawAmount) > wallet.balance_xof && (
-                <p className="text-xs text-destructive mb-3">
-                  {t("auto.insufficientbal")}
-                </p>
+                <p className="text-xs text-destructive mb-3">{t("auto.insufficientbal")}</p>
               )}
 
               <button
                 id="withdraw-submit-btn"
                 disabled={
-                  requestWithdrawal.isPending
-                  || !withdrawAmount
-                  || !withdrawPhone
-                  || Number(withdrawAmount) < 500
-                  || (!!wallet && Number(withdrawAmount) > wallet.balance_xof)
+                  requestWithdrawal.isPending ||
+                  !withdrawAmount ||
+                  !withdrawPhone ||
+                  Number(withdrawAmount) < 500 ||
+                  (!!wallet && Number(withdrawAmount) > wallet.balance_xof)
                 }
                 onClick={() =>
                   requestWithdrawal.mutate({
@@ -495,9 +513,7 @@ function WalletPage() {
                 }
                 className="w-full rounded-xl bg-gradient-primary py-3 text-sm font-bold text-primary-foreground shadow-glow disabled:opacity-50"
               >
-                {requestWithdrawal.isPending
-                  ? (t("auto.sending"))
-                  : (t("auto.requestwithdraw"))}
+                {requestWithdrawal.isPending ? t("auto.sending") : t("auto.requestwithdraw")}
               </button>
             </motion.div>
           </motion.div>
@@ -510,19 +526,19 @@ function WalletPage() {
 
         {txLoading && (
           <div className="space-y-2">
-            {[1, 2, 3].map((i) => <SkeletonListItem key={i} />)}
+            {[1, 2, 3].map((i) => (
+              <SkeletonListItem key={i} />
+            ))}
           </div>
         )}
 
-        {!txLoading && txs?.length === 0 && (
-          <EmptyState icon={Wallet} title={t("wallet.no_tx")} />
-        )}
+        {!txLoading && txs?.length === 0 && <EmptyState icon={Wallet} title={t("wallet.no_tx")} />}
 
         {!txLoading && txs && txs.length > 0 && (
           <div className="space-y-2">
             {txs.map((tx, idx) => {
               const credit = Number(tx.amount_xof) >= 0;
-              const label  = TX_TYPE_LABEL[tx.type]?.[lang as "fr" | "en"] ?? tx.type;
+              const label = TX_TYPE_LABEL[tx.type]?.[lang as "fr" | "en"] ?? tx.type;
               return (
                 <motion.div
                   key={tx.id}
@@ -531,24 +547,50 @@ function WalletPage() {
                   transition={{ delay: idx * 0.03 }}
                   className="glass rounded-2xl p-3.5 flex items-center gap-3"
                 >
-                  <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 ${
-                    credit ? "bg-green-500/10 text-green-400" : "bg-destructive/10 text-destructive"
-                  }`}>
-                    {credit ? <ArrowDownLeft className="h-4 w-4" /> : <ArrowUpRight className="h-4 w-4" />}
+                  <div
+                    className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 ${
+                      credit
+                        ? "bg-green-500/10 text-green-400"
+                        : "bg-destructive/10 text-destructive"
+                    }`}
+                  >
+                    {credit ? (
+                      <ArrowDownLeft className="h-4 w-4" />
+                    ) : (
+                      <ArrowUpRight className="h-4 w-4" />
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{tx.description ?? label}</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-sm font-medium truncate">{tx.description ?? label}</p>
+                      {tx.status === "pending" && (
+                        <span className="text-[9px] uppercase tracking-wide font-semibold text-yellow-400 bg-yellow-400/10 px-1.5 py-0.5 rounded-full shrink-0">
+                          {t("wallet.status_pending")}
+                        </span>
+                      )}
+                      {tx.status === "rejected" && (
+                        <span className="text-[9px] uppercase tracking-wide font-semibold text-destructive bg-destructive/10 px-1.5 py-0.5 rounded-full shrink-0">
+                          {t("wallet.status_rejected")}
+                        </span>
+                      )}
+                    </div>
                     <p className="text-[11px] text-muted-foreground mt-0.5">
                       {new Date(tx.created_at).toLocaleString(t("auto.engb"), {
-                        day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
+                        day: "numeric",
+                        month: "short",
+                        hour: "2-digit",
+                        minute: "2-digit",
                       })}
                       {tx.reference && (
                         <span className="ml-2 font-mono opacity-60">#{tx.reference}</span>
                       )}
                     </p>
                   </div>
-                  <p className={`text-sm font-bold shrink-0 ${credit ? "text-green-400" : "text-destructive"}`}>
-                    {credit ? "+" : ""}{fmtXOF(Number(tx.amount_xof))}
+                  <p
+                    className={`text-sm font-bold shrink-0 ${credit ? "text-green-400" : "text-destructive"}`}
+                  >
+                    {credit ? "+" : ""}
+                    {fmtXOF(Number(tx.amount_xof))}
                   </p>
                 </motion.div>
               );

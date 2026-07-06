@@ -19,16 +19,20 @@ export const Route = createFileRoute("/rider-signup")({
 type VehicleType = "motorbike" | "bicycle" | "car" | "van" | "truck";
 
 const VEHICLES: { type: VehicleType; icon: typeof Bike; labelFr: string; labelEn: string }[] = [
-  { type: "motorbike", icon: Bike,  labelFr: "Moto",    labelEn: "Motorbike" },
-  { type: "bicycle",   icon: Bike,  labelFr: "Vélo",    labelEn: "Bicycle" },
-  { type: "car",       icon: Car,   labelFr: "Voiture", labelEn: "Car" },
-  { type: "van",       icon: Truck, labelFr: "Camion",  labelEn: "Van" },
+  { type: "motorbike", icon: Bike, labelFr: "Moto", labelEn: "Motorbike" },
+  { type: "bicycle", icon: Bike, labelFr: "Vélo", labelEn: "Bicycle" },
+  { type: "car", icon: Car, labelFr: "Voiture", labelEn: "Car" },
+  { type: "van", icon: Truck, labelFr: "Camion", labelEn: "Van" },
 ];
 
 const slideVariants = {
   enter: (dir: number) => ({ opacity: 0, x: dir * 40 }),
-  center: { opacity: 1, x: 0, transition: { duration: 0.25, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] } },
-  exit:   (dir: number) => ({ opacity: 0, x: dir * -40, transition: { duration: 0.18 } }),
+  center: {
+    opacity: 1,
+    x: 0,
+    transition: { duration: 0.25, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] },
+  },
+  exit: (dir: number) => ({ opacity: 0, x: dir * -40, transition: { duration: 0.18 } }),
 };
 
 function RiderSignupPage() {
@@ -40,12 +44,12 @@ function RiderSignupPage() {
 
   // Step 1 — personal info
   const [fullName, setFullName] = useState("");
-  const [phone, setPhone]       = useState("");
-  const [email, setEmail]       = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
   // Step 2 — vehicle info
-  const [vehicle, setVehicle]       = useState<VehicleType>("motorbike");
+  const [vehicle, setVehicle] = useState<VehicleType>("motorbike");
   const [licensePlate, setLicensePlate] = useState("");
 
   const goTo = (n: number) => {
@@ -54,9 +58,18 @@ function RiderSignupPage() {
   };
 
   const validateStep1 = () => {
-    if (!fullName.trim()) { toast.error(t("auto.namerequired")); return false; }
-    if (!phone.trim())    { toast.error(t("auto.phonerequired")); return false; }
-    if (!email.trim())    { toast.error(t("auto.emailrequired")); return false; }
+    if (!fullName.trim()) {
+      toast.error(t("auto.namerequired"));
+      return false;
+    }
+    if (!phone.trim()) {
+      toast.error(t("auto.phonerequired"));
+      return false;
+    }
+    if (!email.trim()) {
+      toast.error(t("auto.emailrequired"));
+      return false;
+    }
     if (password.length < 8) {
       toast.error(t("auto.passwordmustbea"));
       return false;
@@ -99,11 +112,10 @@ function RiderSignupPage() {
         console.error("[rider-signup] rider upsert failed:", riderErr.message);
       }
 
-      // 3. Assign rider role
-      const { error: roleErr } = await supabase.from("user_roles").upsert({
-        user_id: authData.user.id,
-        role: "rider",
-      });
+      // 3. Assign rider role — user_roles INSERT is admin-only by RLS, so a
+      // brand-new user can't upsert this directly; request_rider_role() is a
+      // SECURITY DEFINER RPC that only ever grants 'rider' to auth.uid().
+      const { error: roleErr } = await supabase.rpc("request_rider_role");
       if (roleErr) {
         toast.error(t("errors.unexpected"));
         console.error("[rider-signup] role assignment failed:", roleErr.message);
@@ -134,7 +146,11 @@ function RiderSignupPage() {
         {/* Logo + back link */}
         <div className="flex items-center justify-between mb-6">
           <Link to="/" className="flex items-center gap-2">
-            <img src={rapideLogo} alt="Rapide" className="h-9 w-9 rounded-xl object-cover shadow-glow" />
+            <img
+              src={rapideLogo}
+              alt="Rapide"
+              className="h-9 w-9 rounded-xl object-cover shadow-glow"
+            />
             <span className="font-display text-base font-bold">Rapide</span>
           </Link>
           {step > 1 && step < 3 && (
@@ -173,12 +189,8 @@ function RiderSignupPage() {
               animate="center"
               exit="exit"
             >
-              <h1 className="font-display text-2xl font-bold">
-                {t("auto.jointhefleet")}
-              </h1>
-              <p className="mt-1 text-sm text-muted-foreground mb-6">
-                {t("auto.createyourrider")}
-              </p>
+              <h1 className="font-display text-2xl font-bold">{t("auto.jointhefleet")}</h1>
+              <p className="mt-1 text-sm text-muted-foreground mb-6">{t("auto.createyourrider")}</p>
 
               <div className="space-y-3">
                 <input
@@ -228,7 +240,11 @@ function RiderSignupPage() {
 
               <p className="mt-5 text-center text-sm text-muted-foreground">
                 {t("auto.alreadyarider")}{" "}
-                <Link to="/login" search={{ redirect: "/rider" }} className="text-primary font-medium">
+                <Link
+                  to="/login"
+                  search={{ redirect: "/rider" }}
+                  className="text-primary font-medium"
+                >
                   {t("login.btn")}
                 </Link>
               </p>
@@ -253,12 +269,8 @@ function RiderSignupPage() {
               exit="exit"
               onSubmit={handleSubmit}
             >
-              <h2 className="font-display text-2xl font-bold">
-                {t("auto.yourvehicle")}
-              </h2>
-              <p className="mt-1 text-sm text-muted-foreground mb-6">
-                {t("auto.selectyourvehic")}
-              </p>
+              <h2 className="font-display text-2xl font-bold">{t("auto.yourvehicle")}</h2>
+              <p className="mt-1 text-sm text-muted-foreground mb-6">{t("auto.selectyourvehic")}</p>
 
               <div className="grid grid-cols-2 gap-2 mb-5">
                 {VEHICLES.map((v) => {
@@ -275,12 +287,17 @@ function RiderSignupPage() {
                           : "border-border glass hover:border-primary/40"
                       }`}
                     >
-                      <Icon className={`h-6 w-6 ${selected ? "text-primary" : "text-muted-foreground"}`} />
+                      <Icon
+                        className={`h-6 w-6 ${selected ? "text-primary" : "text-muted-foreground"}`}
+                      />
                       <span className="text-xs font-semibold">
-                        {v.type === "motorbike" ? t("auto.motorbike") :
-                         v.type === "bicycle" ? t("auto.bicycle") :
-                         v.type === "car" ? t("auto.car") :
-                         t("auto.van")}
+                        {v.type === "motorbike"
+                          ? t("auto.motorbike")
+                          : v.type === "bicycle"
+                            ? t("auto.bicycle")
+                            : v.type === "car"
+                              ? t("auto.car")
+                              : t("auto.van")}
                       </span>
                     </button>
                   );
@@ -301,9 +318,7 @@ function RiderSignupPage() {
                 className="w-full rounded-xl bg-gradient-primary px-4 py-3 text-sm font-semibold text-primary-foreground shadow-glow disabled:opacity-60 flex items-center justify-center gap-2 hover:scale-[1.01] transition active:scale-[0.98]"
               >
                 {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-                {loading
-                  ? (t("auto.creatingaccount"))
-                  : (t("auto.createmyriderac"))}
+                {loading ? t("auto.creatingaccount") : t("auto.createmyriderac")}
               </button>
 
               <p className="mt-4 text-center text-xs text-muted-foreground">
@@ -328,11 +343,9 @@ function RiderSignupPage() {
                   <CheckCircle2 className="h-8 w-8 text-primary" />
                 </div>
               </div>
-              <h2 className="font-display text-2xl font-bold mb-2">
-                {t("auto.checkyouremail")}
-              </h2>
+              <h2 className="font-display text-2xl font-bold mb-2">{t("auto.checkyouremail")}</h2>
               <p className="text-sm text-muted-foreground mb-6">
-                {t("rider.confirmation_sent" as any).replace('{email}', email)}
+                {t("rider.confirmation_sent" as any).replace("{email}", email)}
               </p>
               <Link
                 to="/login"

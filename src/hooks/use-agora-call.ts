@@ -34,25 +34,36 @@ export function useAgoraCall(conversationId: string, otherId: string, otherName:
       timerRef.current = null;
     }
     for (const track of localTracksRef.current) {
-      try { track.stop(); track.close(); } catch {}
+      try {
+        track.stop();
+        track.close();
+      } catch {}
     }
     localTracksRef.current = [];
     if (rtcClientRef.current) {
-      try { await rtcClientRef.current.leave(); } catch {}
+      try {
+        await rtcClientRef.current.leave();
+      } catch {}
       rtcClientRef.current = null;
     }
   }, []);
 
-  const sendSignal = useCallback(async (signal: CallSignal) => {
-    if (!otherId) return;
-    await supabase.from("notifications").insert({
-      user_id: otherId,
-      type: "system" as const,
-      title: signal.callType === "incoming" ? `${signal.callerName} is calling` : "Call update",
-      body: signal.callType,
-      data: signal as any,
-    });
-  }, [otherId]);
+  const sendSignal = useCallback(
+    async (signal: CallSignal) => {
+      if (!otherId) return;
+      // notifications RLS only allows inserting rows for yourself, so a direct
+      // insert here (for the *other* party) is always rejected — this RPC is a
+      // SECURITY DEFINER function made for exactly this cross-user notify case.
+      await supabase.rpc("create_notification", {
+        p_user_id: otherId,
+        p_type: "system",
+        p_title: signal.callType === "incoming" ? `${signal.callerName} is calling` : "Call update",
+        p_body: signal.callType,
+        p_data: signal,
+      });
+    },
+    [otherId],
+  );
 
   const joinChannel = useCallback(async () => {
     if (!user) throw new Error("Not authenticated");
@@ -82,7 +93,10 @@ export function useAgoraCall(conversationId: string, otherId: string, otherName:
     client.on("user-left", () => {
       // Other side hung up
       cleanup().then(() => {
-        if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+        if (timerRef.current) {
+          clearInterval(timerRef.current);
+          timerRef.current = null;
+        }
         setCallState("ended");
         setTimeout(() => setCallState("idle"), 2500);
       });
@@ -139,7 +153,10 @@ export function useAgoraCall(conversationId: string, otherId: string, otherName:
       conversationId,
     });
     await cleanup();
-    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
     setCallState("ended");
     setTimeout(() => setCallState("idle"), 2500);
   }, [user, channelName, conversationId, otherName, sendSignal, cleanup]);
@@ -173,7 +190,10 @@ export function useAgoraCall(conversationId: string, otherId: string, otherName:
             timerRef.current = setInterval(() => setCallDuration((d) => d + 1), 1000);
           } else if (signal.callType === "declined" || signal.callType === "ended") {
             cleanup().then(() => {
-              if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+              if (timerRef.current) {
+                clearInterval(timerRef.current);
+                timerRef.current = null;
+              }
               setIncomingSignal(null);
               setCallState("idle");
             });
@@ -182,11 +202,18 @@ export function useAgoraCall(conversationId: string, otherId: string, otherName:
       )
       .subscribe();
 
-    return () => { supabase.removeChannel(ch); };
+    return () => {
+      supabase.removeChannel(ch);
+    };
   }, [user, conversationId, cleanup]);
 
   // Cleanup on unmount
-  useEffect(() => () => { cleanup(); }, [cleanup]);
+  useEffect(
+    () => () => {
+      cleanup();
+    },
+    [cleanup],
+  );
 
   return {
     callState,
