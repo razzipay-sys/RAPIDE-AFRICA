@@ -6,9 +6,9 @@ import "leaflet/dist/leaflet.css";
 // Fix default icon path issues in Leaflet with bundlers
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
-  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+  iconRetinaUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png",
+  iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
+  shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
 });
 
 export type LatLng = { lat: number; lng: number };
@@ -66,18 +66,18 @@ const riderIcon = L.divIcon({
 });
 
 // Component to handle map clicks and bounds updates
-function MapController({ 
-  center, 
-  onMapClick, 
-  pickup, 
+function MapController({
+  center,
+  onMapClick,
+  pickup,
   dropoff,
-  routeCoords
-}: { 
-  center: LatLng, 
-  onMapClick?: (latlng: LatLng) => void,
-  pickup?: LatLng | null,
-  dropoff?: LatLng | null,
-  routeCoords?: LatLng[]
+  routeCoords,
+}: {
+  center: LatLng;
+  onMapClick?: (latlng: LatLng) => void;
+  pickup?: LatLng | null;
+  dropoff?: LatLng | null;
+  routeCoords?: LatLng[];
 }) {
   const map = useMap();
 
@@ -86,8 +86,10 @@ function MapController({
       const handleClick = (e: L.LeafletMouseEvent) => {
         onMapClick({ lat: e.latlng.lat, lng: e.latlng.lng });
       };
-      map.on('click', handleClick);
-      return () => { map.off('click', handleClick); };
+      map.on("click", handleClick);
+      return () => {
+        map.off("click", handleClick);
+      };
     }
   }, [map, onMapClick]);
 
@@ -96,7 +98,7 @@ function MapController({
     if (pickup && dropoff) {
       const bounds = L.latLngBounds([pickup.lat, pickup.lng], [dropoff.lat, dropoff.lng]);
       if (routeCoords) {
-        routeCoords.forEach(c => bounds.extend([c.lat, c.lng]));
+        routeCoords.forEach((c) => bounds.extend([c.lat, c.lng]));
       }
       map.fitBounds(bounds, { padding: [50, 50], animate: true });
     } else {
@@ -122,7 +124,8 @@ export function LiveMap({
 }: Props) {
   // Compute center
   const center = useMemo(() => {
-    if (pickup && dropoff) return { lng: (pickup.lng + dropoff.lng) / 2, lat: (pickup.lat + dropoff.lat) / 2 };
+    if (pickup && dropoff)
+      return { lng: (pickup.lng + dropoff.lng) / 2, lat: (pickup.lat + dropoff.lat) / 2 };
     if (pickup) return { lng: pickup.lng, lat: pickup.lat };
     if (dropoff) return { lng: dropoff.lng, lat: dropoff.lat };
     if (rider) return { lng: rider.lng, lat: rider.lat };
@@ -139,7 +142,7 @@ export function LiveMap({
     if (!showRoute || (!pickup && !dropoff && !routeCoords)) return null;
     const pts: [number, number][] = [];
     if (routeCoords) {
-      pts.push(...routeCoords.map(c => [c.lat, c.lng] as [number, number]));
+      pts.push(...routeCoords.map((c) => [c.lat, c.lng] as [number, number]));
     } else {
       if (pickup) pts.push([pickup.lat, pickup.lng]);
       if (rider) pts.push([rider.lat, rider.lng]);
@@ -149,10 +152,10 @@ export function LiveMap({
   }, [showRoute, pickup, dropoff, rider, routeCoords]);
 
   return (
-    <div className={\`relative w-full \${className ?? ""}\`} style={{ height, zIndex: 0 }}>
-      <MapContainer 
-        center={[center.lat, center.lng]} 
-        zoom={zoom} 
+    <div className={`relative w-full ${className ?? ""}`} style={{ height, zIndex: 0 }}>
+      <MapContainer
+        center={[center.lat, center.lng]}
+        zoom={zoom}
         style={{ width: "100%", height: "100%" }}
         zoomControl={false}
         attributionControl={false}
@@ -163,48 +166,51 @@ export function LiveMap({
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
         />
 
-        <MapController 
-          center={center} 
-          onMapClick={onMapClick} 
-          pickup={pickup} 
-          dropoff={dropoff} 
-          routeCoords={routeCoords} 
+        <MapController
+          center={center}
+          onMapClick={onMapClick}
+          pickup={pickup}
+          dropoff={dropoff}
+          routeCoords={routeCoords}
         />
 
         {routePolyline && routePolyline.length > 1 && (
-          <Polyline 
-            positions={routePolyline} 
-            color="oklch(0.72 0.2 45)" 
-            weight={4} 
-            dashArray="10, 10" 
-            opacity={0.8} 
+          <Polyline
+            positions={routePolyline}
+            color="oklch(0.72 0.2 45)"
+            weight={4}
+            dashArray="10, 10"
+            opacity={0.8}
           />
         )}
 
         {pickup && <Marker position={[pickup.lat, pickup.lng]} icon={pickupIcon} />}
         {dropoff && <Marker position={[dropoff.lat, dropoff.lng]} icon={dropoffIcon} />}
         {rider && <Marker position={[rider.lat, rider.lng]} icon={riderIcon} />}
-        
+
         {riders?.map((r, i) => (
           <Marker key={r.id ?? i} position={[r.lat, r.lng]} icon={riderIcon} />
         ))}
 
         {activeOrders?.map((o) => (
-          <Polyline 
+          <Polyline
             key={o.id}
-            positions={[[o.pickup.lat, o.pickup.lng], [o.dropoff.lat, o.dropoff.lng]]} 
-            color="#ff5a00" 
-            weight={3} 
-            opacity={0.5} 
+            positions={[
+              [o.pickup.lat, o.pickup.lng],
+              [o.dropoff.lat, o.dropoff.lng],
+            ]}
+            color="#ff5a00"
+            weight={3}
+            opacity={0.5}
           />
         ))}
       </MapContainer>
-      
+
       {/* Remove Mapbox specific styles, add Leaflet specific overrides */}
-      <style>{\`
+      <style>{`
         .leaflet-container { background: hsl(var(--muted)); z-index: 1; border-radius: inherit; }
         .custom-div-icon { background: transparent; border: none; }
-      \`}</style>
+      `}</style>
     </div>
   );
 }

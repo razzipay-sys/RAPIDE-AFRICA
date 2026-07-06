@@ -1,16 +1,26 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, Suspense } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  ArrowLeft, Bike, CheckCircle2, Circle, MapPin, MessageCircle,
-  Phone, Share2, Shield, Star, Clock, Navigation,
+  ArrowLeft,
+  Bike,
+  CheckCircle2,
+  Circle,
+  MapPin,
+  MessageCircle,
+  Phone,
+  Share2,
+  Shield,
+  Star,
+  Clock,
+  Navigation,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { fmtXOF, haversineKm } from "@/lib/pricing";
 import { useT } from "@/lib/i18n";
-import { LiveMap } from "@/components/rapide/LiveMap";
+import { LiveMap, MapSkeleton } from "@/components/rapide/LiveMapLazy";
 import { RatingModal } from "@/components/rapide/RatingModal";
 import { toast } from "sonner";
 
@@ -38,12 +48,12 @@ function TrackPage() {
   const [ratingDone, setRatingDone] = useState(false);
 
   const STATUS_FLOW = [
-    { label: t("track.s.pending"),    icon: Clock },
-    { label: t("track.s.accepted"),   icon: Bike },
-    { label: t("track.s.arriving"),   icon: Navigation },
-    { label: t("track.s.picked_up"),  icon: MapPin },
+    { label: t("track.s.pending"), icon: Clock },
+    { label: t("track.s.accepted"), icon: Bike },
+    { label: t("track.s.arriving"), icon: Navigation },
+    { label: t("track.s.picked_up"), icon: MapPin },
     { label: t("track.s.in_transit"), icon: Bike },
-    { label: t("track.s.delivered"),  icon: CheckCircle2 },
+    { label: t("track.s.delivered"), icon: CheckCircle2 },
   ];
 
   // ── Core order data ────────────────────────────────────────────────────────
@@ -115,25 +125,46 @@ function TrackPage() {
   useEffect(() => {
     const ch = supabase
       .channel(`track-order-${orderId}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "orders", filter: `id=eq.${orderId}` }, () => {
-        qc.invalidateQueries({ queryKey: ["order", orderId] });
-      })
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "order_events", filter: `order_id=eq.${orderId}` }, () => {
-        qc.invalidateQueries({ queryKey: ["order-events", orderId] });
-      })
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "orders", filter: `id=eq.${orderId}` },
+        () => {
+          qc.invalidateQueries({ queryKey: ["order", orderId] });
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "order_events",
+          filter: `order_id=eq.${orderId}`,
+        },
+        () => {
+          qc.invalidateQueries({ queryKey: ["order-events", orderId] });
+        },
+      )
       .subscribe();
-    return () => { void supabase.removeChannel(ch); };
+    return () => {
+      void supabase.removeChannel(ch);
+    };
   }, [orderId, qc]);
 
   useEffect(() => {
     if (!order?.rider_id) return;
     const ch = supabase
       .channel(`rider-pos-${order.rider_id}`)
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "riders", filter: `id=eq.${order.rider_id}` }, () => {
-        qc.invalidateQueries({ queryKey: ["rider-location", order.rider_id] });
-      })
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "riders", filter: `id=eq.${order.rider_id}` },
+        () => {
+          qc.invalidateQueries({ queryKey: ["rider-location", order.rider_id] });
+        },
+      )
       .subscribe();
-    return () => { void supabase.removeChannel(ch); };
+    return () => {
+      void supabase.removeChannel(ch);
+    };
   }, [order?.rider_id, qc]);
 
   // ── Show rating prompt when delivered ─────────────────────────────────────
@@ -167,11 +198,28 @@ function TrackPage() {
   const currentIdx = order?.status ? (ORDER_STATUS_MAP[order.status] ?? 0) : 0;
   const pct = ((currentIdx + 1) / STATUS_FLOW.length) * 100;
 
-  const pickup  = order?.pickup_lat  ? { lat: Number(order.pickup_lat),  lng: Number(order.pickup_lng)  } : null;
-  const dropoff = order?.dropoff_lat ? { lat: Number(order.dropoff_lat), lng: Number(order.dropoff_lng) } : null;
-  const rider   = riderLoc?.current_lat
-    ? { lat: Number(riderLoc.current_lat), lng: Number(riderLoc.current_lng) }
-    : null;
+  // Memoized on the primitive lat/lng values (not object identity) so LiveMap's
+  // internal effects — which depend on these by reference — don't re-fire
+  // (and re-animate map.fitBounds) on every unrelated parent re-render.
+  const pickup = useMemo(
+    () =>
+      order?.pickup_lat ? { lat: Number(order.pickup_lat), lng: Number(order.pickup_lng) } : null,
+    [order?.pickup_lat, order?.pickup_lng],
+  );
+  const dropoff = useMemo(
+    () =>
+      order?.dropoff_lat
+        ? { lat: Number(order.dropoff_lat), lng: Number(order.dropoff_lng) }
+        : null,
+    [order?.dropoff_lat, order?.dropoff_lng],
+  );
+  const rider = useMemo(
+    () =>
+      riderLoc?.current_lat
+        ? { lat: Number(riderLoc.current_lat), lng: Number(riderLoc.current_lng) }
+        : null,
+    [riderLoc?.current_lat, riderLoc?.current_lng],
+  );
 
   // ETA: distance from rider to next relevant point / 20 km/h
   const eta = useMemo(() => {
@@ -180,6 +228,12 @@ function TrackPage() {
     if (!dest) return null;
     const km = haversineKm(rider, dest);
     return Math.max(1, Math.round((km / 20) * 60));
+  }, [rider, order?.status, pickup, dropoff]);
+
+  const routeCoords = useMemo(() => {
+    if (!rider || !order) return undefined;
+    const dest = ["in_transit", "picked_up"].includes(order.status) ? dropoff : pickup;
+    return dest ? [rider, dest] : undefined;
   }, [rider, order?.status, pickup, dropoff]);
 
   // ── Share tracking ─────────────────────────────────────────────────────────
@@ -206,7 +260,9 @@ function TrackPage() {
   }
 
   const isSearching = !order?.rider_id;
-  const isActive = ["rider_assigned", "rider_arriving", "picked_up", "in_transit"].includes(order?.status ?? "");
+  const isActive = ["rider_assigned", "rider_arriving", "picked_up", "in_transit"].includes(
+    order?.status ?? "",
+  );
   const isDelivered = order?.status === "delivered";
   const showOtp = order?.status === "in_transit" && order.delivery_otp;
   const riderName = riderProfile?.full_name ?? (t("track.rider") || "Rider");
@@ -223,21 +279,26 @@ function TrackPage() {
           <ArrowLeft className="h-4 w-4" />
         </button>
         <p className="font-display text-sm font-semibold">{order?.code ?? "…"}</p>
-        <button onClick={shareTracking} className="glass h-9 w-9 rounded-xl flex items-center justify-center">
+        <button
+          onClick={shareTracking}
+          className="glass h-9 w-9 rounded-xl flex items-center justify-center"
+        >
           <Share2 className="h-4 w-4" />
         </button>
       </header>
 
       {/* Map */}
-      <LiveMap
-        pickup={pickup}
-        dropoff={dropoff}
-        rider={rider}
-        showRoute
-        routeCoords={rider ? [rider, ["in_transit", "picked_up"].includes(order?.status ?? "") ? dropoff! : pickup!] : undefined}
-        height={isActive ? 280 : 220}
-        zoom={isActive && rider ? 14 : 12}
-      />
+      <Suspense fallback={<MapSkeleton height={isActive ? 280 : 220} />}>
+        <LiveMap
+          pickup={pickup}
+          dropoff={dropoff}
+          rider={rider}
+          showRoute
+          routeCoords={routeCoords}
+          height={isActive ? 280 : 220}
+          zoom={isActive && rider ? 14 : 12}
+        />
+      </Suspense>
 
       {/* Searching animation */}
       {isSearching && (
@@ -298,7 +359,9 @@ function TrackPage() {
               <div className="flex items-center gap-2 mt-0.5">
                 <div className="flex items-center gap-0.5">
                   <Star className="h-3 w-3 text-yellow-400 fill-yellow-400" />
-                  <span className="text-xs font-medium">{Number(riderLoc?.rating ?? 4.9).toFixed(1)}</span>
+                  <span className="text-xs font-medium">
+                    {Number(riderLoc?.rating ?? 4.9).toFixed(1)}
+                  </span>
                 </div>
                 <span className="text-muted-foreground/40">·</span>
                 <span className="text-xs text-muted-foreground capitalize">{vehicleLabel}</span>
@@ -358,9 +421,7 @@ function TrackPage() {
                 </motion.div>
               ))}
             </div>
-            <p className="text-xs text-muted-foreground text-center mt-3">
-              {t("track.otp_desc")}
-            </p>
+            <p className="text-xs text-muted-foreground text-center mt-3">{t("track.otp_desc")}</p>
           </motion.div>
         )}
       </AnimatePresence>
@@ -384,7 +445,10 @@ function TrackPage() {
           </p>
           <p className="text-sm text-primary-foreground/70 mt-1">
             {order?.delivered_at
-              ? new Date(order.delivered_at).toLocaleTimeString(t("auto.engb"), { hour: "2-digit", minute: "2-digit" })
+              ? new Date(order.delivered_at).toLocaleTimeString(t("auto.engb"), {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })
               : ""}
           </p>
           {!order?.customer_rating && !ratingDone && (
@@ -398,7 +462,10 @@ function TrackPage() {
           {(order?.customer_rating || ratingDone) && (
             <div className="mt-3 flex justify-center gap-1">
               {[1, 2, 3, 4, 5].map((s) => (
-                <Star key={s} className={`h-5 w-5 ${s <= (order?.customer_rating ?? 0) ? "fill-yellow-400 text-yellow-400" : "text-white/20"}`} />
+                <Star
+                  key={s}
+                  className={`h-5 w-5 ${s <= (order?.customer_rating ?? 0) ? "fill-yellow-400 text-yellow-400" : "text-white/20"}`}
+                />
               ))}
             </div>
           )}
@@ -410,9 +477,7 @@ function TrackPage() {
         <div className="glass rounded-2xl p-4">
           <div className="flex items-center justify-between mb-3">
             <p className="font-display text-sm font-bold">{STATUS_FLOW[currentIdx]?.label}</p>
-            {eta && isActive && (
-              <p className="text-xs text-primary font-medium">~{eta} min</p>
-            )}
+            {eta && isActive && <p className="text-xs text-primary font-medium">~{eta} min</p>}
           </div>
           <div className="h-1.5 rounded-full bg-muted overflow-hidden">
             <motion.div
@@ -436,9 +501,11 @@ function TrackPage() {
             const eventForStep = events?.find((e) => ORDER_STATUS_MAP[e.status] === i);
             return (
               <li key={i} className="flex items-center gap-3">
-                <div className={`h-8 w-8 rounded-xl flex items-center justify-center shrink-0 ${
-                  done ? "bg-primary/15" : "bg-muted/50"
-                }`}>
+                <div
+                  className={`h-8 w-8 rounded-xl flex items-center justify-center shrink-0 ${
+                    done ? "bg-primary/15" : "bg-muted/50"
+                  }`}
+                >
                   {done ? (
                     <Icon className={`h-4 w-4 text-primary ${isCurrent ? "animate-pulse" : ""}`} />
                   ) : (
@@ -446,12 +513,17 @@ function TrackPage() {
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className={`text-sm ${done ? "text-foreground" : "text-muted-foreground/50"} ${isCurrent ? "font-semibold" : ""}`}>
+                  <p
+                    className={`text-sm ${done ? "text-foreground" : "text-muted-foreground/50"} ${isCurrent ? "font-semibold" : ""}`}
+                  >
                     {s.label}
                   </p>
                   {eventForStep && (
                     <p className="text-[11px] text-muted-foreground mt-0.5">
-                      {new Date(eventForStep.created_at).toLocaleTimeString(t("auto.engb"), { hour: "2-digit", minute: "2-digit" })}
+                      {new Date(eventForStep.created_at).toLocaleTimeString(t("auto.engb"), {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
                     </p>
                   )}
                 </div>
@@ -460,9 +532,7 @@ function TrackPage() {
                     {t("app.now")}
                   </span>
                 )}
-                {done && !isCurrent && (
-                  <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
-                )}
+                {done && !isCurrent && <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />}
               </li>
             );
           })}
@@ -477,7 +547,9 @@ function TrackPage() {
               <MapPin className="h-3.5 w-3.5 text-primary" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{t("map.pickup")}</p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                {t("map.pickup")}
+              </p>
               <p className="text-sm">{order.pickup_address}</p>
             </div>
           </div>
@@ -486,7 +558,9 @@ function TrackPage() {
               <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{t("map.dropoff")}</p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                {t("map.dropoff")}
+              </p>
               <p className="text-sm">{order.dropoff_address}</p>
             </div>
           </div>
@@ -512,7 +586,9 @@ function TrackPage() {
 
           <div className="border-t border-border pt-3 flex items-baseline justify-between">
             <span className="text-sm text-muted-foreground">{t("track.amount")}</span>
-            <span className="font-display text-2xl font-bold text-gradient-primary">{fmtXOF(order.price_xof)}</span>
+            <span className="font-display text-2xl font-bold text-gradient-primary">
+              {fmtXOF(order.price_xof)}
+            </span>
           </div>
         </div>
       )}
