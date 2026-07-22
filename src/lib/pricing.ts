@@ -13,16 +13,26 @@ export function haversineKm(a: { lat: number; lng: number }, b: { lat: number; l
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
-export function quote(opts: { distanceKm: number; type: DeliveryType; insurance: boolean; weightKg?: number }) {
+export const INSURANCE_SURCHARGE_XOF = 300;
+// Single source of truth for the platform commission rate — was previously
+// duplicated as a second, inconsistent literal (0.15) in merchant/bulk.tsx.
+export const COMMISSION_RATE = 0.18;
+
+export function quote(opts: {
+  distanceKm: number;
+  type: DeliveryType;
+  insurance: boolean;
+  weightKg?: number;
+}) {
   const base = 500;
   const perKm = 150;
   let price = base + opts.distanceKm * perKm;
   if (opts.type === "express") price *= 1.5;
   if (opts.type === "scheduled") price *= 0.9;
   if ((opts.weightKg ?? 0) > 5) price += ((opts.weightKg ?? 0) - 5) * 80;
-  if (opts.insurance) price += 300;
+  if (opts.insurance) price += INSURANCE_SURCHARGE_XOF;
   const total = Math.max(800, Math.round(price / 50) * 50);
-  return { price_xof: total, commission_xof: Math.round(total * 0.18) };
+  return { price_xof: total, commission_xof: Math.round(total * COMMISSION_RATE) };
 }
 
 export const fmtXOF = (n: number) => `${n.toLocaleString("fr-FR")} XOF`;

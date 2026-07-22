@@ -16,19 +16,18 @@ const isVercel = !!process.env.VERCEL;
 // Sentry source-map upload: only runs when SENTRY_AUTH_TOKEN is present in the
 // build environment (set it in Vercel → Settings → Environment Variables).
 // Required vars: SENTRY_AUTH_TOKEN, SENTRY_ORG, SENTRY_PROJECT
-const sentryPlugin =
-  process.env.SENTRY_AUTH_TOKEN
-    ? sentryVitePlugin({
-        org: process.env.SENTRY_ORG,
-        project: process.env.SENTRY_PROJECT,
-        authToken: process.env.SENTRY_AUTH_TOKEN,
-        sourcemaps: {
-          // Upload source maps and then delete them so they aren't served publicly
-          filesToDeleteAfterUpload: ["./dist/**/*.map"],
-        },
-        telemetry: false,
-      })
-    : null;
+const sentryPlugin = process.env.SENTRY_AUTH_TOKEN
+  ? sentryVitePlugin({
+      org: process.env.SENTRY_ORG,
+      project: process.env.SENTRY_PROJECT,
+      authToken: process.env.SENTRY_AUTH_TOKEN,
+      sourcemaps: {
+        // Upload source maps and then delete them so they aren't served publicly
+        filesToDeleteAfterUpload: ["./dist/**/*.map"],
+      },
+      telemetry: false,
+    })
+  : null;
 
 export default defineConfig({
   esbuild: {
@@ -56,9 +55,5 @@ export default defineConfig({
         // Sentry plugin must come AFTER other plugins so source maps are ready
         ...(sentryPlugin ? [sentryPlugin] : []),
       ]
-    : [
-        tanstackStart({ server: { entry: "server" } }),
-        tailwindcss(),
-        tsConfigPaths(),
-      ],
+    : [tanstackStart({ server: { entry: "server" } }), tailwindcss(), tsConfigPaths()],
 });

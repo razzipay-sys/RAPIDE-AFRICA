@@ -2,7 +2,13 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import {
-  FileText, CheckCircle2, Clock, XCircle, Upload, AlertCircle, ShieldCheck,
+  FileText,
+  CheckCircle2,
+  Clock,
+  XCircle,
+  Upload,
+  AlertCircle,
+  ShieldCheck,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -127,7 +133,10 @@ function RiderDocuments() {
   });
 
   type DocRow = NonNullable<typeof docs>[number];
-  const docMap = Object.fromEntries(docs?.map((d) => [d.type, d]) ?? []) as Record<DocType, DocRow | undefined>;
+  const docMap = Object.fromEntries(docs?.map((d) => [d.type, d]) ?? []) as Record<
+    DocType,
+    DocRow | undefined
+  >;
   const approved = docs?.filter((d) => d.status === "approved").length ?? 0;
   const total = DOC_TYPES.length;
 
@@ -142,7 +151,9 @@ function RiderDocuments() {
       <div className="glass-strong rounded-2xl p-4">
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm font-medium">Verification progress</span>
-          <span className="text-sm font-bold text-primary">{approved}/{total}</span>
+          <span className="text-sm font-bold text-primary">
+            {approved}/{total}
+          </span>
         </div>
         <div className="h-2 rounded-full bg-muted overflow-hidden">
           <motion.div
@@ -195,7 +206,9 @@ function RiderDocuments() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
                       <p className="text-sm font-semibold">{meta.label}</p>
-                      <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${statusColor(status)}`}>
+                      <span
+                        className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${statusColor(status)}`}
+                      >
                         {statusLabel(status)}
                       </span>
                     </div>
@@ -209,7 +222,7 @@ function RiderDocuments() {
                   <div className="shrink-0">{statusIcon(status)}</div>
                 </div>
 
-                {(status !== "approved") && (
+                {status !== "approved" && (
                   <label className="mt-3 flex items-center justify-center gap-2 w-full rounded-xl border border-dashed border-border py-2.5 text-xs text-muted-foreground hover:border-primary/50 hover:text-primary cursor-pointer transition">
                     <Upload className="h-3.5 w-3.5" />
                     {status === "rejected" ? "Re-upload document" : "Upload file"}

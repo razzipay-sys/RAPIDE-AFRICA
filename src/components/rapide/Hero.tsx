@@ -13,7 +13,7 @@ export function Hero() {
     { v: "12 min", l: t("hero.stat1") },
     { v: "98.7%", l: t("hero.stat2") },
     { v: "2 400+", l: t("hero.stat3") },
-    { v: "24/7",   l: t("hero.stat4") },
+    { v: "24/7", l: t("hero.stat4") },
   ];
 
   const handleSendParcel = async () => {
@@ -34,7 +34,10 @@ export function Hero() {
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] }}
+          transition={{
+            duration: 0.8,
+            ease: [0.22, 1, 0.36, 1] as [number, number, number, number],
+          }}
           className="text-center"
         >
           <div className="mx-auto mb-6 inline-flex items-center gap-2 rounded-full glass px-4 py-1.5 text-xs text-muted-foreground">
@@ -75,7 +78,11 @@ export function Hero() {
         <motion.div
           initial={{ opacity: 0, y: 60, scale: 0.95 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ duration: 1, delay: 0.3, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] }}
+          transition={{
+            duration: 1,
+            delay: 0.3,
+            ease: [0.22, 1, 0.36, 1] as [number, number, number, number],
+          }}
           className="relative mx-auto mt-16 max-w-5xl"
         >
           <div className="relative overflow-hidden rounded-3xl border border-border shadow-elegant">
@@ -134,7 +141,9 @@ export function Hero() {
         >
           {stats.map((s) => (
             <div key={s.l} className="text-center">
-              <div className="font-display text-3xl font-bold text-gradient-primary md:text-4xl">{s.v}</div>
+              <div className="font-display text-3xl font-bold text-gradient-primary md:text-4xl">
+                {s.v}
+              </div>
               <div className="mt-1 text-sm text-muted-foreground">{s.l}</div>
             </div>
           ))}

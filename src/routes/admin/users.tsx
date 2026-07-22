@@ -61,7 +61,8 @@ function AdminUsers() {
         .order("created_at", { ascending: false })
         .limit(50);
       if (search.trim()) {
-        q = q.ilike("full_name", `%${search.trim()}%`);
+        const term = search.trim().replace(/[%,]/g, "");
+        q = q.or(`full_name.ilike.%${term}%,phone.ilike.%${term}%`);
       }
       const { data } = await q;
       return (data ?? []).map((u: any) => ({

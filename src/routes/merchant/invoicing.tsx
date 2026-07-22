@@ -6,6 +6,7 @@ import { FileText, Download, ChevronDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { fmtXOF } from "@/lib/pricing";
+import { SUCCESSFUL_DELIVERY_STATUSES } from "@/lib/order-lifecycle";
 
 export const Route = createFileRoute("/merchant/invoicing")({
   component: MerchantInvoicing,
@@ -13,7 +14,7 @@ export const Route = createFileRoute("/merchant/invoicing")({
 
 type Invoice = {
   period: string; // "2025-05"
-  label: string;  // "May 2025"
+  label: string; // "May 2025"
   orders: number;
   subtotal: number;
   tax: number;
@@ -32,9 +33,19 @@ function buildInvoices(orders: { price_xof: number; created_at: string }[]): Inv
     .sort((a, b) => b[0].localeCompare(a[0]))
     .map(([period, data]) => {
       const [year, month] = period.split("-").map(Number);
-      const label = new Date(year, month - 1).toLocaleDateString("en-US", { month: "long", year: "numeric" });
+      const label = new Date(year, month - 1).toLocaleDateString("en-US", {
+        month: "long",
+        year: "numeric",
+      });
       const tax = Math.round(data.subtotal * 0.18); // 18% VAT (Bénin TVA)
-      return { period, label, orders: data.orders, subtotal: data.subtotal, tax, total: data.subtotal + tax };
+      return {
+        period,
+        label,
+        orders: data.orders,
+        subtotal: data.subtotal,
+        tax,
+        total: data.subtotal + tax,
+      };
     });
 }
 
@@ -103,7 +114,11 @@ function MerchantInvoicing() {
   const { data: profile } = useQuery({
     queryKey: ["profile", user?.id],
     queryFn: async () => {
-      const { data } = await supabase.from("profiles").select("full_name").eq("id", user!.id).single();
+      const { data } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", user!.id)
+        .single();
       return data;
     },
     enabled: !!user,
@@ -116,7 +131,7 @@ function MerchantInvoicing() {
         .from("orders")
         .select("price_xof, created_at, status")
         .eq("customer_id", user!.id)
-        .eq("status", "delivered")
+        .in("status", SUCCESSFUL_DELIVERY_STATUSES)
         .order("created_at", { ascending: false });
       return data ?? [];
     },
@@ -139,18 +154,24 @@ function MerchantInvoicing() {
     <div className="space-y-6">
       <div>
         <h1 className="font-display text-3xl font-bold">Invoicing</h1>
-        <p className="text-muted-foreground text-sm mt-1">Monthly invoices for all delivered orders (TVA 18% included)</p>
+        <p className="text-muted-foreground text-sm mt-1">
+          Monthly invoices for all delivered orders (TVA 18% included)
+        </p>
       </div>
 
       {isLoading ? (
         <div className="space-y-3">
-          {[1, 2, 3].map((i) => <div key={i} className="glass rounded-2xl h-16 animate-pulse" />)}
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="glass rounded-2xl h-16 animate-pulse" />
+          ))}
         </div>
       ) : invoices.length === 0 ? (
         <div className="text-center py-20 glass rounded-2xl">
           <FileText className="h-12 w-12 text-muted-foreground/40 mx-auto mb-3" />
           <p className="font-semibold">No invoices yet</p>
-          <p className="text-sm text-muted-foreground mt-1">Invoices appear once you have delivered orders</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            Invoices appear once you have delivered orders
+          </p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -158,7 +179,11 @@ function MerchantInvoicing() {
             const no = `RPD-${inv.period.replace("-", "")}-${(user?.id ?? "000").slice(0, 6).toUpperCase()}`;
             const isOpen = expanded === inv.period;
             return (
-              <motion.div key={inv.period} layout className="glass-strong rounded-2xl border border-border overflow-hidden">
+              <motion.div
+                key={inv.period}
+                layout
+                className="glass-strong rounded-2xl border border-border overflow-hidden"
+              >
                 <button
                   onClick={() => setExpanded(isOpen ? null : inv.period)}
                   className="w-full px-5 py-4 flex items-center justify-between"
@@ -169,12 +194,16 @@ function MerchantInvoicing() {
                     </div>
                     <div className="text-left">
                       <p className="font-semibold text-sm">{inv.label}</p>
-                      <p className="text-xs text-muted-foreground">{inv.orders} orders · #{no}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {inv.orders} orders · #{no}
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
                     <p className="font-display font-bold text-sm">{fmtXOF(inv.total)}</p>
-                    <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                    <ChevronDown
+                      className={`h-4 w-4 text-muted-foreground transition-transform ${isOpen ? "rotate-180" : ""}`}
+                    />
                   </div>
                 </button>
 
@@ -193,7 +222,10 @@ function MerchantInvoicing() {
                             ["TVA (18%)", fmtXOF(inv.tax)],
                             ["Total", fmtXOF(inv.total)],
                           ].map(([label, val]) => (
-                            <tr key={label} className="border-b border-border/50 last:border-0 last:font-bold">
+                            <tr
+                              key={label}
+                              className="border-b border-border/50 last:border-0 last:font-bold"
+                            >
                               <td className="py-2 text-muted-foreground">{label}</td>
                               <td className="py-2 text-right">{val}</td>
                             </tr>

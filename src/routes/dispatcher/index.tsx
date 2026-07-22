@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
-import { MapIcon, Users, CheckCircle, Package, Search } from "lucide-react";
+import { MapIcon, Users, CheckCircle, Package, Search, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { LiveMap } from "@/components/rapide/LiveMap";
@@ -34,6 +34,39 @@ function DispatcherDashboard() {
     refetchInterval: 10000,
   });
 
+  const { data: failedDeliveries } = useQuery({
+    queryKey: ["dispatcher-failed-deliveries"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("orders")
+        .select(
+          `
+          id, code, status, cancellation_reason, cancelled_at, price_xof,
+          pickup_address, dropoff_address,
+          profiles:customer_id (full_name, phone)
+        `,
+        )
+        .in("status", ["failed_pickup", "failed_delivery"])
+        .order("cancelled_at", { ascending: false })
+        .limit(20);
+      return data ?? [];
+    },
+    refetchInterval: 15000,
+  });
+
+  const markReturned = useMutation({
+    mutationFn: async (orderId: string) => {
+      const { data, error } = await supabase.rpc("mark_order_returned", { p_order_id: orderId });
+      if (error) throw error;
+      if (!data) throw new Error("Could not mark as returned");
+    },
+    onSuccess: () => {
+      toast.success("Order marked as returned");
+      qc.invalidateQueries({ queryKey: ["dispatcher-failed-deliveries"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const { data: riders, isLoading: loadingRiders } = useQuery({
     queryKey: ["dispatcher-riders"],
     queryFn: async () => {
@@ -51,25 +84,52 @@ function DispatcherDashboard() {
     refetchInterval: 10000,
   });
 
+  // Realtime — the polling intervals above are a fallback; this is what
+  // actually makes new/changed orders and rider status appear live instead
+  // of up to 10-15s late (Section 18.1).
+  useEffect(() => {
+    const ch = supabase
+      .channel("dispatcher-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => {
+        qc.invalidateQueries({ queryKey: ["dispatcher-orders"] });
+        qc.invalidateQueries({ queryKey: ["dispatcher-failed-deliveries"] });
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "riders" }, () => {
+        qc.invalidateQueries({ queryKey: ["dispatcher-riders"] });
+      })
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(ch);
+    };
+  }, [qc]);
+
   const assignRider = useMutation({
     mutationFn: async ({ orderId, riderId }: { orderId: string; riderId: string }) => {
-      const { error } = await supabase
-        .from("orders")
-        .update({
-          rider_id: riderId,
-          status: "rider_assigned",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", orderId);
+      // Atomic assign — prevents two dispatchers (or a dispatcher and a
+      // rider) assigning the same order simultaneously; also fixes RLS
+      // write-column safety since orders is otherwise locked down to only
+      // the RPCs. Unlike a rider self-claiming (claim_order, which goes
+      // straight to rider_accepted), a dispatcher assignment stops at
+      // rider_assigned until the rider explicitly accepts or declines.
+      const { data: assigned, error } = await supabase.rpc("assign_order", {
+        p_order_id: orderId,
+        p_rider_id: riderId,
+      });
       if (error) throw error;
+      if (!assigned) throw new Error("Order already taken");
     },
     onSuccess: () => {
-      toast.success("Order assigned to rider successfully!");
+      toast.success("Order assigned — awaiting rider acceptance");
       setSelectedOrder(null);
       qc.invalidateQueries({ queryKey: ["dispatcher-orders"] });
       qc.invalidateQueries({ queryKey: ["dispatcher-riders"] });
     },
-    onError: () => toast.error("Failed to assign order"),
+    onError: (e: Error) =>
+      toast.error(
+        e.message === "Order already taken"
+          ? "Order was just taken by another rider."
+          : "Failed to assign order",
+      ),
   });
 
   return (
@@ -146,7 +206,15 @@ function DispatcherDashboard() {
                     <p className="font-semibold text-sm mt-1">
                       {o.profiles?.full_name ?? "Unknown Customer"}
                     </p>
-                    <p className="text-[10px] text-muted-foreground">{o.profiles?.phone}</p>
+                    {o.profiles?.phone && (
+                      <a
+                        href={`tel:${o.profiles.phone}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-[10px] text-primary hover:underline"
+                      >
+                        {o.profiles.phone}
+                      </a>
+                    )}
                   </div>
                   <div className="text-right">
                     <p className="font-bold text-primary">{o.price_xof} XOF</p>
@@ -183,9 +251,15 @@ function DispatcherDashboard() {
                                 </div>
                                 <div>
                                   <p className="text-xs font-semibold">{r.profiles?.full_name}</p>
-                                  <p className="text-[9px] text-muted-foreground">
-                                    {r.profiles?.phone}
-                                  </p>
+                                  {r.profiles?.phone && (
+                                    <a
+                                      href={`tel:${r.profiles.phone}`}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="text-[9px] text-primary hover:underline"
+                                    >
+                                      {r.profiles.phone}
+                                    </a>
+                                  )}
                                 </div>
                               </div>
                               <button
@@ -210,6 +284,52 @@ function DispatcherDashboard() {
           </div>
         )}
       </div>
+
+      {/* Failed Deliveries */}
+      {(failedDeliveries?.length ?? 0) > 0 && (
+        <div>
+          <h2 className="text-lg font-bold mb-3 flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-destructive" /> Failed Deliveries
+          </h2>
+          <div className="space-y-3">
+            {failedDeliveries?.map((o: any) => (
+              <div key={o.id} className="glass rounded-2xl p-4 border border-destructive/20">
+                <div className="flex justify-between items-start mb-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs glass rounded-full px-2 py-0.5">
+                        {o.code}
+                      </span>
+                      <span className="text-[10px] uppercase tracking-wider bg-destructive/15 text-destructive px-2 py-0.5 rounded-full font-bold">
+                        {o.status === "failed_pickup" ? "Pickup failed" : "Delivery failed"}
+                      </span>
+                    </div>
+                    <p className="text-xs font-semibold mt-1">
+                      {o.profiles?.full_name ?? "Unknown Customer"}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground truncate">
+                      {o.pickup_address} → {o.dropoff_address}
+                    </p>
+                    {o.cancellation_reason && (
+                      <p className="text-xs text-destructive mt-1">{o.cancellation_reason}</p>
+                    )}
+                  </div>
+                  <p className="font-bold text-primary shrink-0">{o.price_xof} XOF</p>
+                </div>
+                {o.status === "failed_delivery" && (
+                  <button
+                    onClick={() => markReturned.mutate(o.id)}
+                    disabled={markReturned.isPending}
+                    className="mt-2 w-full rounded-xl bg-amber-500/10 text-amber-400 py-2 text-xs font-semibold hover:bg-amber-500/20 transition disabled:opacity-50"
+                  >
+                    Mark package as returned
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

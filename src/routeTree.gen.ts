@@ -31,7 +31,9 @@ import { Route as RiderDispatchRouteImport } from './routes/rider/dispatch'
 import { Route as MerchantInvoicingRouteImport } from './routes/merchant/invoicing'
 import { Route as MerchantBulkRouteImport } from './routes/merchant/bulk'
 import { Route as MerchantApiKeysRouteImport } from './routes/merchant/api-keys'
+import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
 import { Route as AdminUsersRouteImport } from './routes/admin/users'
+import { Route as AdminPromotionsRouteImport } from './routes/admin/promotions'
 import { Route as AdminFinanceRouteImport } from './routes/admin/finance'
 import { Route as AdminDriversRouteImport } from './routes/admin/drivers'
 import { Route as AdminAnalyticsRouteImport } from './routes/admin/analytics'
@@ -159,9 +161,19 @@ const MerchantApiKeysRoute = MerchantApiKeysRouteImport.update({
   path: '/api-keys',
   getParentRoute: () => MerchantRoute,
 } as any)
+const AuthCallbackRoute = AuthCallbackRouteImport.update({
+  id: '/auth/callback',
+  path: '/auth/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminUsersRoute = AdminUsersRouteImport.update({
   id: '/users',
   path: '/users',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminPromotionsRoute = AdminPromotionsRouteImport.update({
+  id: '/promotions',
+  path: '/promotions',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminFinanceRoute = AdminFinanceRouteImport.update({
@@ -267,7 +279,9 @@ export interface FileRoutesByFullPath {
   '/admin/analytics': typeof AdminAnalyticsRoute
   '/admin/drivers': typeof AdminDriversRoute
   '/admin/finance': typeof AdminFinanceRoute
+  '/admin/promotions': typeof AdminPromotionsRoute
   '/admin/users': typeof AdminUsersRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/merchant/api-keys': typeof MerchantApiKeysRoute
   '/merchant/bulk': typeof MerchantBulkRoute
   '/merchant/invoicing': typeof MerchantInvoicingRoute
@@ -302,7 +316,9 @@ export interface FileRoutesByTo {
   '/admin/analytics': typeof AdminAnalyticsRoute
   '/admin/drivers': typeof AdminDriversRoute
   '/admin/finance': typeof AdminFinanceRoute
+  '/admin/promotions': typeof AdminPromotionsRoute
   '/admin/users': typeof AdminUsersRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/merchant/api-keys': typeof MerchantApiKeysRoute
   '/merchant/bulk': typeof MerchantBulkRoute
   '/merchant/invoicing': typeof MerchantInvoicingRoute
@@ -345,7 +361,9 @@ export interface FileRoutesById {
   '/admin/analytics': typeof AdminAnalyticsRoute
   '/admin/drivers': typeof AdminDriversRoute
   '/admin/finance': typeof AdminFinanceRoute
+  '/admin/promotions': typeof AdminPromotionsRoute
   '/admin/users': typeof AdminUsersRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/merchant/api-keys': typeof MerchantApiKeysRoute
   '/merchant/bulk': typeof MerchantBulkRoute
   '/merchant/invoicing': typeof MerchantInvoicingRoute
@@ -388,7 +406,9 @@ export interface FileRouteTypes {
     | '/admin/analytics'
     | '/admin/drivers'
     | '/admin/finance'
+    | '/admin/promotions'
     | '/admin/users'
+    | '/auth/callback'
     | '/merchant/api-keys'
     | '/merchant/bulk'
     | '/merchant/invoicing'
@@ -423,7 +443,9 @@ export interface FileRouteTypes {
     | '/admin/analytics'
     | '/admin/drivers'
     | '/admin/finance'
+    | '/admin/promotions'
     | '/admin/users'
+    | '/auth/callback'
     | '/merchant/api-keys'
     | '/merchant/bulk'
     | '/merchant/invoicing'
@@ -465,7 +487,9 @@ export interface FileRouteTypes {
     | '/admin/analytics'
     | '/admin/drivers'
     | '/admin/finance'
+    | '/admin/promotions'
     | '/admin/users'
+    | '/auth/callback'
     | '/merchant/api-keys'
     | '/merchant/bulk'
     | '/merchant/invoicing'
@@ -504,6 +528,7 @@ export interface RootRouteChildren {
   RiderSignupRoute: typeof RiderSignupRoute
   SignupRoute: typeof SignupRoute
   SupportRoute: typeof SupportRouteWithChildren
+  AuthCallbackRoute: typeof AuthCallbackRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -662,11 +687,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MerchantApiKeysRouteImport
       parentRoute: typeof MerchantRoute
     }
+    '/auth/callback': {
+      id: '/auth/callback'
+      path: '/auth/callback'
+      fullPath: '/auth/callback'
+      preLoaderRoute: typeof AuthCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/users': {
       id: '/admin/users'
       path: '/users'
       fullPath: '/admin/users'
       preLoaderRoute: typeof AdminUsersRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/promotions': {
+      id: '/admin/promotions'
+      path: '/promotions'
+      fullPath: '/admin/promotions'
+      preLoaderRoute: typeof AdminPromotionsRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/finance': {
@@ -851,6 +890,7 @@ interface AdminRouteChildren {
   AdminAnalyticsRoute: typeof AdminAnalyticsRoute
   AdminDriversRoute: typeof AdminDriversRoute
   AdminFinanceRoute: typeof AdminFinanceRoute
+  AdminPromotionsRoute: typeof AdminPromotionsRoute
   AdminUsersRoute: typeof AdminUsersRoute
   AdminIndexRoute: typeof AdminIndexRoute
 }
@@ -859,6 +899,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminAnalyticsRoute: AdminAnalyticsRoute,
   AdminDriversRoute: AdminDriversRoute,
   AdminFinanceRoute: AdminFinanceRoute,
+  AdminPromotionsRoute: AdminPromotionsRoute,
   AdminUsersRoute: AdminUsersRoute,
   AdminIndexRoute: AdminIndexRoute,
 }
@@ -935,6 +976,7 @@ const rootRouteChildren: RootRouteChildren = {
   RiderSignupRoute: RiderSignupRoute,
   SignupRoute: SignupRoute,
   SupportRoute: SupportRouteWithChildren,
+  AuthCallbackRoute: AuthCallbackRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

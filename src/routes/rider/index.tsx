@@ -1,20 +1,37 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Wifi, WifiOff, MapPin, Star, Package, Zap, ChevronRight,
-  Navigation, MessageCircle, KeyRound, CheckCircle2, Phone, Loader2,
+  Wifi,
+  WifiOff,
+  MapPin,
+  Star,
+  Package,
+  Zap,
+  ChevronRight,
+  Navigation,
+  MessageCircle,
+  KeyRound,
+  CheckCircle2,
+  Phone,
+  Loader2,
+  AlertTriangle,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import type { Database } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/use-auth";
 import { fmtXOF } from "@/lib/pricing";
 import { toast } from "sonner";
 import { LiveMap } from "@/components/rapide/LiveMap";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-
-type OrderStatus = Database["public"]["Enums"]["order_status"];
+import {
+  ORDER_STATUS_LABELS,
+  RIDER_ACTIVE_STATUSES,
+  SUCCESSFUL_DELIVERY_STATUSES,
+  nextRiderAction,
+  type OrderStatus,
+} from "@/lib/order-lifecycle";
+import { haversineKm } from "@/lib/pricing";
 
 export const Route = createFileRoute("/rider/")({
   component: RiderDashboard,
@@ -98,10 +115,7 @@ function OTPDeliveryDialog({
         </div>
 
         <div className="flex gap-2">
-          <button
-            onClick={onClose}
-            className="flex-1 rounded-xl glass py-3 text-sm font-semibold"
-          >
+          <button onClick={onClose} className="flex-1 rounded-xl glass py-3 text-sm font-semibold">
             Cancel
           </button>
           <button
@@ -117,29 +131,69 @@ function OTPDeliveryDialog({
   );
 }
 
-// ── Status label helpers ───────────────────────────────────────────────────────
-const STATUS_LABELS: Record<string, string> = {
-  rider_assigned: "Assigned",
-  rider_arriving: "Arriving at pickup",
-  picked_up: "Parcel collected",
-  in_transit: "In transit",
-};
+// ── Report Delivery Issue Dialog ───────────────────────────────────────────────
+function ReportIssueDialog({
+  open,
+  onClose,
+  onSubmit,
+  pending,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onSubmit: (reason: string) => void;
+  pending: boolean;
+}) {
+  const [reason, setReason] = useState("");
 
-const STATUS_NEXT: Partial<Record<OrderStatus, { label: string; status: OrderStatus }>> = {
-  rider_assigned: { label: "En Route to Pickup", status: "rider_arriving" },
-  rider_arriving: { label: "Picked Up ✓", status: "picked_up" },
-  picked_up:      { label: "Start Delivery", status: "in_transit" },
-};
+  if (!open) return null;
 
-const WEEKLY_DATA = [
-  { day: "Mon", xof: 12000 },
-  { day: "Tue", xof: 15500 },
-  { day: "Wed", xof: 9000 },
-  { day: "Thu", xof: 18000 },
-  { day: "Fri", xof: 24000 },
-  { day: "Sat", xof: 21000 },
-  { day: "Sun", xof: 8500 },
-];
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 px-4 pb-6"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ y: 100, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        exit={{ y: 100, opacity: 0 }}
+        transition={{ type: "spring", damping: 26, stiffness: 300 }}
+        className="glass-strong w-full max-w-md rounded-3xl p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="text-center mb-6">
+          <div className="h-14 w-14 rounded-2xl bg-destructive/15 flex items-center justify-center mx-auto mb-3">
+            <AlertTriangle className="h-7 w-7 text-destructive" />
+          </div>
+          <h2 className="font-display text-xl font-bold">Report an Issue</h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            This ends the delivery. Explain what happened — the customer and support will see this.
+          </p>
+        </div>
+
+        <textarea
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          rows={3}
+          placeholder="e.g. Customer unreachable, wrong address, merchant closed…"
+          className="w-full rounded-2xl bg-input/50 border-2 border-border p-3 text-sm outline-none focus:border-primary transition-colors mb-6"
+        />
+
+        <div className="flex gap-2">
+          <button onClick={onClose} className="flex-1 rounded-xl glass py-3 text-sm font-semibold">
+            Cancel
+          </button>
+          <button
+            onClick={() => reason.trim() && onSubmit(reason.trim())}
+            disabled={reason.trim().length === 0 || pending}
+            className="flex-1 rounded-xl bg-destructive py-3 text-sm font-bold text-destructive-foreground disabled:opacity-40 transition"
+          >
+            {pending ? "Submitting…" : "Report Issue"}
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
 
 // ── Main Component ─────────────────────────────────────────────────────────────
 function RiderDashboard() {
@@ -148,6 +202,7 @@ function RiderDashboard() {
   const watchRef = useRef<number | null>(null);
   const [gpsStatus, setGpsStatus] = useState<"idle" | "active" | "error">("idle");
   const [otpOpen, setOtpOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
 
   const { data: rider } = useQuery({
     queryKey: ["rider-profile", user?.id],
@@ -194,9 +249,11 @@ function RiderDashboard() {
     queryFn: async () => {
       const { data } = await supabase
         .from("orders")
-        .select("id,code,status,pickup_address,dropoff_address,price_xof,pickup_lat,pickup_lng,dropoff_lat,dropoff_lng,dropoff_contact_name,dropoff_contact_phone,customer_id")
+        .select(
+          "id,code,status,pickup_address,dropoff_address,price_xof,pickup_lat,pickup_lng,dropoff_lat,dropoff_lng,dropoff_contact_name,dropoff_contact_phone,customer_id",
+        )
         .eq("rider_id", rider!.id)
-        .in("status", ["rider_assigned", "rider_arriving", "picked_up", "in_transit"])
+        .in("status", RIDER_ACTIVE_STATUSES)
         .maybeSingle();
       return data;
     },
@@ -234,7 +291,7 @@ function RiderDashboard() {
         .from("orders")
         .select("id")
         .eq("rider_id", rider!.id)
-        .eq("status", "delivered")
+        .in("status", SUCCESSFUL_DELIVERY_STATUSES)
         .gte("delivered_at", today.toISOString());
       return { earned, deliveries: orders?.length ?? 0 };
     },
@@ -242,14 +299,96 @@ function RiderDashboard() {
     refetchInterval: 30000,
   });
 
+  // Last 14 days of payout/bonus transactions — powers both the 7-day chart
+  // and a real week-over-week comparison (replaces the hardcoded fake chart
+  // and "+12% vs last week" badge).
+  const { data: weeklyEarnings } = useQuery({
+    queryKey: ["weekly-earnings", user?.id],
+    queryFn: async () => {
+      const fourteenDaysAgo = new Date();
+      fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 13);
+      fourteenDaysAgo.setHours(0, 0, 0, 0);
+      const { data } = await supabase
+        .from("wallet_transactions")
+        .select("amount_xof, type, created_at")
+        .eq("user_id", user!.id)
+        .in("type", ["payout", "bonus"])
+        .gte("created_at", fourteenDaysAgo.toISOString());
+
+      const days: Record<string, number> = {};
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        days[d.toISOString().slice(0, 10)] = 0;
+      }
+      let thisWeekTotal = 0;
+      let lastWeekTotal = 0;
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      (data ?? []).forEach((t) => {
+        const day = t.created_at.slice(0, 10);
+        const amount = Number(t.amount_xof);
+        const ageDays = Math.floor(
+          (today.getTime() - new Date(day).getTime()) / (1000 * 60 * 60 * 24),
+        );
+        if (day in days) days[day] += amount;
+        if (ageDays >= 0 && ageDays <= 6) thisWeekTotal += amount;
+        else if (ageDays >= 7 && ageDays <= 13) lastWeekTotal += amount;
+      });
+
+      const chartData = Object.entries(days).map(([date, xof]) => ({
+        day: new Date(date).toLocaleDateString("fr-FR", { weekday: "short" }),
+        xof,
+      }));
+      const changePct =
+        lastWeekTotal > 0
+          ? Math.round(((thisWeekTotal - lastWeekTotal) / lastWeekTotal) * 100)
+          : thisWeekTotal > 0
+            ? 100
+            : 0;
+
+      return { chartData, changePct };
+    },
+    enabled: !!user,
+    refetchInterval: 60000,
+  });
+
   // GPS watch
-  const pingGPS = async (lat: number, lng: number) => {
-    if (!rider) return;
-    await supabase
-      .from("riders")
-      .update({ current_lat: lat, current_lng: lng, last_seen_at: new Date().toISOString() })
-      .eq("id", rider.id);
-  };
+  const pingGPS = useCallback(
+    async (lat: number, lng: number) => {
+      if (!rider) return;
+      await supabase
+        .from("riders")
+        .update({ current_lat: lat, current_lng: lng, last_seen_at: new Date().toISOString() })
+        .eq("id", rider.id);
+
+      // Geofence: once within 300m of the dropoff during in_transit, advance
+      // to near_destination. Fire-and-forget — once the status flips, the
+      // WHERE clause below stops matching on subsequent pings, so this is
+      // naturally idempotent without extra state.
+      if (
+        activeOrder?.status === "in_transit" &&
+        haversineKm({ lat, lng }, { lat: activeOrder.dropoff_lat, lng: activeOrder.dropoff_lng }) < 0.3
+      ) {
+        const { error } = await supabase
+          .from("orders")
+          .update({ status: "near_destination" })
+          .eq("id", activeOrder.id)
+          .eq("status", "in_transit");
+        if (!error) {
+          await supabase.from("order_events").insert({
+            order_id: activeOrder.id,
+            status: "near_destination",
+            created_by: user?.id,
+            lat,
+            lng,
+          });
+          qc.invalidateQueries({ queryKey: ["active-order"] });
+        }
+      }
+    },
+    [rider, activeOrder, user?.id, qc],
+  );
 
   useEffect(() => {
     if (!rider?.is_online) {
@@ -276,7 +415,7 @@ function RiderDashboard() {
     return () => {
       if (watchRef.current !== null) navigator.geolocation.clearWatch(watchRef.current);
     };
-  }, [rider?.is_online, rider?.id]);
+  }, [rider?.is_online, rider?.id, pingGPS]);
 
   const toggleOnline = useMutation({
     mutationFn: async () => {
@@ -292,11 +431,23 @@ function RiderDashboard() {
       if (error) throw error;
       return next;
     },
+    onMutate: async () => {
+      if (!rider) return;
+      await qc.cancelQueries({ queryKey: ["rider-profile", user?.id] });
+      const previous = qc.getQueryData(["rider-profile", user?.id]);
+      qc.setQueryData(["rider-profile", user?.id], { ...rider, is_online: !rider.is_online });
+      return { previous };
+    },
     onSuccess: (next) => {
-      qc.invalidateQueries({ queryKey: ["rider-profile"] });
       toast.success(next ? "You're now online — accepting orders" : "You're offline");
     },
-    onError: () => toast.error("Failed to update status"),
+    onError: (_err, _vars, context) => {
+      if (context?.previous) qc.setQueryData(["rider-profile", user?.id], context.previous);
+      toast.error("Failed to update status");
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["rider-profile"] });
+    },
   });
 
   const updateOrderStatus = useMutation({
@@ -319,10 +470,10 @@ function RiderDashboard() {
   const completeDelivery = useMutation({
     mutationFn: async (otp: string) => {
       if (!activeOrder || !rider || !user) throw new Error("Missing data");
-      const { data, error } = await (supabase.rpc as CallableFunction)(
-        "complete_delivery",
-        { p_order_id: activeOrder.id, p_otp: otp, p_rider_user_id: user.id }
-      );
+      const { data, error } = await supabase.rpc("complete_delivery", {
+        p_order_id: activeOrder.id,
+        p_otp: otp,
+      });
       if (error) throw error;
       if (!data) throw new Error("Invalid OTP — please try again");
       return data;
@@ -336,14 +487,61 @@ function RiderDashboard() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const reportIssue = useMutation({
+    mutationFn: async (reason: string) => {
+      if (!activeOrder) throw new Error("Missing data");
+      const { data, error } = await supabase.rpc("report_delivery_failure", {
+        p_order_id: activeOrder.id,
+        p_reason: reason,
+      });
+      if (error) throw error;
+      if (!data) throw new Error("Could not report the issue — please try again");
+      return data;
+    },
+    onSuccess: () => {
+      setReportOpen(false);
+      qc.invalidateQueries({ queryKey: ["active-order"] });
+      toast.success("Issue reported — this delivery has ended");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const acceptOrder = useMutation({
+    mutationFn: async (orderId: string) => {
+      const { data, error } = await supabase.rpc("accept_order", { p_order_id: orderId });
+      if (error) throw error;
+      if (!data) throw new Error("Could not accept — try again");
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["active-order"] });
+      toast.success("Delivery accepted");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const declineOrder = useMutation({
+    mutationFn: async (orderId: string) => {
+      const { data, error } = await supabase.rpc("decline_order", { p_order_id: orderId });
+      if (error) throw error;
+      if (!data) throw new Error("Could not decline — try again");
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["active-order"] });
+      toast.success("Order declined");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const isOnline = rider?.is_online ?? false;
   const firstName = profile?.full_name?.split(" ")[0] ?? "Rider";
 
   // Navigation deep link — destination depends on current status
   const navDestination = activeOrder
-    ? (["in_transit"].includes(activeOrder.status)
-        ? { lat: activeOrder.dropoff_lat, lng: activeOrder.dropoff_lng }
-        : { lat: activeOrder.pickup_lat, lng: activeOrder.pickup_lng })
+    ? ["in_transit"].includes(activeOrder.status)
+      ? { lat: activeOrder.dropoff_lat, lng: activeOrder.dropoff_lng }
+      : { lat: activeOrder.pickup_lat, lng: activeOrder.pickup_lng }
     : null;
 
   const googleMapsUrl = navDestination
@@ -373,9 +571,7 @@ function RiderDashboard() {
                 <MapPin className="h-3 w-3" /> GPS live
               </span>
             )}
-            {gpsStatus === "error" && (
-              <span className="text-xs text-destructive">GPS error</span>
-            )}
+            {gpsStatus === "error" && <span className="text-xs text-destructive">GPS error</span>}
             <div className="flex items-center gap-1 glass rounded-full px-3 py-1">
               <Star className="h-3.5 w-3.5 text-yellow-400 fill-yellow-400" />
               <span className="text-sm font-bold">{Number(rider?.rating ?? 5).toFixed(1)}</span>
@@ -408,9 +604,7 @@ function RiderDashboard() {
           disabled={toggleOnline.isPending || !rider || profile?.kyc_status !== "approved"}
           whileTap={{ scale: 0.97 }}
           className={`w-full rounded-3xl p-6 text-left transition-all duration-300 disabled:opacity-70 ${
-            isOnline
-              ? "bg-gradient-primary shadow-glow"
-              : "glass-strong border border-border"
+            isOnline ? "bg-gradient-primary shadow-glow" : "glass-strong border border-border"
           }`}
         >
           <div className="flex items-center justify-between">
@@ -431,10 +625,14 @@ function RiderDashboard() {
                   {toggleOnline.isPending ? "Updating…" : isOnline ? "Online" : "Offline"}
                 </span>
               </div>
-              <p className={`font-display text-2xl font-bold ${isOnline ? "text-primary-foreground" : ""}`}>
+              <p
+                className={`font-display text-2xl font-bold ${isOnline ? "text-primary-foreground" : ""}`}
+              >
                 {isOnline ? "You're available" : "You're unavailable"}
               </p>
-              <p className={`text-sm mt-0.5 ${isOnline ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
+              <p
+                className={`text-sm mt-0.5 ${isOnline ? "text-primary-foreground/70" : "text-muted-foreground"}`}
+              >
                 {isOnline ? "Accepting dispatch orders now" : "Tap to start receiving orders"}
               </p>
             </div>
@@ -489,7 +687,9 @@ function RiderDashboard() {
                   rider?.current_lat && rider?.current_lng && activeOrder
                     ? [
                         { lat: Number(rider.current_lat), lng: Number(rider.current_lng) },
-                        ["in_transit", "picked_up"].includes(activeOrder.status) ? dropoff! : pickup!
+                        ["in_transit", "near_destination", "picked_up"].includes(activeOrder.status)
+                          ? dropoff!
+                          : pickup!,
                       ]
                     : undefined
                 }
@@ -507,7 +707,8 @@ function RiderDashboard() {
                     </span>
                   </div>
                   <span className="text-xs glass rounded-full px-2.5 py-1">
-                    {STATUS_LABELS[activeOrder.status] ?? activeOrder.status.replace(/_/g, " ")}
+                    {ORDER_STATUS_LABELS[activeOrder.status as OrderStatus] ??
+                      activeOrder.status.replace(/_/g, " ")}
                   </span>
                 </div>
 
@@ -520,9 +721,13 @@ function RiderDashboard() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-xs text-muted-foreground">{activeOrder.pickup_address}</p>
-                    <p className="text-xs text-muted-foreground mt-4">{activeOrder.dropoff_address}</p>
+                    <p className="text-xs text-muted-foreground mt-4">
+                      {activeOrder.dropoff_address}
+                    </p>
                   </div>
-                  <p className="text-sm font-bold text-primary shrink-0">{fmtXOF(activeOrder.price_xof)}</p>
+                  <p className="text-sm font-bold text-primary shrink-0">
+                    {fmtXOF(activeOrder.price_xof)}
+                  </p>
                 </div>
 
                 {/* Action buttons row */}
@@ -563,33 +768,61 @@ function RiderDashboard() {
                   )}
                 </div>
 
-                {/* Main status action */}
-                <div className="flex gap-2">
-                  {(() => {
-                    const next = STATUS_NEXT[activeOrder.status as OrderStatus];
-                    return next ? (
-                      <button
-                        onClick={() =>
-                          updateOrderStatus.mutate({ orderId: activeOrder.id, status: next.status })
-                        }
-                        disabled={updateOrderStatus.isPending}
-                        className="flex-1 rounded-xl bg-gradient-primary py-3 text-sm font-semibold text-primary-foreground shadow-glow disabled:opacity-50"
-                      >
-                        {updateOrderStatus.isPending ? "Updating…" : next.label}
-                      </button>
-                    ) : null;
-                  })()}
-
-                  {activeOrder.status === "in_transit" && (
+                {/* Dispatcher-assigned orders need an explicit accept/decline
+                    before the rider can act on them. */}
+                {activeOrder.status === "rider_assigned" ? (
+                  <div className="flex gap-2">
                     <button
-                      onClick={() => setOtpOpen(true)}
-                      className="flex-1 rounded-xl bg-gradient-primary py-3 text-sm font-semibold text-primary-foreground shadow-glow flex items-center justify-center gap-2"
+                      onClick={() => declineOrder.mutate(activeOrder.id)}
+                      disabled={declineOrder.isPending || acceptOrder.isPending}
+                      className="flex-1 rounded-xl glass py-3 text-sm font-semibold disabled:opacity-50"
                     >
-                      <CheckCircle2 className="h-4 w-4" />
-                      Confirm Delivery
+                      Decline
                     </button>
-                  )}
-                </div>
+                    <button
+                      onClick={() => acceptOrder.mutate(activeOrder.id)}
+                      disabled={declineOrder.isPending || acceptOrder.isPending}
+                      className="flex-1 rounded-xl bg-gradient-primary py-3 text-sm font-semibold text-primary-foreground shadow-glow disabled:opacity-50"
+                    >
+                      {acceptOrder.isPending ? "Accepting…" : "Accept"}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    {(() => {
+                      const next = nextRiderAction(activeOrder.status as OrderStatus);
+                      return next ? (
+                        <button
+                          onClick={() =>
+                            updateOrderStatus.mutate({ orderId: activeOrder.id, status: next.status })
+                          }
+                          disabled={updateOrderStatus.isPending}
+                          className="flex-1 rounded-xl bg-gradient-primary py-3 text-sm font-semibold text-primary-foreground shadow-glow disabled:opacity-50"
+                        >
+                          {updateOrderStatus.isPending ? "Updating…" : next.label}
+                        </button>
+                      ) : null;
+                    })()}
+
+                    {["in_transit", "near_destination"].includes(activeOrder.status) && (
+                      <button
+                        onClick={() => setOtpOpen(true)}
+                        className="flex-1 rounded-xl bg-gradient-primary py-3 text-sm font-semibold text-primary-foreground shadow-glow flex items-center justify-center gap-2"
+                      >
+                        <CheckCircle2 className="h-4 w-4" />
+                        Confirm Delivery
+                      </button>
+                    )}
+
+                    <button
+                      onClick={() => setReportOpen(true)}
+                      className="h-11 w-11 shrink-0 rounded-xl glass flex items-center justify-center text-destructive"
+                      title="Report an issue"
+                    >
+                      <AlertTriangle className="h-4 w-4" />
+                    </button>
+                  </div>
+                )}
               </div>
             </motion.div>
           )}
@@ -598,43 +831,85 @@ function RiderDashboard() {
         {/* Today Stats */}
         <div className="grid grid-cols-3 gap-3">
           <div className="glass rounded-2xl p-4 flex flex-col justify-center">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider leading-tight mb-1">Today's Earnings</p>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider leading-tight mb-1">
+              Today's Earnings
+            </p>
             <p className="font-display text-lg font-bold text-gradient-primary">
               {fmtXOF(todayStats?.earned ?? 0)}
             </p>
           </div>
           <div className="glass rounded-2xl p-4 flex flex-col justify-center">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider leading-tight mb-1">Deliveries</p>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider leading-tight mb-1">
+              Deliveries
+            </p>
             <p className="font-display text-xl font-bold">{todayStats?.deliveries ?? 0}</p>
           </div>
           <div className="glass rounded-2xl p-4 flex flex-col justify-center">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider leading-tight mb-1">Accept. Rate</p>
-            <p className="font-display text-xl font-bold text-green-400">94%</p>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider leading-tight mb-1">
+              Rating
+            </p>
+            <p className="font-display text-xl font-bold text-green-400">
+              {Number(rider?.rating ?? 5).toFixed(1)}
+            </p>
           </div>
         </div>
 
         {/* Weekly Earnings Chart */}
         <div className="glass-strong rounded-3xl p-5 border border-primary/10">
           <div className="flex items-center justify-between mb-4">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider">Weekly Performance</p>
-            <span className="text-xs font-bold text-green-400">+12% vs last week</span>
+            <p className="text-xs text-muted-foreground uppercase tracking-wider">
+              Weekly Performance
+            </p>
+            {weeklyEarnings && weeklyEarnings.changePct !== 0 && (
+              <span
+                className={`text-xs font-bold ${weeklyEarnings.changePct > 0 ? "text-green-400" : "text-destructive"}`}
+              >
+                {weeklyEarnings.changePct > 0 ? "+" : ""}
+                {weeklyEarnings.changePct}% vs last week
+              </span>
+            )}
           </div>
           <div className="h-40 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={WEEKLY_DATA} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+              <AreaChart
+                data={weeklyEarnings?.chartData ?? []}
+                margin={{ top: 0, right: 0, left: -20, bottom: 0 }}
+              >
                 <defs>
                   <linearGradient id="colorXof" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#ff5a00" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#ff5a00" stopOpacity={0}/>
+                    <stop offset="5%" stopColor="#ff5a00" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#ff5a00" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#888' }} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#888' }} tickFormatter={(val) => `${val/1000}k`} />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: 'oklch(0.2 0.05 250)', border: 'none', borderRadius: '8px', color: '#fff' }}
-                  itemStyle={{ color: '#ff5a00', fontWeight: 'bold' }}
+                <XAxis
+                  dataKey="day"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fontSize: 10, fill: "#888" }}
                 />
-                <Area type="monotone" dataKey="xof" stroke="#ff5a00" strokeWidth={2} fillOpacity={1} fill="url(#colorXof)" />
+                <YAxis
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fontSize: 10, fill: "#888" }}
+                  tickFormatter={(val) => `${val / 1000}k`}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "oklch(0.2 0.05 250)",
+                    border: "none",
+                    borderRadius: "8px",
+                    color: "#fff",
+                  }}
+                  itemStyle={{ color: "#ff5a00", fontWeight: "bold" }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="xof"
+                  stroke="#ff5a00"
+                  strokeWidth={2}
+                  fillOpacity={1}
+                  fill="url(#colorXof)"
+                />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -646,7 +921,10 @@ function RiderDashboard() {
             <p className="text-xs text-muted-foreground">Wallet balance</p>
             <p className="font-display text-xl font-bold">{fmtXOF(wallet?.balance_xof ?? 0)}</p>
           </div>
-          <Link to="/rider/earnings" className="flex items-center gap-1 text-primary text-sm font-medium">
+          <Link
+            to="/rider/earnings"
+            className="flex items-center gap-1 text-primary text-sm font-medium"
+          >
             View <ChevronRight className="h-4 w-4" />
           </Link>
         </div>
@@ -677,6 +955,18 @@ function RiderDashboard() {
             onClose={() => setOtpOpen(false)}
             onSubmit={(otp) => completeDelivery.mutate(otp)}
             pending={completeDelivery.isPending}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Report Issue Dialog */}
+      <AnimatePresence>
+        {reportOpen && (
+          <ReportIssueDialog
+            open={reportOpen}
+            onClose={() => setReportOpen(false)}
+            onSubmit={(reason) => reportIssue.mutate(reason)}
+            pending={reportIssue.isPending}
           />
         )}
       </AnimatePresence>

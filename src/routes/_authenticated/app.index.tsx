@@ -3,17 +3,29 @@ import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { lazy, Suspense } from "react";
 import {
-  ArrowRight, Bike, Package, Wallet, Zap, MapPin, Clock, Shield, AlertCircle, ShoppingBag, Smartphone
+  ArrowRight,
+  Bike,
+  Package,
+  Wallet,
+  Zap,
+  MapPin,
+  Clock,
+  Shield,
+  AlertCircle,
+  ShoppingBag,
+  Smartphone,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { fmtXOF } from "@/lib/pricing";
 import { useT } from "@/lib/i18n";
+import { fetchUserRolesSafe, getRoleHome } from "@/lib/platform-routing";
 import { StatusBadge, StatusDot } from "@/components/rapide/StatusBadge";
 import { SkeletonOrderCard, SkeletonStatCard } from "@/components/rapide/SkeletonCard";
+import { RIDER_ACTIVE_STATUSES } from "@/lib/order-lifecycle";
 
 const LazyLiveMap = lazy(() =>
-  import("@/components/rapide/LiveMap").then((m) => ({ default: m.LiveMap }))
+  import("@/components/rapide/LiveMap").then((m) => ({ default: m.LiveMap })),
 );
 
 export const Route = createFileRoute("/_authenticated/app/")({
@@ -21,24 +33,12 @@ export const Route = createFileRoute("/_authenticated/app/")({
     const { data } = await supabase.auth.getSession();
     if (!data.session) return;
 
-    // Check for elevated roles and redirect to their home dashboard
-    const roles = await context.queryClient.fetchQuery({
-      queryKey: ["user_roles", data.session.user.id],
-      queryFn: async () => {
-        const { data: rolesData } = await supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", data.session.user.id);
-        return rolesData ?? [];
-      },
-      staleTime: 1000 * 60 * 5,
-    });
+    const roles = await fetchUserRolesSafe(context.queryClient, data.session.user.id);
+    const home = getRoleHome(roles);
 
-    const roleList = roles.map((r) => r.role);
-    if (roleList.includes("admin") || roleList.includes("super_admin")) throw redirect({ to: "/admin/" as any });
-    if (roleList.includes("support")) throw redirect({ to: "/support" as any });
-    if (roleList.includes("dispatcher")) throw redirect({ to: "/dispatcher" as any });
-    if (roleList.includes("rider")) throw redirect({ to: "/rider" as any });
+    if (home !== "/app") {
+      throw redirect({ to: home as any });
+    }
   },
   component: Home,
 });
@@ -51,10 +51,30 @@ function getGreeting(t: (key: string) => string): string {
 }
 
 const QUICK_ACTIONS = [
-  { icon: Zap, labelKey: "app.quick.express", to: "/app/book", color: "bg-primary/15 text-primary" },
-  { icon: Clock, labelKey: "app.quick.scheduled", to: "/app/book", color: "bg-blue-500/15 text-blue-400" },
-  { icon: ShoppingBag, labelKey: "app.quick.errand", to: "/app/errand", color: "bg-pink-500/15 text-pink-500" },
-  { icon: MapPin, labelKey: "app.quick.track", to: "/app/orders", color: "bg-purple-500/15 text-purple-400" },
+  {
+    icon: Zap,
+    labelKey: "app.quick.express",
+    to: "/app/book",
+    color: "bg-primary/15 text-primary",
+  },
+  {
+    icon: Clock,
+    labelKey: "app.quick.scheduled",
+    to: "/app/book",
+    color: "bg-blue-500/15 text-blue-400",
+  },
+  {
+    icon: ShoppingBag,
+    labelKey: "app.quick.errand",
+    to: "/app/errand",
+    color: "bg-pink-500/15 text-pink-500",
+  },
+  {
+    icon: MapPin,
+    labelKey: "app.quick.track",
+    to: "/app/orders",
+    color: "bg-purple-500/15 text-purple-400",
+  },
 ] as const;
 
 function Home() {
@@ -64,7 +84,11 @@ function Home() {
   const { data: wallet, isLoading: walletLoading } = useQuery({
     queryKey: ["wallet", user?.id],
     queryFn: async () => {
-      const { data } = await supabase.from("wallets").select("balance_xof").eq("user_id", user!.id).single();
+      const { data } = await supabase
+        .from("wallets")
+        .select("balance_xof")
+        .eq("user_id", user!.id)
+        .single();
       return data;
     },
     enabled: !!user,
@@ -76,7 +100,8 @@ function Home() {
       const { data } = await supabase
         .from("profiles")
         .select("full_name, kyc_status")
-        .eq("id", user!.id).single();
+        .eq("id", user!.id)
+        .single();
       return data;
     },
     enabled: !!user,
@@ -87,7 +112,9 @@ function Home() {
     queryFn: async () => {
       const { data } = await supabase
         .from("orders")
-        .select("id,code,status,pickup_address,dropoff_address,pickup_lat,pickup_lng,dropoff_lat,dropoff_lng,price_xof,created_at")
+        .select(
+          "id,code,status,pickup_address,dropoff_address,pickup_lat,pickup_lng,dropoff_lat,dropoff_lng,price_xof,created_at",
+        )
         .eq("customer_id", user!.id)
         .order("created_at", { ascending: false })
         .limit(3);
@@ -111,7 +138,7 @@ function Home() {
   const firstName = profile?.full_name?.split(" ")[0] || "";
   const greeting = getGreeting(t);
   const activeOrder = orders?.find((o) =>
-    ["searching_rider", "rider_assigned", "rider_arriving", "picked_up", "in_transit"].includes(o.status)
+    ["searching_rider", ...RIDER_ACTIVE_STATUSES].includes(o.status),
   );
 
   return (
@@ -119,9 +146,7 @@ function Home() {
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
         <p className="text-sm text-muted-foreground">{greeting}</p>
-        <h1 className="font-display text-3xl font-bold">
-          {firstName || t("app.welcome")} 👋
-        </h1>
+        <h1 className="font-display text-3xl font-bold">{firstName || t("app.welcome")} 👋</h1>
       </motion.div>
       {/* KYC Verification Banner */}
       {profile?.kyc_status !== "approved" && (
@@ -145,16 +170,24 @@ function Home() {
 
       {/* Active order banner */}
       {activeOrder && (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.98 }}
-          animate={{ opacity: 1, scale: 1 }}
-        >
+        <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }}>
           <div className="block rounded-3xl bg-gradient-primary overflow-hidden shadow-glow">
             <div className="h-32 w-full relative z-0 pointer-events-none">
               <Suspense fallback={<div className="w-full h-full bg-primary/20" />}>
-                <LazyLiveMap 
-                  pickup={activeOrder.pickup_lat && activeOrder.pickup_lng ? { lat: Number(activeOrder.pickup_lat), lng: Number(activeOrder.pickup_lng) } : undefined} 
-                  dropoff={activeOrder.dropoff_lat && activeOrder.dropoff_lng ? { lat: Number(activeOrder.dropoff_lat), lng: Number(activeOrder.dropoff_lng) } : undefined}
+                <LazyLiveMap
+                  pickup={
+                    activeOrder.pickup_lat && activeOrder.pickup_lng
+                      ? { lat: Number(activeOrder.pickup_lat), lng: Number(activeOrder.pickup_lng) }
+                      : undefined
+                  }
+                  dropoff={
+                    activeOrder.dropoff_lat && activeOrder.dropoff_lng
+                      ? {
+                          lat: Number(activeOrder.dropoff_lat),
+                          lng: Number(activeOrder.dropoff_lng),
+                        }
+                      : undefined
+                  }
                   height={128}
                   zoom={11}
                   showRoute={true}
@@ -162,7 +195,7 @@ function Home() {
               </Suspense>
               <div className="absolute inset-0 bg-gradient-to-t from-primary/95 via-primary/50 to-transparent" />
             </div>
-            
+
             <Link
               to="/app/track/$orderId"
               params={{ orderId: activeOrder.id }}
@@ -184,7 +217,10 @@ function Home() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <StatusBadge status={activeOrder.status} className="bg-white/20 text-primary-foreground border-white/30 backdrop-blur-md" />
+                  <StatusBadge
+                    status={activeOrder.status}
+                    className="bg-white/20 text-primary-foreground border-white/30 backdrop-blur-md"
+                  />
                   <ArrowRight className="h-5 w-5 text-primary-foreground" />
                 </div>
               </div>
@@ -194,13 +230,22 @@ function Home() {
       )}
 
       {/* Wallet card */}
-      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
-        <Link to="/app/wallet" className="block glass-strong rounded-3xl p-5 relative overflow-hidden group">
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.05 }}
+      >
+        <Link
+          to="/app/wallet"
+          className="block glass-strong rounded-3xl p-5 relative overflow-hidden group"
+        >
           <div className="absolute inset-0 bg-gradient-radial opacity-50 pointer-events-none" />
           <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-primary/10 group-hover:bg-primary/15 transition-colors" />
           <div className="relative flex items-center justify-between">
             <div>
-              <p className="text-xs text-muted-foreground uppercase tracking-wider">{t("app.wallet_label")}</p>
+              <p className="text-xs text-muted-foreground uppercase tracking-wider">
+                {t("app.wallet_label")}
+              </p>
               {walletLoading ? (
                 <div className="mt-1 h-9 w-32 animate-pulse rounded-lg bg-white/5" />
               ) : (
@@ -217,14 +262,23 @@ function Home() {
       </motion.div>
 
       {/* Send parcel CTA */}
-      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }}>
-        <Link to="/app/book" className="block rounded-3xl bg-gradient-primary p-5 shadow-glow group">
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.08 }}
+      >
+        <Link
+          to="/app/book"
+          className="block rounded-3xl bg-gradient-primary p-5 shadow-glow group"
+        >
           <div className="flex items-center justify-between">
             <div>
               <div className="flex items-center gap-2 text-primary-foreground/70 text-xs uppercase tracking-wider mb-1">
                 <Zap className="h-3.5 w-3.5" /> {t("app.send_label")}
               </div>
-              <p className="font-display text-xl font-bold text-primary-foreground">{t("app.send_title")}</p>
+              <p className="font-display text-xl font-bold text-primary-foreground">
+                {t("app.send_title")}
+              </p>
               <p className="text-sm text-primary-foreground/70 mt-0.5">{t("app.send_sub")}</p>
             </div>
             <motion.div
@@ -247,7 +301,9 @@ function Home() {
             transition={{ delay: 0.1 + i * 0.04 }}
           >
             <Link to={action.to} className="flex flex-col items-center gap-1.5">
-              <div className={`h-12 w-12 rounded-2xl flex items-center justify-center ${action.color}`}>
+              <div
+                className={`h-12 w-12 rounded-2xl flex items-center justify-center ${action.color}`}
+              >
                 <action.icon className="h-5 w-5" />
               </div>
               <span className="text-[10px] font-semibold text-center text-muted-foreground uppercase tracking-wider">
@@ -291,12 +347,16 @@ function Home() {
       <section>
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-display text-lg font-bold">{t("app.recent_orders")}</h2>
-          <Link to="/app/orders" className="text-xs text-primary font-medium">{t("app.see_all")}</Link>
+          <Link to="/app/orders" className="text-xs text-primary font-medium">
+            {t("app.see_all")}
+          </Link>
         </div>
 
         {ordersLoading ? (
           <div className="space-y-2">
-            {[1, 2].map((i) => <SkeletonOrderCard key={i} />)}
+            {[1, 2].map((i) => (
+              <SkeletonOrderCard key={i} />
+            ))}
           </div>
         ) : orders?.length ? (
           <div className="relative pl-3">
@@ -327,16 +387,21 @@ function Home() {
                           <StatusDot status={o.status} />
                         </div>
                         <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                          {new Date(o.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                          {new Date(o.created_at).toLocaleDateString(undefined, {
+                            month: "short",
+                            day: "numeric",
+                          })}
                         </p>
                       </div>
                       <div className="flex items-start justify-between gap-2">
                         <p className="text-sm font-medium leading-tight">
-                          {o.pickup_address} <br/>
+                          {o.pickup_address} <br />
                           <span className="text-muted-foreground">↓ {o.dropoff_address}</span>
                         </p>
                         <div className="text-right shrink-0">
-                          <p className="text-sm font-bold text-gradient-primary">{fmtXOF(o.price_xof)}</p>
+                          <p className="text-sm font-bold text-gradient-primary">
+                            {fmtXOF(o.price_xof)}
+                          </p>
                           <StatusBadge status={o.status} className="text-[9px] px-1.5 py-0 mt-1" />
                         </div>
                       </div>
@@ -362,13 +427,15 @@ function Home() {
 
       {/* Low Data / Offline Mode Link */}
       <div className="mt-6 flex justify-center pb-6">
-        <button 
+        <button
           disabled
           className="flex items-center gap-2 text-xs font-medium text-slate-400 bg-slate-100 py-2 px-4 rounded-full cursor-not-allowed"
         >
           <Smartphone className="h-4 w-4" />
           Test Low Data Mode (USSD)
-          <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wider ml-1">Coming Soon</span>
+          <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wider ml-1">
+            Coming Soon
+          </span>
         </button>
       </div>
     </div>

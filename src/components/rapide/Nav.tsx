@@ -23,10 +23,30 @@ export function Nav() {
         </Link>
 
         <div className="hidden items-center gap-8 md:flex">
-          <a href="#features" className="text-sm text-muted-foreground transition hover:text-foreground">{t("nav.features")}</a>
-          <a href="#network" className="text-sm text-muted-foreground transition hover:text-foreground">{t("nav.network")}</a>
-          <a href="#business" className="text-sm text-muted-foreground transition hover:text-foreground">{t("nav.business")}</a>
-          <a href="#riders" className="text-sm text-muted-foreground transition hover:text-foreground">{t("nav.riders")}</a>
+          <a
+            href="#features"
+            className="text-sm text-muted-foreground transition hover:text-foreground"
+          >
+            {t("nav.features")}
+          </a>
+          <a
+            href="#network"
+            className="text-sm text-muted-foreground transition hover:text-foreground"
+          >
+            {t("nav.network")}
+          </a>
+          <a
+            href="#business"
+            className="text-sm text-muted-foreground transition hover:text-foreground"
+          >
+            {t("nav.business")}
+          </a>
+          <a
+            href="#riders"
+            className="text-sm text-muted-foreground transition hover:text-foreground"
+          >
+            {t("nav.riders")}
+          </a>
         </div>
 
         <div className="flex items-center gap-1.5">
@@ -47,10 +67,17 @@ export function Nav() {
           >
             {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </button>
-          <Link to="/login" search={{ redirect: "/app" }} className="ml-1 hidden rounded-lg px-3 py-1.5 text-sm text-muted-foreground transition hover:text-foreground md:block">
+          <Link
+            to="/login"
+            search={{ redirect: "/app" }}
+            className="ml-1 hidden rounded-lg px-3 py-1.5 text-sm text-muted-foreground transition hover:text-foreground md:block"
+          >
             {t("nav.login")}
           </Link>
-          <Link to="/signup" className="rounded-lg bg-gradient-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-glow transition hover:scale-[1.02]">
+          <Link
+            to="/signup"
+            className="rounded-lg bg-gradient-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-glow transition hover:scale-[1.02]"
+          >
             {t("nav.start")}
           </Link>
         </div>

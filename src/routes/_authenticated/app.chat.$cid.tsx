@@ -3,8 +3,14 @@ import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  ArrowLeft, Send, Languages, Phone, MoreVertical,
-  Image, CheckCheck, Check,
+  ArrowLeft,
+  Send,
+  Languages,
+  Phone,
+  MoreVertical,
+  Image,
+  CheckCheck,
+  Check,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -36,10 +42,11 @@ function groupByDate(messages: Message[], lang: string) {
   const groups: { label: string; messages: Message[] }[] = [];
   let last = "";
   for (const m of messages) {
-    const d = new Date(m.created_at).toLocaleDateString(
-      lang === "fr" ? "fr-FR" : "en-GB",
-      { weekday: "long", day: "numeric", month: "long" },
-    );
+    const d = new Date(m.created_at).toLocaleDateString(lang === "fr" ? "fr-FR" : "en-GB", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+    });
     if (d !== last) {
       groups.push({ label: d, messages: [] });
       last = d;
@@ -81,7 +88,9 @@ function ChatRoomPage() {
   });
 
   const otherId = conv
-    ? conv.participant_1 === user?.id ? conv.participant_2 : conv.participant_1
+    ? conv.participant_1 === user?.id
+      ? conv.participant_2
+      : conv.participant_1
     : null;
 
   const { data: otherProfile } = useQuery({
@@ -124,7 +133,10 @@ function ChatRoomPage() {
     supabase
       .from("messages")
       .update({ is_read: true })
-      .in("id", unread.map((m) => m.id))
+      .in(
+        "id",
+        unread.map((m) => m.id),
+      )
       .then(() => {
         if (conv?.participant_1 === user.id) {
           supabase.from("conversations").update({ unread_1: 0 }).eq("id", cid);
@@ -142,16 +154,28 @@ function ChatRoomPage() {
       .channel(`chat-${cid}`)
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "messages", filter: `conversation_id=eq.${cid}` },
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+          filter: `conversation_id=eq.${cid}`,
+        },
         () => qc.invalidateQueries({ queryKey: ["messages", cid] }),
       )
       .on(
         "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "messages", filter: `conversation_id=eq.${cid}` },
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "messages",
+          filter: `conversation_id=eq.${cid}`,
+        },
         () => qc.invalidateQueries({ queryKey: ["messages", cid] }),
       )
       .subscribe();
-    return () => { supabase.removeChannel(ch); };
+    return () => {
+      supabase.removeChannel(ch);
+    };
   }, [cid, qc]);
 
   // Auto-scroll
@@ -162,15 +186,23 @@ function ChatRoomPage() {
   const bumpConversation = async (preview: string) => {
     const now = new Date().toISOString();
     if (conv?.participant_1 === user?.id) {
-      await supabase.from("conversations").update({
-        last_message_at: now, last_message_preview: preview,
-        unread_2: (conv?.unread_2 ?? 0) + 1,
-      }).eq("id", cid);
+      await supabase
+        .from("conversations")
+        .update({
+          last_message_at: now,
+          last_message_preview: preview,
+          unread_2: (conv?.unread_2 ?? 0) + 1,
+        })
+        .eq("id", cid);
     } else {
-      await supabase.from("conversations").update({
-        last_message_at: now, last_message_preview: preview,
-        unread_1: (conv?.unread_1 ?? 0) + 1,
-      }).eq("id", cid);
+      await supabase
+        .from("conversations")
+        .update({
+          last_message_at: now,
+          last_message_preview: preview,
+          unread_1: (conv?.unread_1 ?? 0) + 1,
+        })
+        .eq("id", cid);
     }
     qc.invalidateQueries({ queryKey: ["conversations"] });
   };
@@ -217,7 +249,9 @@ function ChatRoomPage() {
         .from("chat-media")
         .upload(path, file, { contentType: file.type, upsert: false });
       if (upErr) throw upErr;
-      const { data: { publicUrl } } = supabase.storage.from("chat-media").getPublicUrl(path);
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("chat-media").getPublicUrl(path);
       const { error: msgErr } = await supabase.from("messages").insert({
         conversation_id: cid,
         sender_id: user.id,
@@ -243,7 +277,9 @@ function ChatRoomPage() {
         .from("chat-media")
         .upload(path, blob, { contentType: "audio/webm", upsert: false });
       if (upErr) throw upErr;
-      const { data: { publicUrl } } = supabase.storage.from("chat-media").getPublicUrl(path);
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("chat-media").getPublicUrl(path);
       const { error: msgErr } = await supabase.from("messages").insert({
         conversation_id: cid,
         sender_id: user.id,
@@ -279,7 +315,9 @@ function ChatRoomPage() {
       qc.invalidateQueries({ queryKey: ["messages", cid] });
       setShowTranslated((prev) => ({ ...prev, [msg.id]: true }));
     } catch (e: any) {
-      const msg429 = e?.message?.includes("Rate limit") ? "Translation limit reached, try again in 1 min" : undefined;
+      const msg429 = e?.message?.includes("Rate limit")
+        ? "Translation limit reached, try again in 1 min"
+        : undefined;
       toast.error(msg429 ?? e?.message ?? "Translation failed");
     } finally {
       setTranslating((prev) => ({ ...prev, [msg.id]: false }));
@@ -333,7 +371,11 @@ function ChatRoomPage() {
 
       {/* Header */}
       <div className="glass-strong border-b border-border px-4 pt-6 pb-3 flex items-center gap-3 shrink-0">
-        <Link to="/app/chat" className="glass h-9 w-9 rounded-xl flex items-center justify-center shrink-0">
+        <Link
+          to="/app/chat"
+          aria-label="Back"
+          className="glass h-9 w-9 rounded-xl flex items-center justify-center shrink-0"
+        >
           <ArrowLeft className="h-4 w-4" />
         </Link>
         <div className="h-9 w-9 rounded-full bg-gradient-primary flex items-center justify-center font-display font-bold text-sm text-primary-foreground shrink-0">
@@ -370,26 +412,27 @@ function ChatRoomPage() {
           </div>
         )}
 
-        {!isLoading && groups.map((group) => (
-          <div key={group.label}>
-            <div className="flex items-center gap-3 my-4">
-              <div className="h-px flex-1 bg-border/50" />
-              <span className="text-[11px] text-muted-foreground font-medium">{group.label}</span>
-              <div className="h-px flex-1 bg-border/50" />
+        {!isLoading &&
+          groups.map((group) => (
+            <div key={group.label}>
+              <div className="flex items-center gap-3 my-4">
+                <div className="h-px flex-1 bg-border/50" />
+                <span className="text-[11px] text-muted-foreground font-medium">{group.label}</span>
+                <div className="h-px flex-1 bg-border/50" />
+              </div>
+              {group.messages.map((msg) => (
+                <MessageBubble
+                  key={msg.id}
+                  msg={msg}
+                  isMine={msg.sender_id === user?.id}
+                  showTranslated={!!showTranslated[msg.id]}
+                  translating={!!translating[msg.id]}
+                  onToggleTranslate={() => toggleTranslate(msg)}
+                  lang={lang}
+                />
+              ))}
             </div>
-            {group.messages.map((msg) => (
-              <MessageBubble
-                key={msg.id}
-                msg={msg}
-                isMine={msg.sender_id === user?.id}
-                showTranslated={!!showTranslated[msg.id]}
-                translating={!!translating[msg.id]}
-                onToggleTranslate={() => toggleTranslate(msg)}
-                lang={lang}
-              />
-            ))}
-          </div>
-        ))}
+          ))}
 
         {!isLoading && !messages?.length && (
           <div className="flex items-center justify-center py-12">
@@ -460,7 +503,12 @@ function ChatRoomPage() {
 }
 
 function MessageBubble({
-  msg, isMine, showTranslated, translating, onToggleTranslate, lang,
+  msg,
+  isMine,
+  showTranslated,
+  translating,
+  onToggleTranslate,
+  lang,
 }: {
   msg: Message;
   isMine: boolean;
@@ -469,10 +517,10 @@ function MessageBubble({
   onToggleTranslate: () => void;
   lang: string;
 }) {
-  const time = new Date(msg.created_at).toLocaleTimeString(
-    lang === "fr" ? "fr-FR" : "en-GB",
-    { hour: "2-digit", minute: "2-digit" },
-  );
+  const time = new Date(msg.created_at).toLocaleTimeString(lang === "fr" ? "fr-FR" : "en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 
   if (msg.type === "system") {
     return (
@@ -484,9 +532,8 @@ function MessageBubble({
     );
   }
 
-  const displayContent = showTranslated && msg.translated_content
-    ? msg.translated_content
-    : msg.content;
+  const displayContent =
+    showTranslated && msg.translated_content ? msg.translated_content : msg.content;
 
   return (
     <AnimatePresence>
@@ -543,13 +590,16 @@ function MessageBubble({
             )}
           </div>
 
-          <div className={`flex items-center gap-1 mt-0.5 px-1 ${isMine ? "justify-end" : "justify-start"}`}>
+          <div
+            className={`flex items-center gap-1 mt-0.5 px-1 ${isMine ? "justify-end" : "justify-start"}`}
+          >
             <span className="text-[10px] text-muted-foreground">{time}</span>
-            {isMine && (
-              msg.is_read
-                ? <CheckCheck className="h-3 w-3 text-primary" />
-                : <Check className="h-3 w-3 text-muted-foreground" />
-            )}
+            {isMine &&
+              (msg.is_read ? (
+                <CheckCheck className="h-3 w-3 text-primary" />
+              ) : (
+                <Check className="h-3 w-3 text-muted-foreground" />
+              ))}
           </div>
         </div>
       </motion.div>

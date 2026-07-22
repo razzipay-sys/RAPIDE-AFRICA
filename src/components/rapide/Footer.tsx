@@ -15,10 +15,18 @@ export function Footer() {
             <span className="ml-3 text-xs text-muted-foreground">Cotonou, Bénin</span>
           </div>
           <div className="flex flex-wrap gap-6 text-sm text-muted-foreground">
-            <a href="#" className="hover:text-foreground">{t("foot.privacy")}</a>
-            <a href="#" className="hover:text-foreground">{t("foot.terms")}</a>
-            <a href="#" className="hover:text-foreground">{t("foot.support")}</a>
-            <a href="#" className="hover:text-foreground">{t("foot.careers")}</a>
+            <a href="#" className="hover:text-foreground">
+              {t("foot.privacy")}
+            </a>
+            <a href="#" className="hover:text-foreground">
+              {t("foot.terms")}
+            </a>
+            <a href="#" className="hover:text-foreground">
+              {t("foot.support")}
+            </a>
+            <a href="#" className="hover:text-foreground">
+              {t("foot.careers")}
+            </a>
           </div>
           <div className="text-xs text-muted-foreground">{t("foot.rights")}</div>
         </div>

@@ -1,9 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  HeadphonesIcon, Search, CheckCircle2, Clock, AlertCircle, ChevronDown, ChevronUp, Send,
+  HeadphonesIcon,
+  Search,
+  CheckCircle2,
+  Clock,
+  AlertCircle,
+  ChevronDown,
+  ChevronUp,
+  Send,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -50,11 +57,13 @@ function SupportDashboard() {
     queryFn: async () => {
       let q = supabase
         .from("support_tickets")
-        .select(`
+        .select(
+          `
           id, subject, category, status, priority, created_at, updated_at,
           message,
           profiles:user_id (full_name, phone)
-        `)
+        `,
+        )
         .order("created_at", { ascending: false })
         .limit(100);
       if (statusFilter !== "all") q = q.eq("status", statusFilter);
@@ -63,6 +72,21 @@ function SupportDashboard() {
     },
     staleTime: 30000,
   });
+
+  // Realtime — a new ticket, or another agent updating one this agent has
+  // open, should appear live (Section 18.3, previously had neither polling
+  // nor realtime at all).
+  useEffect(() => {
+    const ch = supabase
+      .channel("support-tickets-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "support_tickets" }, () => {
+        qc.invalidateQueries({ queryKey: ["admin-tickets"] });
+      })
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(ch);
+    };
+  }, [qc]);
 
   const updateStatus = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: TicketStatus }) => {
@@ -88,7 +112,8 @@ function SupportDashboard() {
   });
 
   const openCount = tickets?.filter((t: any) => t.status === "open").length ?? 0;
-  const urgentCount = tickets?.filter((t: any) => t.priority === "urgent" || t.priority === "high").length ?? 0;
+  const urgentCount =
+    tickets?.filter((t: any) => t.priority === "urgent" || t.priority === "high").length ?? 0;
 
   return (
     <div className="space-y-6">
@@ -99,9 +124,7 @@ function SupportDashboard() {
           <p className="text-sm text-muted-foreground">
             {openCount} open ticket{openCount !== 1 ? "s" : ""}
             {urgentCount > 0 && (
-              <span className="ml-2 text-destructive font-medium">
-                · {urgentCount} urgent/high
-              </span>
+              <span className="ml-2 text-destructive font-medium">· {urgentCount} urgent/high</span>
             )}
           </p>
         </div>
@@ -169,15 +192,20 @@ function SupportDashboard() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="text-sm font-semibold">{ticket.subject}</p>
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${STATUS_STYLES[ticket.status as TicketStatus]}`}>
+                      <span
+                        className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${STATUS_STYLES[ticket.status as TicketStatus]}`}
+                      >
                         {ticket.status.replace("_", " ")}
                       </span>
-                      <span className={`text-[10px] font-medium ${PRIORITY_STYLES[ticket.priority ?? "low"]}`}>
+                      <span
+                        className={`text-[10px] font-medium ${PRIORITY_STYLES[ticket.priority ?? "low"]}`}
+                      >
                         {ticket.priority ?? "low"}
                       </span>
                     </div>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      {ticket.profiles?.full_name ?? "Unknown"} · {ticket.category ?? "general"} · {timeAgo(ticket.created_at)}
+                      {ticket.profiles?.full_name ?? "Unknown"} · {ticket.category ?? "general"} ·{" "}
+                      {timeAgo(ticket.created_at)}
                     </p>
                   </div>
                   {isExpanded ? (

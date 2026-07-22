@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -101,6 +101,34 @@ function WalletPage() {
     },
     enabled: !!user,
   });
+
+  // Realtime — a top-up approval, refund, or payout should reflect
+  // immediately, not only on next navigation (Section 18.2, previously had
+  // neither polling nor realtime at all).
+  useEffect(() => {
+    if (!user) return;
+    const ch = supabase
+      .channel(`wallet-realtime-${user.id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "wallets", filter: `user_id=eq.${user.id}` },
+        () => qc.invalidateQueries({ queryKey: ["wallet", user.id] }),
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "wallet_transactions",
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => qc.invalidateQueries({ queryKey: ["wallet-tx", user.id] }),
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(ch);
+    };
+  }, [user, qc]);
 
   // ── Confirm top-up: log a pending topup transaction ────────────────────────
   // The amount will NOT be credited until admin verifies the MoMo receipt.

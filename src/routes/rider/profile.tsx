@@ -20,12 +20,15 @@ function RiderProfile() {
   const [nameInput, setNameInput] = useState("");
 
   const { data: profile } = useProfile(user?.id);
-  const { data: rider }   = useRiderProfile(user?.id);
-  const { data: wallet }  = useWallet(user?.id);
+  const { data: rider } = useRiderProfile(user?.id);
+  const { data: wallet } = useWallet(user?.id);
 
   const saveName = useMutation({
     mutationFn: async (name: string) => {
-      const { error } = await supabase.from("profiles").update({ full_name: name }).eq("id", user!.id);
+      const { error } = await supabase
+        .from("profiles")
+        .update({ full_name: name })
+        .eq("id", user!.id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -42,7 +45,12 @@ function RiderProfile() {
   };
 
   const initials = profile?.full_name
-    ? profile.full_name.split(" ").map((n: string) => n[0]).slice(0, 2).join("").toUpperCase()
+    ? profile.full_name
+        .split(" ")
+        .map((n: string) => n[0])
+        .slice(0, 2)
+        .join("")
+        .toUpperCase()
     : "R";
 
   return (
@@ -57,9 +65,15 @@ function RiderProfile() {
       >
         <div className="h-20 w-20 rounded-full bg-gradient-primary mx-auto flex items-center justify-center mb-3">
           {profile?.avatar_url ? (
-            <img src={profile.avatar_url} alt="avatar" className="h-20 w-20 rounded-full object-cover" />
+            <img
+              src={profile.avatar_url}
+              alt="avatar"
+              className="h-20 w-20 rounded-full object-cover"
+            />
           ) : (
-            <span className="font-display text-2xl font-bold text-primary-foreground">{initials}</span>
+            <span className="font-display text-2xl font-bold text-primary-foreground">
+              {initials}
+            </span>
           )}
         </div>
 
@@ -83,7 +97,10 @@ function RiderProfile() {
           <div className="flex items-center justify-center gap-2">
             <p className="font-display text-xl font-bold">{profile?.full_name ?? "Rider"}</p>
             <button
-              onClick={() => { setNameInput(profile?.full_name ?? ""); setEditingName(true); }}
+              onClick={() => {
+                setNameInput(profile?.full_name ?? "");
+                setEditingName(true);
+              }}
               className="h-6 w-6 rounded-lg text-muted-foreground hover:text-foreground transition"
             >
               <Edit2 className="h-3.5 w-3.5" />
@@ -136,7 +153,8 @@ function RiderProfile() {
           <div className="flex-1">
             <p className="text-xs text-muted-foreground">Vehicle</p>
             <p className="text-sm font-medium capitalize">
-              {rider?.vehicle_type ?? "—"}{rider?.license_plate ? ` · ${rider.license_plate}` : ""}
+              {rider?.vehicle_type ?? "—"}
+              {rider?.license_plate ? ` · ${rider.license_plate}` : ""}
             </p>
           </div>
         </div>
@@ -144,7 +162,9 @@ function RiderProfile() {
           <User className="h-4 w-4 text-muted-foreground" />
           <div className="flex-1">
             <p className="text-xs text-muted-foreground">Status</p>
-            <p className={`text-sm font-medium ${rider?.is_online ? "text-green-400" : "text-muted-foreground"}`}>
+            <p
+              className={`text-sm font-medium ${rider?.is_online ? "text-green-400" : "text-muted-foreground"}`}
+            >
               {rider?.is_online ? "Online" : "Offline"}
             </p>
           </div>

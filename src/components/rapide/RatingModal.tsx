@@ -51,6 +51,7 @@ export function RatingModal({ open, onClose, onSubmit, pending }: Props) {
               </div>
               <button
                 onClick={onClose}
+                aria-label="Close"
                 className="h-8 w-8 rounded-xl glass flex items-center justify-center shrink-0"
               >
                 <X className="h-4 w-4" />
@@ -66,6 +67,8 @@ export function RatingModal({ open, onClose, onSubmit, pending }: Props) {
                   onMouseEnter={() => setHover(s)}
                   onMouseLeave={() => setHover(0)}
                   onClick={() => setRating(s)}
+                  aria-label={`${s} star${s > 1 ? "s" : ""}`}
+                  aria-pressed={rating === s}
                   className="transition-transform"
                 >
                   <Star

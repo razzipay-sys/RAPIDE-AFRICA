@@ -1,37 +1,25 @@
-import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
+import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { AppShell } from "@/components/rapide/AppShell";
-import { HeadphonesIcon, User, Settings } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { AuthProvider } from "@/hooks/use-auth";
+import { requireRoleAccess } from "@/lib/platform-routing";
 
 export const Route = createFileRoute("/support")({
   beforeLoad: async ({ location, context }) => {
-    const { data } = await supabase.auth.getSession();
-    if (!data.session) throw redirect({ to: "/login", search: { redirect: location.href } });
-    
-    const roles = await context.queryClient.fetchQuery({
-      queryKey: ["user_roles", data.session.user.id],
-      queryFn: async () => {
-        const { data: rolesData } = await supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", data.session.user.id);
-        return rolesData ?? [];
-      },
-      staleTime: 1000 * 60 * 5,
+    await requireRoleAccess({
+      queryClient: context.queryClient,
+      location,
+      allowedRoles: ["support", "admin"],
     });
-
-    const hasAccess = roles.some((r: any) => r.role === "support" || r.role === "admin" || r.role === "super_admin");
-    if (!hasAccess) {
-      throw redirect({ to: "/" });
-    }
   },
   component: SupportLayout,
 });
 
 function SupportLayout() {
   return (
-    <AppShell>
-      <Outlet />
-    </AppShell>
+    <AuthProvider>
+      <AppShell>
+        <Outlet />
+      </AppShell>
+    </AuthProvider>
   );
 }

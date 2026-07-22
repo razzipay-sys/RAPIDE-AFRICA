@@ -1,9 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { MapPin, Loader2, X, LocateFixed, History } from "lucide-react";
 import type { GeoResult } from "@/lib/pricing";
-import { useAIAddress } from "@/hooks/use-ai-address";
 import { useT } from "@/lib/i18n";
-import { Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 type Props = {
@@ -58,8 +56,6 @@ export function AddressSearch({
   const abortRef = useRef<AbortController | null>(null);
   const requestIdRef = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
-
-  const { resolveAddress, isResolving } = useAIAddress();
 
   // Sync displayed text when value changes externally (e.g. map click)
   useEffect(() => {
@@ -188,25 +184,6 @@ export function AddressSearch({
               {(loading || locating) && (
                 <Loader2 className="h-3.5 w-3.5 text-muted-foreground animate-spin shrink-0" />
               )}
-              {query.length > 10 && !loading && (
-                <button
-                  onClick={async (e) => {
-                    e.preventDefault();
-                    const res = await resolveAddress(query);
-                    if (res) select(res);
-                  }}
-                  disabled={isResolving}
-                  className="px-2 py-1 bg-indigo-50 text-indigo-600 rounded-lg text-[10px] font-semibold flex items-center gap-1 hover:bg-indigo-100 transition-colors"
-                  title="Use AI to find this description"
-                >
-                  {isResolving ? (
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                  ) : (
-                    <Sparkles className="h-3 w-3" />
-                  )}
-                  AI
-                </button>
-              )}
               {query && !loading && (
                 <button
                   type="button"
@@ -215,6 +192,7 @@ export function AddressSearch({
                     setResults([]);
                     setOpen(false);
                   }}
+                  aria-label="Clear address"
                   className="shrink-0"
                 >
                   <X className="h-3.5 w-3.5 text-muted-foreground" />

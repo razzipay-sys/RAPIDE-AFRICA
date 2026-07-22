@@ -1,0 +1,2574 @@
+RAPIDE AFRICA — CODE AUDIT
+Generated: 2026-07-17
+
+================================================================================
+FIX PASS STATUS — updated 2026-07-20
+================================================================================
+Sections 1-4 (the original security/functional audit) are DONE — applied to
+both the live Supabase project (mwojwzistgcbhzwvxbvp) and this repo:
+
+  - Section 1 (1.1-1.6, 1.4): claim_order/complete_delivery/rate_delivery
+    rewritten to stop trusting client-supplied identity, wallet_transactions
+    INSERT policy added, orders locked down via a new BEFORE UPDATE trigger,
+    wallets balance floor added. (1.7 was already fixed before this pass —
+    merchant API keys are properly hashed.)
+  - Section 2 (2.1-2.4): agora-token and translate now check conversation
+    membership before minting a token / caching a translation; CORS
+    allowlist is now env-var-driven (set the ALLOWED_ORIGINS secret) instead
+    of a guessed hardcoded domain; rate limiter check+insert is now atomic.
+  - Section 3 (3.1-3.6): errand price validated, realtime channel leak
+    fixed, receipt/pricing constants unified, missing hook deps fixed, fake
+    "AI address" button removed (client-side rate limiter left as-is with a
+    doc comment — it's UX-only by design).
+  - Section 4: eslint --fix applied (593 formatting fixes). Still open:
+    the ~40 remaining `any` types (4.4) and stale ts-errors.txt/
+    screenshot.png (4.6) — deferred, low risk, not blocking.
+
+ADDITIONALLY DISCOVERED AND FIXED during this pass (not in the original
+audit, found via live-DB inspection with the Supabase MCP connection):
+  - Four migrations committed in the repo (20260624000000_user_kyc through
+    20260707000000_launch_readiness_fixes) had NEVER been applied to the
+    live database — meaning merchant bulk upload, the customer escrow page,
+    admin top-up approval, and the admin audit log were all actually broken
+    in production. Applied (with the escrows table going straight to its
+    secure RLS policy, never exposing the insecure intermediate one from
+    the original draft).
+  - supabase.co Security Advisor also flagged, now fixed: public storage
+    bucket listing policies on `chat-media` and `documents` (letting anyone
+    enumerate private chat photos/voice notes and KYC ID documents
+    platform-wide), and a mutable search_path on generate_delivery_otp.
+  - support_tickets had a message/description column-name schema drift
+    (flagged in a code comment by a previous session but never fixed) that
+    broke the entire support ticket list query and the wallet withdrawal-
+    request flow. Fixed by renaming the column to match the app code.
+  - The 'banned' role used by admin/users.tsx's ban/unban feature was never
+    actually added to the app_role enum — every ban action has been failing
+    silently against the live DB. Fixed. ('super_admin', referenced in some
+    frontend role checks, was found to be similarly never-real — but nothing
+    tries to insert it, so it's dead code rather than an active bug; left
+    as a noted gap, not fixed.)
+
+Sections 6-17 (Customer/Rider/Merchant/Dispatcher/Support/Admin module gap
+audits, Wallet/Notifications/Analytics/DB-modules review, Order Lifecycle
+redesign) remain UNIMPLEMENTED — those are feature-build backlog, not bug
+fixes, and were intentionally left for a separate pass per the "log
+everything, build/fix later" workflow this session followed.
+
+================================================================================
+REGRESSION — introduced and fixed same day (2026-07-21)
+================================================================================
+Fixing the `chat-media`/`documents` "public bucket listing" advisory findings
+(Section 13 context) by simply DROPPING their public SELECT policies broke
+uploads to both buckets entirely: Postgres RLS requires `INSERT ... RETURNING`
+to pass a SELECT policy for the new row to be returned, and Supabase
+Storage's upload endpoint always does a RETURNING-style insert. With zero
+SELECT policy, every upload — KYC verification, rider documents, chat
+photos/voice notes — failed with "new row violates row-level security
+policy for table \"objects\"", confirmed by a live user report and
+reproduced directly (a trivial `WITH CHECK (true)` INSERT policy still
+failed with zero SELECT policy present; started returning successfully the
+moment a SELECT policy existed). Fixed by adding back properly *scoped*
+SELECT policies (owner/participant-only, not public) —
+20260721001000_add_scoped_documents_select_policy.sql and
+20260721001500_add_scoped_chat_media_select_policy.sql. Verified via
+Supabase's security advisor that the original "public can list everything"
+finding has NOT regressed.
+Lesson for future storage RLS changes on this project: never remove a
+bucket's SELECT policy down to zero — if broad/public read isn't wanted,
+replace it with a scoped one in the same migration, don't just drop it.
+Scope: full repository (src/, supabase/, config). TypeScript compiles clean (0 errors);
+ESLint has 658 problems, ~593 are auto-fixable Prettier formatting noise and are not
+listed individually below — run `npm run format` then `npx eslint . --fix` to clear those.
+The stale ts-errors.txt in the repo root predates recent fixes and can be deleted.
+
+Findings are grouped by severity. File:line references point to the current code /
+migration on branch main. Every finding in section 1 was independently re-verified
+by reading the referenced SQL directly (not just trusting the sub-audit).
+
+================================================================================
+1. CRITICAL — money / privilege-escalation bugs (fix before launch)
+================================================================================
+
+1.1 complete_delivery() lets anyone redirect a rider's payout to any wallet
+    File: supabase/migrations/20260707000000_launch_readiness_fixes.sql:239-290
+    The RPC takes `p_rider_user_id` as a plain parameter and calls
+    `_wallet_credit(p_rider_user_id, price - commission, 'payout', ...)` without ever
+    checking `p_rider_user_id = auth.uid()` or that this user is the order's assigned
+    rider. Any authenticated user who learns/guesses an order's 4-digit delivery OTP
+    can call this RPC with someone else's wallet id (or their own) and redirect the
+    payout — a direct funds-diversion bug, and it was introduced by the migration
+    that was supposed to be the "launch readiness fix".
+    Fix: look up the real rider from `orders.rider_id -> riders.user_id` inside the
+    function and use that value for the credit; ignore/validate `p_rider_user_id`
+    against `auth.uid()`.
+
+1.2 claim_order() lets any user assign any order to any rider
+    File: supabase/migrations/20260519200000_claim_order_rpc.sql:2-35
+    SECURITY DEFINER function never checks `p_user_id = auth.uid()` nor that
+    `p_rider_id` belongs to that caller. Any authenticated caller can pass an
+    arbitrary rider id and hijack a `searching_rider` order, and can forge the
+    `order_events.created_by` audit trail with an arbitrary user id.
+    Fix: add
+      IF p_user_id <> auth.uid()
+         OR NOT EXISTS (SELECT 1 FROM riders WHERE id = p_rider_id AND user_id = p_user_id)
+      THEN RETURN false; END IF;
+    at the top of the function body.
+
+1.3 orders UPDATE policy lets customers/riders rewrite price, status, rider_id directly
+    File: supabase/migrations/20260707000000_launch_readiness_fixes.sql:78-84
+    (re-declared from 20260517154310_...sql:229-233)
+    The `order_update` policy only restricts *which rows* can be touched (ownership
+    check via USING), not *which columns/values* may change. Because the app relies
+    on RPCs (`claim_order`, `complete_delivery`) for the "correct" state machine, but
+    the table itself has no column-level restriction, any customer or rider can call
+    `supabase.from('orders').update({ status: 'delivered', price_xof: 1 })` directly
+    from the browser and bypass the RPC flow entirely — free deliveries, self-marking
+    orders complete without an OTP, or rewriting the fare after booking.
+    Fix: add a `WITH CHECK` that pins the immutable columns (e.g. compare
+    `price_xof`/`commission_xof`/`customer_id` against the pre-update row via a
+    trigger, since RLS WITH CHECK can't reference OLD) — practically, add a
+    `BEFORE UPDATE` trigger that rejects changes to `price_xof`, `commission_xof`,
+    `status` unless performed by the RPCs (`SECURITY DEFINER`, checked via
+    `current_setting`) or an admin/dispatcher role.
+
+1.4 wallet_transactions has RLS enabled but no INSERT policy — top-up flow is broken
+    File: supabase/migrations/20260517154310_cd981ceb-bf06-4467-a5bf-e7f30be7f62d.sql:216
+    (only `tx_own_select` exists; grepped all migrations, no INSERT policy anywhere)
+    src/routes/_authenticated/app.wallet.tsx `confirmTopup()` does a client-side
+    `.insert()` into this table to record "I sent the transfer, please review it" —
+    this will be rejected by RLS for every non-admin user in production. The
+    top-up-confirmation feature is currently non-functional and fails silently as a
+    generic toast error.
+    Fix: add `CREATE POLICY tx_own_insert ON wallet_transactions FOR INSERT TO
+    authenticated WITH CHECK (auth.uid() = user_id AND status = 'pending')`, or move
+    the insert into a dedicated RPC.
+
+1.5 rate_delivery() accepts a client-supplied customer id — rating spoofing
+    File: supabase/migrations/20260519300000_delivery_features.sql
+    Takes `p_customer_id` as a parameter instead of using `auth.uid()`. Any
+    authenticated user who knows an order id and the real customer's id can submit
+    or overwrite that customer's rating for a rider.
+    Fix: drop the parameter and use `auth.uid()` inside the function body.
+
+1.6 dispatcher assignment uses a bare, non-atomic UPDATE (race condition)
+    File: src/routes/dispatcher/index.tsx:54-65
+    `assignRider()` does `orders.update({ rider_id, status: 'rider_assigned' })
+    .eq('id', orderId)` with no `status = 'searching_rider'` precondition. Two
+    dispatchers (or the same dispatcher double-clicking) assigning the same order
+    concurrently can both succeed, silently overwriting each other —
+    double-assignment. The rider-side flow (src/routes/rider/dispatch.tsx:71-81)
+    already solves this correctly via the atomic `claim_order` RPC.
+    Fix: route dispatcher assignment through `claim_order` (once 1.2 is fixed) or an
+    equivalent RPC with a `status='searching_rider'` guard, instead of a bare update.
+
+1.7 [STATUS: appears RESOLVED — verified 2026-07-20, see Section 8 note] Merchant API keys stored in plaintext
+    Files: supabase/migrations/20260518000000_rider_admin_merchant.sql,
+           20260520000000_merchant_api_keys.sql
+    Column is named `key_hash TEXT` with a comment saying "store bcrypt hash in
+    production," but no hashing is ever applied — the raw key is stored as-is. The
+    later "launch readiness" migration's own header explicitly calls this out as a
+    known problem but never fixes it. (RLS ownership on the table itself is fine.)
+    Fix: hash keys with bcrypt/argon2 before insert (in the edge function or an RPC
+    that generates the key), store only the hash + a short displayable prefix, and
+    rotate any keys already issued in plaintext.
+
+================================================================================
+2. HIGH — authorization gaps in edge functions
+================================================================================
+
+2.1 agora-token function mints call tokens without checking channel membership
+    File: supabase/functions/agora-token/index.ts
+    Verifies the caller has a valid JWT and applies rate limiting, but never checks
+    that the user is actually a participant of the conversation the channel
+    represents. `channelName` is derived client-side as `call-${conversationId}`
+    (src/hooks/use-agora-call.ts:29) and only regex-validated server-side. Any
+    authenticated user who knows/guesses a conversationId can obtain a PUBLISHER
+    token and join or disrupt someone else's call.
+    Fix: before minting, parse the conversationId out of channelName and confirm the
+    caller is one of the two participants in `conversations`, 403 otherwise.
+
+2.2 translate function allows overwriting arbitrary message rows
+    File: supabase/functions/translate/index.ts:~103-108
+    Uses the service-role client to `.update(...).eq('id', messageId)` where
+    `messageId` comes straight from the request body, with no check that the caller
+    is part of the conversation that message belongs to. Any authenticated user can
+    overwrite `translated_content`/`translate_from` on any message by id.
+    Fix: join against conversation membership in the same query
+    (`select ... where id = messageId and conversation_id in (caller's conversations)`)
+    before allowing the update.
+
+2.3 CORS allowlist only contains localhost — production origin is not configured
+    File: supabase/functions/_shared/cors.ts:5-11
+    `ALLOWED_ORIGINS` lists dev URLs only; the real deployed origin lines are
+    commented out, so requests from the live frontend fall through to a hardcoded
+    fallback (`https://rapide.africa`) that won't match the actual Vercel/production
+    domain unless that's the final custom domain already live. If it isn't, calls to
+    agora-token/translate are broken in production right now.
+    Fix: add the actual deployed origin(s) to `ALLOWED_ORIGINS` before/at each
+    deploy, ideally driven by an env var rather than a hardcoded list.
+
+2.4 Rate limiter has a check-then-insert race
+    File: supabase/functions/_shared/rateLimiter.ts:13-25
+    `checkRateLimit` reads the current count and inserts the new attempt as two
+    separate calls, so concurrent requests from the same user can all read the same
+    pre-insert count and all pass — the limit can be bypassed by firing requests in
+    parallel. (It is correctly DB-backed, not in-memory, so it does survive across
+    cold starts/instances — only the atomicity is the problem.)
+    Fix: wrap the check+insert in a single RPC/transaction, or use a Postgres
+    advisory lock / `INSERT ... ON CONFLICT` counter pattern.
+
+================================================================================
+3. MEDIUM — functional bugs
+================================================================================
+
+3.1 Client-trusted, unvalidated price on the errand flow
+    File: src/routes/_authenticated/app.errand.tsx:35-51
+    `price_xof: parseInt(budget) + 1500` has no NaN/negative/zero guard (unlike
+    `pricing.quote()`'s `Math.max(800, ...)` floor), so malformed input can insert
+    `price_xof: NaN` or an unreasonably low price. `commission_xof` is also
+    hardcoded to 300 regardless of order value, inconsistent with the 18%-of-price
+    model used everywhere else.
+    Fix: validate `budget` is a positive finite number before submit; compute
+    commission the same way `pricing.ts` does everywhere else.
+
+3.2 Realtime channel leak on driver online/offline toggle
+    File: src/routes/rider/dispatch.tsx:52-69
+    Cleanup calls `channelRef.current?.unsubscribe()` instead of
+    `supabase.removeChannel(channelRef.current)`. Every time `rider.is_online`
+    toggles, a new `"dispatch-realtime"` channel is subscribed while the old one is
+    only unsubscribed, not removed from the client registry — leaks channel objects
+    and can cause duplicate event delivery over a session. The correct pattern
+    already exists in app.track.$orderId.tsx:148-166; copy it here.
+
+3.3 Receipt itemization doesn't match actual pricing
+    File: src/routes/_authenticated/app.book.tsx:~580-582 vs src/lib/pricing.ts:23
+    `quote()` adds 300 XOF for insurance; the receipt UI shows a hardcoded "500
+    FCFA" insurance line and a "-500 base fare" figure. The total charged is
+    correct, but the itemized breakdown shown to the customer is off by 200 XOF —
+    will generate support disputes.
+    Fix: derive every displayed line item from the same constants `quote()` uses
+    instead of hardcoding separate numbers in the receipt component.
+
+3.4 "AI address resolution" is entirely fake
+    File: src/hooks/use-ai-address.ts:5-40
+    The "AI" button in AddressSearch (marked with a Sparkles icon and "Use AI to
+    find this description" tooltip) does keyword matching against 3 hardcoded
+    landmarks and returns a fixed fallback coordinate near central Cotonou for
+    everything else — there is no AI call. A user typing a real address that
+    doesn't match "market/dantokpa", "airport/cadjehoun", or "stade/stadium" will
+    silently get a pickup/dropoff pin planted at a fixed, likely-wrong location,
+    which is a real mis-delivery risk if a rider is dispatched to it.
+    Fix: either wire this to a real geocoding backend before launch, or remove the
+    "AI" affordance so users aren't misled into trusting an unresolved address.
+
+3.5 In-memory-only rate limiter is client-side and trivially bypassed
+    File: src/hooks/use-rate-limit.ts
+    This is a `useRef` array in the browser — resets on refresh and provides no
+    real protection against abuse (e.g. spamming call/translate requests); it can
+    only help UX-debounce, not enforce a limit. The real enforcement must live
+    server-side (see 2.4, which is DB-backed and closer to correct).
+    Fix: keep it for UX purposes but don't rely on it anywhere security-sensitive;
+    document it as UX-only.
+
+3.6 Two useMemo/useEffect hooks with missing dependencies
+    Files: src/routes/_authenticated/app.track.$orderId.tsx:231,237 (useMemo missing
+    `order`), src/routes/rider/index.tsx:279 (useEffect missing `pingGPS`)
+    Stale-closure risk: these will keep referencing the `order`/`pingGPS` value from
+    the render that created the effect/memo instead of the latest one, which is
+    fragile for live-tracking data.
+    Fix: either include the dependency, or explain via comment why it's
+    intentionally omitted (e.g. wrap the fn in a stable ref).
+
+3.7 Schema drift risk in 20260624000002_superiority_features.sql
+    File: supabase/migrations/20260624000002_superiority_features.sql
+    Creates a trigger `EXECUTE FUNCTION update_updated_at_column()`, but that
+    function is never defined in any tracked migration (only `set_updated_at`
+    exists elsewhere). If it doesn't already exist out-of-band in the live DB, this
+    migration — and therefore the `escrows`/`route_batches` tables it creates —
+    fails to apply, which would also break the later
+    `20260707000000_launch_readiness_fixes.sql` migration that assumes `escrows`
+    already exists (it does `DROP POLICY ... ON public.escrows`).
+    Fix: confirm whether `update_updated_at_column` actually exists in the live
+    Supabase project; if not, add it to the migration or replace with
+    `set_updated_at`.
+
+3.8 wallets table has no floor constraint
+    File: supabase/migrations/20260707000000_launch_readiness_fixes.sql
+    (`_wallet_credit`, `wallets` table)
+    `balance_xof` has no `CHECK (balance_xof >= 0)`. Today only credit-type calls
+    exist, so it's not exploitable yet, but there's no DB-level guard against a
+    future debit path driving a balance negative.
+    Fix: `ALTER TABLE wallets ADD CONSTRAINT wallets_balance_nonneg CHECK
+    (balance_xof >= 0)`.
+
+================================================================================
+4. LOW — hygiene, dead config, code smell
+================================================================================
+
+4.1 Dual, possibly conflicting deploy targets
+    Files: vercel.json (defines CSP/HSTS/X-Frame-Options headers) vs
+    wrangler.jsonc (Cloudflare Worker, no equivalent headers) vs vite.config.ts
+    branching on `process.env.VERCEL`. Both targets appear intentionally live. If
+    Cloudflare is actually serving any traffic, it ships with none of the security
+    headers Vercel gets.
+    Fix: confirm which target is production; either add equivalent headers to the
+    Worker response (src/server.ts) or remove/park the unused config so there's one
+    source of truth.
+
+4.2 Dead wildcard CORS export
+    File: supabase/functions/_shared/cors.ts:28-32
+    Unused `corsHeaders` constant sets `Access-Control-Allow-Origin: "*"`. Neither
+    current function imports it, but it's a trap for a future function that does.
+    Fix: delete it.
+
+4.3 Unused-variable checking fully disabled
+    Files: tsconfig.json:19-20 (`noUnusedLocals`/`noUnusedParameters: false`),
+    eslint.config.js:36 (`@typescript-eslint/no-unused-vars: "off"`)
+    Dead code and leftover debug variables won't be caught by either the compiler
+    or the linter.
+    Fix: re-enable at least the ESLint rule as a warning.
+
+4.4 Widespread `any` usage defeats type safety in exactly the places that need it
+    ~35 occurrences of `@typescript-eslint/no-explicit-any` across the codebase,
+    concentrated in the riskiest files: src/hooks/use-agora-call.ts (6),
+    src/routes/_authenticated/app.chat.$cid.tsx (5), src/routes/admin/drivers.tsx (5),
+    src/routes/_authenticated/app.wallet.tsx (4), plus one on every route's
+    `roles.some((r: any) => ...)` role check (admin.tsx:26, dispatcher.tsx:23,
+    merchant.tsx:25, rider.tsx:33/70, support.tsx:23). The generated Supabase
+    `Database` type already has a proper type for `user_roles.role` — these should
+    be typed, not `any`, since role checks are the actual authorization gate for
+    entire route trees.
+    Fix: replace `(r: any) => r.role === ...` with the generated
+    `Database['public']['Tables']['user_roles']['Row']` type; type the Agora SDK
+    callback params from `agora-rtc-sdk-ng`'s own types instead of `any`.
+
+4.5 Two empty catch blocks swallow errors silently
+    File: src/hooks/use-agora-call.ts:40,46 (`catch {}` around `track.stop()` /
+    `track.close()` and `client.leave()`)
+    Acceptable for best-effort cleanup, but worth at least a `console.debug` so a
+    failed teardown isn't completely invisible when debugging call issues.
+
+4.6 Stale generated/debug artifacts committed to git
+    Files: ts-errors.txt (root, dated May 2026, predates fixes — 0 real errors now),
+    screenshot.png (root, purpose unclear from filename alone)
+    Fix: delete ts-errors.txt; move screenshot.png out of the repo root or into a
+    docs/ folder if it's meant to be kept, otherwise delete.
+
+4.7 prefer-const violation
+    File: src/routes/admin/drivers.tsx:43 — `q` is declared with `let` but never
+    reassigned.
+    Fix: change to `const` (trivial, `eslint --fix` handles this).
+
+4.8 Unnecessary escape character
+    File: supabase/functions/agora-token/index.ts:59 — `\-` inside a character
+    class/regex is a no-op escape.
+    Fix: remove the backslash (`eslint --fix` handles this).
+
+================================================================================
+5. HOW TO REPRODUCE THE BASELINE CHECKS
+================================================================================
+  npx tsc --noEmit -p tsconfig.json     # 0 errors currently
+  npx eslint .                          # 658 problems, 593 auto-fixable
+  npm audit --omit=dev                  # 0 known vulnerabilities in prod deps
+
+================================================================================
+SUGGESTED FIX ORDER
+================================================================================
+  1. Section 1 (1.1–1.7) — these are exploitable today and involve real money/data.
+     1.1 and 1.2 are the most urgent (direct fund diversion / order hijacking).
+  2. Section 2 (2.1–2.4) — call-token and translation IDOR, CORS.
+  3. Section 3 — functional correctness bugs affecting real users.
+  4. Section 4 — cleanup, can be batched into a single housekeeping PR.
+
+################################################################################
+# DETAILED FIX PLAN — concrete code/SQL for every finding above               #
+# Added 2026-07-17. Each block is written against the code as it exists now  #
+# (verified by re-reading the source), not paraphrased.                       #
+################################################################################
+
+--------------------------------------------------------------------------------
+FIX 1.1 — complete_delivery() payout redirection
+--------------------------------------------------------------------------------
+New migration file, e.g. supabase/migrations/20260718000000_fix_complete_delivery.sql:
+
+  CREATE OR REPLACE FUNCTION public.complete_delivery(
+    p_order_id uuid,
+    p_otp      text
+  )
+  RETURNS boolean
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path = public
+  AS $$
+  DECLARE
+    v_otp         text;
+    v_status      text;
+    v_price       bigint;
+    v_commission  bigint;
+    v_rider_id    uuid;
+    v_rider_user  uuid;
+    rows_affected integer;
+  BEGIN
+    SELECT o.delivery_otp, o.status, o.price_xof, o.commission_xof, o.rider_id
+    INTO   v_otp, v_status, v_price, v_commission, v_rider_id
+    FROM   public.orders o
+    WHERE  o.id = p_order_id;
+
+    IF NOT FOUND                        THEN RETURN false; END IF;
+    IF v_status != 'in_transit'         THEN RETURN false; END IF;
+    IF v_otp IS NULL OR v_otp != p_otp  THEN RETURN false; END IF;
+
+    -- Derive the payee from the order's assigned rider — never trust a
+    -- client-supplied wallet/user id for a money-moving operation.
+    SELECT user_id INTO v_rider_user FROM public.riders WHERE id = v_rider_id;
+    IF v_rider_user IS NULL THEN RETURN false; END IF;
+
+    -- Only the assigned rider (or an admin, for support overrides) may confirm.
+    IF v_rider_user != auth.uid() AND NOT public.has_role(auth.uid(), 'admin') THEN
+      RETURN false;
+    END IF;
+
+    UPDATE public.orders
+    SET    status = 'delivered', delivered_at = now()
+    WHERE  id = p_order_id AND status = 'in_transit';
+    GET DIAGNOSTICS rows_affected = ROW_COUNT;
+
+    IF rows_affected != 1 THEN RETURN false; END IF;
+
+    INSERT INTO public.order_events (order_id, status, created_by)
+    VALUES (p_order_id, 'delivered', v_rider_user);
+
+    UPDATE public.riders SET total_deliveries = total_deliveries + 1
+    WHERE id = v_rider_id;
+
+    PERFORM public._wallet_credit(
+      v_rider_user,
+      GREATEST(v_price - v_commission, 0),
+      'payout',
+      NULL,
+      p_order_id,
+      'Delivery payout'
+    );
+    RETURN true;
+  END;
+  $$;
+
+  GRANT EXECUTE ON FUNCTION public.complete_delivery(uuid, text) TO authenticated;
+
+Mods needed on the client:
+  - Wherever `complete_delivery` is invoked (search for it in
+    src/routes/rider/*.tsx and src/routes/_authenticated/app.track.$orderId.tsx),
+    drop the `p_rider_user_id` argument from the call — the function no longer
+    accepts it.
+
+--------------------------------------------------------------------------------
+FIX 1.2 + 1.6 — claim_order() hijacking, and dispatcher's non-atomic assignment
+--------------------------------------------------------------------------------
+Same migration file as above, or a new one. Rewrite claim_order to (a) derive the
+caller from auth.uid() instead of trusting p_user_id, and (b) support two valid
+callers: the rider themself, or a dispatcher/admin assigning on a rider's behalf
+(this also fixes 1.6, since dispatcher/index.tsx should route through this RPC):
+
+  CREATE OR REPLACE FUNCTION public.claim_order(
+    p_order_id uuid,
+    p_rider_id uuid
+  )
+  RETURNS boolean
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path = public
+  AS $$
+  DECLARE
+    rows_affected integer;
+    v_is_self     boolean;
+  BEGIN
+    SELECT EXISTS (
+      SELECT 1 FROM public.riders WHERE id = p_rider_id AND user_id = auth.uid()
+    ) INTO v_is_self;
+
+    IF NOT (
+      v_is_self
+      OR public.has_role(auth.uid(), 'dispatcher')
+      OR public.has_role(auth.uid(), 'admin')
+    ) THEN
+      RETURN false;
+    END IF;
+
+    UPDATE public.orders
+    SET    rider_id = p_rider_id, status = 'rider_assigned'
+    WHERE  id = p_order_id AND status = 'searching_rider' AND rider_id IS NULL;
+
+    GET DIAGNOSTICS rows_affected = ROW_COUNT;
+
+    IF rows_affected = 1 THEN
+      INSERT INTO public.order_events (order_id, status, created_by)
+      VALUES (p_order_id, 'rider_assigned', auth.uid());
+      RETURN true;
+    END IF;
+    RETURN false;
+  END;
+  $$;
+
+  GRANT EXECUTE ON FUNCTION public.claim_order(uuid, uuid) TO authenticated;
+
+Mods needed on the client:
+
+  1) src/routes/rider/dispatch.tsx:75-78 — drop p_user_id, the RPC signature changed:
+       const { data: claimed, error } = await supabase.rpc("claim_order", {
+         p_order_id: orderId,
+         p_rider_id: rider.id,
+       });
+
+  2) src/routes/dispatcher/index.tsx:54-65 — replace the raw `.update()` in
+     `assignRider` with the RPC call, and check the boolean result:
+       mutationFn: async ({ orderId, riderId }: { orderId: string; riderId: string }) => {
+         const { data: claimed, error } = await supabase.rpc("claim_order", {
+           p_order_id: orderId,
+           p_rider_id: riderId,
+         });
+         if (error) throw error;
+         if (!claimed) throw new Error("Order already taken");
+       },
+     and update the onError handler to show "Order was just taken" similarly to
+     rider/dispatch.tsx's acceptOrder mutation.
+
+--------------------------------------------------------------------------------
+FIX 1.5 — rate_delivery() rating spoofing
+--------------------------------------------------------------------------------
+In the migration that defines it (20260519300000_delivery_features.sql), replace
+the function so it no longer accepts p_customer_id as a parameter — drop the
+column from the signature and use auth.uid() inside:
+
+  CREATE OR REPLACE FUNCTION public.rate_delivery(
+    p_order_id uuid,
+    p_rating   integer,
+    p_comment  text DEFAULT NULL
+  )
+  RETURNS boolean
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path = public
+  AS $$
+  BEGIN
+    UPDATE public.orders
+    SET customer_rating = p_rating, customer_rating_comment = p_comment
+    WHERE id = p_order_id
+      AND customer_id = auth.uid()   -- caller must be this order's customer
+      AND status = 'delivered';
+    RETURN FOUND;
+  END;
+  $$;
+
+(Adjust column names to whatever the real `orders` rating columns are — grep the
+current function body for the exact UPDATE target before applying.) Update every
+client call site to drop the `p_customer_id` argument.
+
+--------------------------------------------------------------------------------
+FIX 1.3 — orders UPDATE policy allows rewriting price/status directly
+--------------------------------------------------------------------------------
+This one needs a product decision before it can be applied blindly: customers
+legitimately need to change `status` to `cancelled` in some flow (check
+src/routes/_authenticated/app.orders.tsx and app.track.$orderId.tsx for a client
+cancel button before writing the trigger). Starting point — a BEFORE UPDATE
+trigger that allows admins/dispatchers to change anything, and allows customers
+exactly one self-service transition (cancel from a pre-dispatch state), but
+blocks every other protected-column change for non-privileged callers:
+
+  CREATE OR REPLACE FUNCTION public.enforce_order_update_guard()
+  RETURNS trigger
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path = public
+  AS $$
+  BEGIN
+    IF public.has_role(auth.uid(), 'admin') OR public.has_role(auth.uid(), 'dispatcher') THEN
+      RETURN NEW;
+    END IF;
+
+    -- Customer self-service cancel: only status may change, only from a
+    -- pre-dispatch state, only by the order's own customer.
+    IF auth.uid() = OLD.customer_id
+       AND OLD.status IN ('pending', 'searching_rider')
+       AND NEW.status = 'cancelled'
+       AND NEW.price_xof      IS NOT DISTINCT FROM OLD.price_xof
+       AND NEW.commission_xof IS NOT DISTINCT FROM OLD.commission_xof
+       AND NEW.rider_id       IS NOT DISTINCT FROM OLD.rider_id THEN
+      RETURN NEW;
+    END IF;
+
+    -- Everything else: money/state fields are immutable for non-privileged callers.
+    IF NEW.price_xof      IS DISTINCT FROM OLD.price_xof
+       OR NEW.commission_xof IS DISTINCT FROM OLD.commission_xof
+       OR NEW.status         IS DISTINCT FROM OLD.status
+       OR NEW.rider_id       IS DISTINCT FROM OLD.rider_id
+       OR NEW.customer_id    IS DISTINCT FROM OLD.customer_id THEN
+      RAISE EXCEPTION 'Direct modification of protected order fields is not allowed';
+    END IF;
+
+    RETURN NEW;
+  END;
+  $$;
+
+  CREATE TRIGGER trg_enforce_order_update_guard
+  BEFORE UPDATE ON public.orders
+  FOR EACH ROW EXECUTE FUNCTION public.enforce_order_update_guard();
+
+Before shipping this, audit every client-side `.from("orders").update(...)` call
+(book/track/rider/dispatcher routes) to confirm the only non-privileged update
+path left is the cancel case above — anything else needs its own RPC the way
+claim_order/complete_delivery already work.
+
+--------------------------------------------------------------------------------
+FIX 1.4 — wallet_transactions missing INSERT policy
+--------------------------------------------------------------------------------
+Add to a new migration:
+
+  CREATE POLICY "tx_own_insert" ON public.wallet_transactions
+  FOR INSERT TO authenticated
+  WITH CHECK (
+    auth.uid() = user_id
+    AND type = 'topup'
+    AND status = 'pending'
+    AND EXISTS (
+      SELECT 1 FROM public.wallets w
+      WHERE w.id = wallet_transactions.wallet_id AND w.user_id = auth.uid()
+    )
+  );
+
+No client changes needed — src/routes/_authenticated/app.wallet.tsx:119-127
+(`confirmTopup`) already inserts `{ wallet_id, user_id, type: "topup",
+amount_xof, reference, description }` with no `status` field, so also add
+`status: "pending"` explicitly in that insert call to match the WITH CHECK
+above (relying on a column default is fragile once the policy checks it
+explicitly):
+
+  const { error } = await supabase.from("wallet_transactions").insert({
+    wallet_id: w.id,
+    user_id: user!.id,
+    type: "topup",
+    status: "pending",
+    amount_xof: amountXof,
+    reference,
+    description: t("wallet.pending_topup" as any).replace("{reference}", reference),
+  });
+
+--------------------------------------------------------------------------------
+FIX 1.7 — merchant API keys stored in plaintext
+--------------------------------------------------------------------------------
+Requires a new edge function (or extending an existing merchant-key-issuing one)
+since hashing must happen before the row is written, and the raw key can only be
+shown once. Recommended shape:
+
+  1. Client calls a new `merchant-api-keys/create` edge function (service-role,
+     not a direct table insert) with the merchant id.
+  2. The function generates a random key: `crypto.randomUUID() +
+     crypto.randomUUID()` (or `crypto.getRandomValues`), keeps a short prefix
+     (e.g. first 8 chars) for display, and stores a SHA-256 hash of the full key
+     via Web Crypto (`crypto.subtle.digest("SHA-256", ...)`, available natively
+     in Deno — no extra dependency needed):
+       const raw = cryptoRandomKey();                 // e.g. "rpd_live_<32 hex>"
+       const hash = toHex(await crypto.subtle.digest("SHA-256",
+         new TextEncoder().encode(raw)));
+       await supabaseAdmin.from("merchant_api_keys").insert({
+         merchant_id, key_hash: hash, key_prefix: raw.slice(0, 12), is_active: true,
+       });
+       return new Response(JSON.stringify({ key: raw }));   // shown once only
+  3. On each authenticated API call using a merchant key, hash the presented key
+     the same way and look up by `key_hash`, never by comparing raw strings.
+  4. Rotate/revoke any keys already issued in plaintext under the current scheme
+     — they must be treated as already compromised once this ships.
+
+--------------------------------------------------------------------------------
+FIX 2.1 — agora-token missing channel-membership check
+--------------------------------------------------------------------------------
+File: supabase/functions/agora-token/index.ts. Insert a membership check between
+the existing uid/channelName validation (line 71) and token minting (line 73).
+Since `channelName` is `call-${conversationId}` (src/hooks/use-agora-call.ts:29),
+extract the id and check the `conversations` table:
+
+    const conversationId = channelName.replace(/^call-/, "");
+    const { data: convo, error: convoErr } = await supabase
+      .from("conversations")
+      .select("participant_1, participant_2")
+      .eq("id", conversationId)
+      .single();
+
+    if (convoErr || !convo ||
+        (convo.participant_1 !== user.id && convo.participant_2 !== user.id)) {
+      return new Response(JSON.stringify({ error: "Forbidden" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const appId = Deno.env.get("AGORA_APP_ID")!;
+    // ...rest unchanged
+
+--------------------------------------------------------------------------------
+FIX 2.2 — translate function allows overwriting arbitrary message rows
+--------------------------------------------------------------------------------
+File: supabase/functions/translate/index.ts:103-108. Replace the unconditional
+update with one scoped to the caller's own conversations:
+
+    if (messageId && typeof messageId === "string" && messageId.length === 36) {
+      const { data: msg } = await supabase
+        .from("messages")
+        .select("conversation_id, conversations!inner(participant_1, participant_2)")
+        .eq("id", messageId)
+        .single();
+
+      const convo = msg?.conversations as { participant_1: string; participant_2: string } | undefined;
+      const isParticipant = convo && (convo.participant_1 === user.id || convo.participant_2 === user.id);
+
+      if (isParticipant) {
+        await supabase
+          .from("messages")
+          .update({ translated_content: translated, translate_from: detectedLang })
+          .eq("id", messageId);
+      }
+      // else: silently skip the cache write — the translation is still returned below
+    }
+
+(Adjust the join syntax to match the actual FK name in the generated Supabase
+types if `conversations!inner` doesn't resolve — check src/integrations/supabase/types.ts.)
+
+--------------------------------------------------------------------------------
+FIX 2.3 — CORS allowlist missing production origin
+--------------------------------------------------------------------------------
+File: supabase/functions/_shared/cors.ts:5-11. Uncomment and confirm the actual
+domain(s):
+
+  const ALLOWED_ORIGINS = new Set([
+    "http://localhost:5173",
+    "http://localhost:4173",
+    "https://rapide-africa.vercel.app",   // adjust to the real Vercel project URL
+    "https://rapide.africa",              // production custom domain
+  ]);
+
+Note: today the fallback (`"https://rapide.africa"`, line 17) happens to equal
+the intended production domain, so requests actually from that exact origin
+currently work by coincidence — but any Vercel preview URL, staging domain, or
+future domain change will silently fail CORS. Don't rely on the fallback;
+list every real origin explicitly.
+
+--------------------------------------------------------------------------------
+FIX 2.4 — rate limiter check-then-insert race
+--------------------------------------------------------------------------------
+File: supabase/functions/_shared/rateLimiter.ts. Move the check+insert into a
+single SQL function so it's atomic under concurrent calls:
+
+  CREATE OR REPLACE FUNCTION public.check_and_log_rate_limit(
+    p_user_action text,
+    p_max_requests integer,
+    p_window_seconds integer
+  ) RETURNS boolean
+  LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+  AS $$
+  DECLARE v_count integer;
+  BEGIN
+    LOCK TABLE public.rate_limit_log IN SHARE ROW EXCLUSIVE MODE;
+    SELECT count(*) INTO v_count FROM public.rate_limit_log
+    WHERE user_action = p_user_action
+      AND created_at >= now() - (p_window_seconds || ' seconds')::interval;
+
+    IF v_count >= p_max_requests THEN RETURN false; END IF;
+
+    INSERT INTO public.rate_limit_log (user_action) VALUES (p_user_action);
+    RETURN true;
+  END;
+  $$;
+
+Then rateLimiter.ts becomes a single RPC call:
+
+  export async function checkRateLimit(supabase, userId, action, maxRequests, windowSeconds) {
+    const { data: allowed } = await supabase.rpc("check_and_log_rate_limit", {
+      p_user_action: `${userId}:${action}`,
+      p_max_requests: maxRequests,
+      p_window_seconds: windowSeconds,
+    });
+    return { allowed: !!allowed, remaining: undefined };
+  }
+
+(A table-level lock is heavy-handed at scale but correct; if `rate_limit_log`
+gets busy, switch to `SELECT ... FOR UPDATE` on a per-key counter row instead of
+the raw event-log table.) Keep the existing fire-and-forget prune logic, just
+move it outside the locked section or run it as a periodic job instead.
+
+--------------------------------------------------------------------------------
+FIX 3.1 — app.errand.tsx unvalidated price
+--------------------------------------------------------------------------------
+File: src/routes/_authenticated/app.errand.tsx:27-63. Add validation before the
+insert and compute commission consistently with pricing.ts's 18% model:
+
+  const handleSubmit = async () => {
+    if (!description || !budget || !dropoff) {
+      toast.error("Please fill all fields");
+      return;
+    }
+    const budgetNum = Number(budget);
+    if (!Number.isFinite(budgetNum) || budgetNum <= 0) {
+      toast.error("Enter a valid budget amount");
+      return;
+    }
+    const priceXof = Math.round(budgetNum) + 1500;
+    const commissionXof = Math.round(priceXof * 0.18);
+    ...
+    price_xof: priceXof,
+    commission_xof: commissionXof,
+
+(Once FIX 1.3's trigger ships, this client-computed price is only a display/UX
+concern, not a security one — but it should still be correct and consistent.)
+
+--------------------------------------------------------------------------------
+FIX 3.2 — realtime channel leak in rider/dispatch.tsx
+--------------------------------------------------------------------------------
+File: src/routes/rider/dispatch.tsx:52-69. Change the cleanup function:
+
+  return () => {
+    if (channelRef.current) supabase.removeChannel(channelRef.current);
+  };
+
+--------------------------------------------------------------------------------
+FIX 3.3 — receipt itemization mismatch
+--------------------------------------------------------------------------------
+File: src/routes/_authenticated/app.book.tsx:578-582 and src/lib/pricing.ts:16-26.
+Export the insurance surcharge as a named constant from pricing.ts instead of
+inlining `300` there and `500` in the receipt:
+
+  // pricing.ts
+  export const INSURANCE_SURCHARGE_XOF = 300;
+  export function quote(...) {
+    ...
+    if (opts.insurance) price += INSURANCE_SURCHARGE_XOF;
+    ...
+  }
+
+  // app.book.tsx
+  import { fmtXOF, INSURANCE_SURCHARGE_XOF } from "@/lib/pricing";
+  ...
+  <ReceiptRow
+    label={t("book.base_fare")}
+    value={fmtXOF(pricing.price_xof - (insurance ? INSURANCE_SURCHARGE_XOF : 0))}
+  />
+  {insurance && (
+    <ReceiptRow label={t("book.insurance")} value={fmtXOF(INSURANCE_SURCHARGE_XOF)} />
+  )}
+
+--------------------------------------------------------------------------------
+FIX 3.4 — fake "AI address resolution"
+--------------------------------------------------------------------------------
+File: src/hooks/use-ai-address.ts, src/components/rapide/AddressSearch.tsx:191-209.
+Two options, pick one:
+  (a) Remove the "AI" button entirely until a real geocoding backend exists —
+      users already have working search-as-you-type via Nominatim in the same
+      component, so nothing is lost.
+  (b) Keep it, but make resolveAddress() call a real edge function that hits a
+      geocoding API (Mapbox is already a configured env var:
+      VITE_MAPBOX_TOKEN) instead of matching 3 hardcoded keywords, and remove
+      the fixed fallback coordinate — if resolution fails, return null and let
+      the UI show "couldn't resolve, try search instead" rather than silently
+      planting a pin at a made-up location.
+Given this is pre-launch, (a) is the safer default; ship (b) later as a real
+feature.
+
+--------------------------------------------------------------------------------
+FIX 3.5 — client-side rate limiter is UX-only
+--------------------------------------------------------------------------------
+File: src/hooks/use-rate-limit.ts. No code change required — just don't add new
+security-sensitive call sites that rely on this hook alone. Add a one-line
+comment at the top of the file documenting that it's UX-only and the server-side
+limiter (fixed in 2.4) is the real gate.
+
+--------------------------------------------------------------------------------
+FIX 3.6 — missing hook dependencies
+--------------------------------------------------------------------------------
+  - src/routes/_authenticated/app.track.$orderId.tsx:231,237 — add `order` to
+    both `useMemo` dependency arrays (or `order?.id`/whatever subset is actually
+    read inside, if the full object churns too often for memoization to help).
+  - src/routes/rider/index.tsx:279 — add `pingGPS` to the `useEffect` deps, or
+    wrap `pingGPS` in `useCallback` first if it's redefined every render and
+    would otherwise re-trigger the effect constantly.
+
+--------------------------------------------------------------------------------
+FIX 3.7 — undefined update_updated_at_column() function
+--------------------------------------------------------------------------------
+Run against the live Supabase project first (read-only):
+  select proname from pg_proc where proname = 'update_updated_at_column';
+If it returns nothing, add the missing function in a migration that runs before
+20260624000002_superiority_features.sql (or inline right before its first use):
+
+  CREATE OR REPLACE FUNCTION public.update_updated_at_column()
+  RETURNS trigger LANGUAGE plpgsql AS $$
+  BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+  END;
+  $$;
+
+If the live DB already has it (defined out-of-band, e.g. via the Supabase
+dashboard), no migration is needed — just note it so the next engineer doesn't
+have to rediscover this.
+
+--------------------------------------------------------------------------------
+FIX 3.8 — wallets balance floor
+--------------------------------------------------------------------------------
+  ALTER TABLE public.wallets
+    ADD CONSTRAINT wallets_balance_nonneg CHECK (balance_xof >= 0);
+
+Apply this only after confirming no existing row already violates it
+(`SELECT * FROM wallets WHERE balance_xof < 0`), otherwise the migration itself
+will fail to apply.
+
+--------------------------------------------------------------------------------
+FIX 4.1 — dual Vercel/Cloudflare deploy config
+--------------------------------------------------------------------------------
+Decision needed from the team, not a pure code fix: confirm which target is
+actually production. If Vercel: delete wrangler.jsonc and the
+`@cloudflare/vite-plugin` dependency/branch in vite.config.ts. If Cloudflare:
+port the `headers` block from vercel.json into src/server.ts by adding them to
+every Response before it's returned, and delete vercel.json.
+
+--------------------------------------------------------------------------------
+FIX 4.2 — dead wildcard CORS export
+--------------------------------------------------------------------------------
+  Delete the `corsHeaders` export in supabase/functions/_shared/cors.ts:28-32
+  (confirmed unused by both functions that import from this module).
+
+--------------------------------------------------------------------------------
+FIX 4.3 — unused-variable checking disabled
+--------------------------------------------------------------------------------
+  eslint.config.js:36 — change `"@typescript-eslint/no-unused-vars": "off"` to
+  `"warn"` (start as a warning so it doesn't block existing work, tighten to
+  "error" once the current backlog is clean). Leave tsconfig.json's
+  noUnusedLocals/Parameters off unless the team wants the stricter compiler-level
+  enforcement too (ESLint's version already covers the "don't ship it" case).
+
+--------------------------------------------------------------------------------
+FIX 4.4 — `any` types, especially in role checks
+--------------------------------------------------------------------------------
+Add a shared type and reuse it everywhere a role list is checked
+(admin.tsx:26, dispatcher.tsx:23, merchant.tsx:25, rider.tsx:33/70, support.tsx:23):
+
+  // src/lib/roles.ts (new file)
+  import type { Database } from "@/integrations/supabase/types";
+  export type UserRole = Database["public"]["Tables"]["user_roles"]["Row"]["role"];
+  export function hasAnyRole(roles: { role: UserRole }[], allowed: UserRole[]) {
+    return roles.some((r) => allowed.includes(r.role));
+  }
+
+  // admin.tsx
+  const hasRole = hasAnyRole(roles, ["admin", "super_admin"]);
+  // dispatcher.tsx
+  const hasAccess = hasAnyRole(roles, ["dispatcher", "admin", "super_admin"]);
+
+For src/hooks/use-agora-call.ts's `any` usages (rtcClientRef, localTracksRef,
+remoteUser, mediaType callback), import the SDK's own types:
+  import type { IAgoraRTCClient, IMicrophoneAudioTrack, IAgoraRTCRemoteUser } from "agora-rtc-sdk-ng";
+and replace `useRef<any>(null)` with `useRef<IAgoraRTCClient | null>(null)`, etc.
+
+--------------------------------------------------------------------------------
+FIX 4.5 — empty catch blocks
+--------------------------------------------------------------------------------
+  File: src/hooks/use-agora-call.ts:40,46. Change:
+    try { track.stop(); track.close(); } catch {}
+  to:
+    try { track.stop(); track.close(); } catch (e) { console.debug("[call] track cleanup failed", e); }
+  and similarly for the `client.leave()` catch at line 46.
+
+--------------------------------------------------------------------------------
+FIX 4.6 — stale committed artifacts
+--------------------------------------------------------------------------------
+  git rm ts-errors.txt
+  git rm screenshot.png   # or `git mv screenshot.png docs/screenshot.png` if it's meant to be kept
+
+--------------------------------------------------------------------------------
+FIX 4.7 / 4.8 — trivial lint fixes
+--------------------------------------------------------------------------------
+  Both are auto-fixed by:
+    npx eslint . --fix
+  (src/routes/admin/drivers.tsx:43 `let q` → `const q`; agora-token/index.ts:59
+  unnecessary `\-` escape in the channelName regex.)
+
+################################################################################
+# SECTION 6 — CUSTOMER MODULE GAP AUDIT vs target spec (Uber Eats/Bolt-style)  #
+# Added 2026-07-20. STATUS: logged only, not yet fixed — per instruction to   #
+# finish building out all requested module changes first, then do one fix    #
+# pass over everything accumulated in this file (Sections 1-6).               #
+################################################################################
+
+6.1 [BUG] Call Rider button on tracking page does nothing
+    File: src/routes/_authenticated/app.track.$orderId.tsx:391-393
+    The phone-icon button in the rider card has no onClick handler at all. The
+    app already has a working voice-call stack (useAgoraCall + CallOverlay,
+    used elsewhere) that is simply never wired into this page.
+
+6.2 [BUG] Rider photo fetched but never rendered
+    File: src/routes/_authenticated/app.track.$orderId.tsx (riderProfile query
+    selects `avatar_url`, but the rider card at ~344-352 only ever renders a
+    text-initial avatar). Dead data fetch / missing UI.
+
+6.3 [MISSING] Cancel Order does not exist anywhere in the customer UI
+    No button, no route, on the tracking page or order history. Note: this is
+    also a precondition for FIX 1.3 in Section 1 (the orders-table lock-down
+    trigger) — that fix explicitly assumed a customer cancel path exists;
+    confirmed here that it doesn't yet, so 1.3's trigger exception needs a
+    real cancel flow to attach to, not a hypothetical one.
+
+6.4 [MISSING] Booking form: no package Size selector
+    File: src/routes/_authenticated/app.book.tsx — only weight (slider) is
+    collected, no small/medium/large (or dimensions) input.
+
+6.5 [MISSING] Booking form: "Scheduled" delivery never collects a pickup time
+    File: src/routes/_authenticated/app.book.tsx — `scheduled` is a selectable
+    DeliveryType but no date/time picker exists. The DB column
+    `orders.scheduled_for TIMESTAMPTZ` already exists and is unused —
+    schema was ready, UI was never built.
+
+6.6 [MISSING] Booking form: no photo upload
+    File: src/routes/_authenticated/app.book.tsx — same pattern as 6.5:
+    `orders.parcel_image_url TEXT` already exists in the schema and is never
+    set by the client.
+
+6.7 [DECISION NEEDED] Spec says "Google Maps"; app deliberately runs Leaflet + OSM/Nominatim
+    Prior commit d0fa5f4 explicitly replaced Mapbox with free Leaflet/Nominatim
+    "eradicating webgl issues and api keys." Reintroducing Google Maps means
+    reversing that decision and adding a paid, key-gated dependency back in.
+    Needs an explicit call: keep Leaflet/OSM, or deliberately reintroduce a
+    paid maps provider.
+
+6.8 [MISSING] Wallet: no Coupons, Referral Bonus, or Cashback
+    Grepped all migrations and src/ — zero tables, zero code. Net-new feature,
+    not a wiring gap (unlike 6.5/6.6 above).
+
+6.9 [MISSING] Wallet: Escrow balance not shown inline
+    src/routes/_authenticated/app.wallet.tsx only links out to /app/escrow;
+    doesn't surface the escrow balance on the wallet page itself.
+
+6.10 [MISSING] Wallet: no dedicated "Pending Refunds" summary
+    `refund` exists as a transaction_type value but nothing aggregates/surfaces
+    pending refunds specifically.
+
+6.11 [ARCHITECTURE] Address Book is fragmented across two disconnected localStorage keys
+    src/routes/_authenticated/app.profile.tsx keeps a flat add/remove list in
+    localStorage["saved_addresses"]; src/components/rapide/AddressSearch.tsx
+    independently keeps localStorage["rapide.recent-addresses"]. They don't
+    share data, neither is backed by the database (lost on device change /
+    cleared storage), and there's no Home/Office preset concept or "favorite"
+    flag — just a flat user-labeled list. Needs consolidating into one
+    DB-backed address book (new `saved_addresses` table, owner-scoped RLS)
+    before it can match the spec's Home/Office/Favorites/Recent structure.
+
+6.12 [MISSING] Order History: no "Pending" tab, no "Returned" status, no Invoices/Download Receipt
+    File: src/routes/_authenticated/app.orders.tsx — filter tabs are only
+    All/Active/Delivered/Cancelled (pending is folded into "active"). The
+    `order_status` enum in the DB
+    (supabase/migrations/20260517154310_...sql) has no 'returned' value at all
+    — adding it requires a schema migration, not just UI. No invoice list, no
+    download-receipt action anywhere. Rate Rider works, but only from the
+    tracking page post-delivery, not from the order history list itself.
+
+6.13 [MAJOR — MISSING] Notifications UI is fully built but nothing ever creates a notification for order/wallet events
+    Grepped every migration and all of src/ for callers of the
+    `create_notification` RPC (defined in
+    supabase/migrations/20260519000000_platform_expansion.sql:287): the ONLY
+    caller anywhere in the codebase is the voice-call signaling hack in
+    src/hooks/use-agora-call.ts:57. There is no trigger, RPC hook, or client
+    call that fires a notification on order status change (accepted/picked
+    up/delivered), wallet update (top-up approved), or promotions — despite
+    the notifications UI (src/routes/_authenticated/app.notifications.tsx)
+    having full type/icon/color support for all of these
+    (order_update/payment/promotion). A customer today would only ever
+    receive a notification if someone calls them. This is the single biggest
+    gap in the Customer Module spec — everything else is UI-level; this is a
+    missing backend wiring layer (needs DB triggers on `orders` status
+    changes and on `wallet_transactions`/`admin_approve_topup`, each calling
+    `create_notification`).
+
+################################################################################
+# SECTION 7 — RIDER MODULE GAP AUDIT vs target spec                           #
+# Added 2026-07-20. STATUS: logged only, not yet fixed.                       #
+################################################################################
+
+7.1 [BUG — FAKE DATA] Rider dashboard's "Weekly Performance" chart is hardcoded mock data
+    File: src/routes/rider/index.tsx:134-142 (`WEEKLY_DATA` — a static Mon-Sun
+    array) and line 620 (`+12% vs last week`, a hardcoded string, not computed).
+    This is shown to every rider regardless of their actual earnings. Notably,
+    src/routes/rider/earnings.tsx ALREADY computes a real 7-day chart from
+    actual `wallet_transactions` (see its `chartData` function) — the dashboard
+    should reuse that same real computation instead of the fake array.
+
+7.2 [BUG — FAKE DATA] "Accept. Rate" stat on rider dashboard is hardcoded
+    File: src/routes/rider/index.tsx:611-613 — literal text "94%", not derived
+    from any query. See 7.5 below: there's no data to compute it from yet
+    anyway (no acceptance/decline tracking exists in the schema).
+
+7.3 [MISSING] "Reject" on dispatch queue doesn't actually reject anything
+    File: src/routes/rider/dispatch.tsx — the incoming-order alert's "X"
+    button only calls `setNewOrder(null)`, dismissing the local popup. Nothing
+    is recorded server-side; the order simply stays in the queue for other
+    riders to see. There is no formal decline/reject action, which also means
+    there's no data source for a future Acceptance/Cancellation Rate (see 7.5).
+
+7.4 [MISSING] No dedicated Delivery History for riders
+    Unlike the customer's src/routes/_authenticated/app.orders.tsx (a real
+    order-by-order list), riders only get src/routes/rider/earnings.tsx, which
+    lists financial `wallet_transactions`, not actual past deliveries
+    (addresses, customer, timestamps, rating given). There's no
+    order-level history view for a rider at all.
+
+7.5 [MISSING — SCHEMA] No Acceptance Rate, Cancellation Rate, Average Delivery Time, or Badges
+    Checked the `riders` table (supabase/migrations/20260517154310_...sql):
+    only `rating` and `total_deliveries` exist. There is no
+    acceptance_rate/cancellation_rate/avg_delivery_time column anywhere, and
+    (per 7.3) no underlying event data to compute acceptance/cancellation
+    rate from even if the columns existed — accepts go through `claim_order`,
+    but declines/rejects/timeouts are never recorded anywhere. "Badges" has
+    zero schema or code presence — grepped the whole repo, only unrelated hits
+    (UI component named Badge, an i18n string). This is a net-new
+    feature+schema build, not a wiring gap.
+
+7.6 [MISSING] No Leaderboard
+    No ranking query, no schema support (would need to rank riders by
+    earnings/deliveries/rating over a period), no UI anywhere in the app.
+
+7.7 [MISSING] No Withdraw action on the rider earnings page
+    File: src/routes/rider/earnings.tsx — shows balance, stats, chart, and
+    transaction history, but has zero withdraw/payout-request action. Contrast
+    with the customer wallet (src/routes/_authenticated/app.wallet.tsx), which
+    has a full withdraw-request modal (creates a support ticket). Riders have
+    no equivalent way to request their wallet balance be paid out.
+
+7.8 [MISSING] No "Pending Payout" concept — earnings land in wallet instantly
+    `complete_delivery`'s `_wallet_credit` call (Section 1, FIX 1.1) credits
+    the rider's payout straight into their wallet balance the moment a
+    delivery is confirmed — there's no held/pending state before it becomes
+    available, so "Pending Payout" as a distinct figure doesn't exist in the
+    current money model. Worth confirming whether the target model is
+    "instant" (current) or "held until a payout cycle" (spec's wording implies
+    the latter) — this is a money-flow design decision, not just a UI gap.
+
+7.9 [MISSING] No Tips
+    `transaction_type` enum (topup, payment, refund, payout, bonus,
+    commission) has no 'tip' value at all — not even a wiring gap, tips
+    aren't representable in the schema yet.
+
+7.10 [PARTIAL] Bonuses: type exists, nothing ever creates one
+    `bonus` is a valid transaction_type and renders correctly in both
+    earnings.tsx and the customer wallet's tx list if a row exists, but
+    grepped the codebase — nothing (no RPC, no admin action, no trigger) ever
+    inserts a `bonus` transaction. Same "column ready, nothing populates it"
+    pattern as 6.8's coupons/cashback.
+
+Not gaps (confirmed working, no action needed):
+  - Today's/Weekly/Monthly earnings figures on earnings.tsx are real (computed
+    from actual wallet_transactions), unlike the dashboard's fake chart (7.1).
+  - Customer Rating and Total Deliveries are real (riders.rating,
+    riders.total_deliveries).
+  - Go Online/Offline, Nearby Orders, Accept, Navigation (Google Maps deep
+    link — different from in-app map rendering, see 6.7), Current Delivery
+    (status flow + OTP + chat/call) all work as specced.
+
+################################################################################
+# SECTION 8 — MERCHANT MODULE GAP AUDIT vs target spec ("Shopify meets        #
+# logistics"). Added 2026-07-20. STATUS: logged only, not yet fixed.          #
+################################################################################
+
+8.0 [NOTE] Finding 1.7 (plaintext merchant API keys) appears already fixed
+    File: src/routes/merchant/api-keys.tsx:14-34 — `generateKey()` +
+    `hashKey()` now compute a client-side SHA-256 hash via
+    `crypto.subtle.digest` before the insert; only `key_hash` (the hash) and
+    `key_prefix` (first 12 chars, for display) are stored, and the plaintext
+    key is shown exactly once in a "copy now" modal, matching the FIX 1.7
+    proposal in this file almost exactly. Leaving 1.7 in Section 1 for the
+    fix pass to double check (SHA-256 is a fast hash — fine for a
+    high-entropy random API key, but confirm that's the intended design vs.
+    bcrypt/argon2 — this isn't a password), but functionally the plaintext
+    storage problem is gone.
+
+8.1 [CONCEPTUAL GAP] "Shopify meets logistics" implies the merchant runs their
+    own storefront/business; the current module only tracks their delivery
+    spend
+    There is no `merchants` table at all — "merchant" is just a role on top
+    of the existing `profiles`/`orders` schema, with zero business-specific
+    fields (business name, tax ID, storefront). Everything the merchant
+    dashboard shows (Total Shipments, Delivered, Active, Total Spend) is
+    computed from `orders` where they are the `customer_id` — i.e. a
+    merchant today is modeled identically to a heavy individual customer,
+    not a business with its own revenue/inventory/customers. Items 8.5-8.10
+    below (Customer Database, Inventory, Staff Accounts, Branch Management,
+    Recurring Deliveries) all stem from this same root gap — they'd need a
+    real `merchants` business-entity table before they can exist.
+
+8.2 [BUG] Bulk CSV import geocodes every row to the same fixed point
+    File: src/routes/merchant/bulk.tsx:112-116 — every order in a bulk
+    upload gets `pickup_lat/lng` and `dropoff_lat/lng` hardcoded to
+    `6.3676, 2.4252` (central Cotonou) regardless of the actual addresses
+    typed in the CSV. Comment even says "production would geocode." This
+    means every bulk-uploaded order currently sends the rider to the same
+    coordinates no matter what address is on the order — live map, routing,
+    and dispatch would all be wrong for every bulk order. Needs the same
+    Nominatim geocoding already used in AddressSearch.tsx wired into the CSV
+    parse/submit flow (with rate-limit awareness — bulk uploads could be
+    hundreds of rows hitting Nominatim's free tier).
+
+8.3 [INCONSISTENCY] Bulk order commission rate (15%) differs from standard
+    booking commission rate (18%)
+    File: src/routes/merchant/bulk.tsx:121 uses
+    `Math.round(r.price_xof * 0.15)`; src/lib/pricing.ts's `quote()` (used by
+    the regular customer booking flow) uses 0.18. Unclear if this is an
+    intentional bulk/volume discount or a copy-paste inconsistency — needs a
+    product decision either way, then the rate should live in one shared
+    constant rather than two hardcoded literals.
+
+8.4 [MISSING] No Wallet / Business Wallet in the merchant portal at all
+    File: src/routes/merchant.tsx nav items are Dashboard, Bulk Orders, API
+    Keys, Invoicing only — no Wallet route/page. Merchants presumably still
+    have a row in the shared `wallets` table (same as any user), but there is
+    no merchant-portal UI to view balance, top up, or see transaction history
+    the way the customer app's Wallet page does. "Today's Orders" and
+    "Revenue" from the spec's Dashboard list are also not present as such:
+    the dashboard's KPI cards are all-time totals (Total Shipments/Delivered/
+    Active/Spend), not filtered to "today," and "Total Spend" is the
+    merchant's delivery cost, not a "Revenue" figure (see 8.1).
+
+8.5 [MISSING] No Customer Database
+    No table, no UI, for a merchant to store/manage their own repeat
+    recipients/customers (name, phone, delivery history per customer).
+    Depends on 8.1.
+
+8.6 [MISSING] No Inventory
+    No product/inventory tables or UI anywhere. This is the single biggest
+    "Shopify" expectation that's entirely absent — makes sense given the
+    platform is fundamentally logistics, not e-commerce, but it's a
+    net-new subsystem if the spec wants it. Depends on 8.1.
+
+8.7 [MISSING] No Recurring Deliveries
+    No scheduling/recurrence engine anywhere. `orders.scheduled_for` (see
+    6.5) is a single timestamp for one delivery, not a repeating rule
+    (e.g. "every Monday at 9am"). Would need a new `recurring_delivery_rules`
+    table plus a cron/edge-function job that materializes orders from active
+    rules.
+
+8.8 [MISSING] No Webhook Support
+    No webhooks table, no outbound delivery mechanism, no UI to register a
+    webhook URL or select events (order.created, order.delivered, etc.). The
+    API integration snippet in api-keys.tsx only documents inbound REST
+    calls — nothing about the platform notifying the merchant's system.
+
+8.9 [PARTIAL] Delivery Analytics is just 4 KPI cards, not a dedicated page
+    src/routes/merchant/index.tsx has Total Shipments/Delivered/Active/Spend
+    and a 5-row recent-shipments table — no trends, no charts, no
+    breakdown by category/route/time, no dedicated `/merchant/analytics`
+    route (unlike admin's `admin/analytics.tsx` or the rider earnings chart).
+
+8.10 [MISSING] No Staff Accounts or Branch Management
+    The role model is strictly one-role-per-user — there's no concept of a
+    merchant account having multiple staff logins with different
+    permissions, and no multi-location/branch concept (e.g. per-branch
+    pickup addresses, per-branch order routing). Both depend on 8.1 (a real
+    merchants business-entity table) plus a new staff/branch membership
+    model layered on top of the existing single-role `user_roles` design.
+
+Not gaps (confirmed working, no action needed):
+  - Bulk Upload + CSV Import work end-to-end (parse, validate, preview,
+    chunked submit) aside from the geocoding bug in 8.2.
+  - API Access is real and — per 8.0 — appears to already store keys hashed
+    correctly, with a proper reveal-once UX.
+  - Invoices work: real per-month aggregation from delivered orders, 18%
+    TVA calculation, printable/downloadable HTML invoice.
+
+################################################################################
+# SECTION 9 — DISPATCHER MODULE GAP AUDIT vs target spec                      #
+# Added 2026-07-20. STATUS: logged only, not yet fixed.                       #
+# This module is the least built-out of the four audited so far — today it   #
+# only really does one thing: assign an unassigned order to an online rider. #
+################################################################################
+
+9.1 [MISSING] Live Map shows only unassigned orders, not "every delivery"
+    File: src/routes/dispatcher/index.tsx — the `dispatcher-orders` query
+    filters `.eq("status", "searching_rider")` only. Orders that are
+    rider_assigned / rider_arriving / picked_up / in_transit / delivered /
+    cancelled / failed are invisible on this dashboard entirely. A dispatcher
+    today cannot see the full operational picture, only the queue of orders
+    still waiting for a rider.
+
+9.2 [MISSING] "Every Rider" is really "every online rider" — no idle vs busy split
+    The `dispatcher-riders` query filters `.eq("is_online", true)` only
+    (fine — offline riders aren't actionable), but among online riders there
+    is no distinction between idle (available) and busy (currently on a
+    delivery). The `riders` table has no status field for this (only
+    `is_online` boolean) — a rider mid-delivery shows identically to one
+    who's free, so a dispatcher can't tell who's actually assignable at a
+    glance. Would need either a computed join against active orders
+    (`rider_id` with a non-terminal status) or a dedicated `riders.status`
+    enum (idle/busy/offline).
+
+9.3 [MISSING] No Alerts system at all
+    No table, no UI, no concept of a system-generated alert (e.g. "order
+    stuck in searching_rider for 20 minutes," "rider hasn't moved in 10
+    minutes"). Zero schema or code presence anywhere.
+
+9.4 [BUG — carried over from 1.6/8] Assign Rider uses an unsafe raw update
+    Already logged as Section 1 finding 1.6: src/routes/dispatcher/index.tsx
+    `assignRider` does a bare `.update()` with no `status='searching_rider'`
+    precondition — race condition risk, and the FIX 1.2+1.6 plan in this file
+    already covers routing this through a fixed `claim_order` RPC instead.
+    Repeating here only because it's directly relevant to this module's
+    "Assign Rider" capability.
+
+9.5 [MISSING] Reassign Rider
+    No way to change `rider_id` on an order already assigned to a different
+    rider (e.g. if the original rider goes offline or is unreachable
+    mid-delivery). No UI, no RPC.
+
+9.6 [MISSING] Pause Delivery
+    No "paused" concept anywhere in `order_status` or the UI.
+
+9.7 [MISSING] Cancel Delivery (dispatcher side)
+    Same underlying gap as customer-side 6.3 (Cancel Order doesn't exist in
+    the customer UI either) — there is no cancel action anywhere in the
+    app, for any role, on an in-flight order.
+
+9.8 [PARTIAL] Contact Customer / Contact Rider are display-only, not actionable
+    File: src/routes/dispatcher/index.tsx:149,187 — phone numbers are
+    rendered as plain text (`{o.profiles?.phone}`, `{r.profiles?.phone}`),
+    not as `tel:` links or call/message buttons. A dispatcher has to
+    manually copy/dial rather than tap to contact.
+
+9.9 [MISSING] Resolve Delays
+    No delay detection exists anywhere — nothing computes "this order has
+    been in status X longer than expected." Would need an expected-duration
+    baseline per delivery_type/distance and a computed "is this late" flag,
+    which doesn't exist today even as raw data.
+
+9.10 [MISSING] Monitor Traffic
+    No traffic-data integration anywhere (would require a third-party
+    traffic/routing API — Leaflet/OSM's free routing doesn't include live
+    traffic). Net-new external dependency if this is required.
+
+9.11 [MISSING] Priority Queue
+    No `priority` column on `orders` (confirmed via schema grep) — the
+    unassigned-orders queue is plain FIFO by `created_at`. No way to flag an
+    order urgent/VIP and have it sort to the top.
+
+9.12 [MISSING] Emergency Escalation
+    No schema, no UI, no workflow for escalating a stuck/problem order to a
+    human (e.g., to admin or support). Zero presence in the codebase.
+
+9.13 [MISSING] Dashboard widget: Delayed Orders
+    Depends on 9.9 (no delay computation exists to power this widget).
+
+9.14 [MISSING — dead enum value] Dashboard widget: Failed Deliveries
+    Grepped the entire codebase for `'failed'` / `"failed"`: the
+    `order_status` enum defines it and one customer-side filter groups it
+    under "cancelled," but nothing anywhere — no RPC, no trigger, no manual
+    action in any admin/dispatcher screen — ever transitions an order TO
+    'failed'. It is a completely dead status with no write path, so a
+    "Failed Deliveries" widget would have zero data to show even if built
+    today. Needs both: (a) a real trigger for when an order should become
+    'failed' (e.g. rider cancels repeatedly, delivery window expires), and
+    (b) the dispatcher widget itself.
+
+Not gaps (confirmed working, no action needed):
+  - Live Map renders correctly for the orders/riders it does query (pickup/
+    dropoff/rider markers, route line when an order is selected).
+  - Assign Rider works functionally today (modulo the race-condition fix
+    already tracked in 1.6/9.4) — clicking Assign on a rider does move the
+    order to rider_assigned.
+
+################################################################################
+# SECTION 10 — SUPPORT DASHBOARD GAP AUDIT vs target spec                     #
+# Added 2026-07-20. STATUS: logged only, not yet fixed.                       #
+################################################################################
+
+10.1 [MISSING] Search only covers ticket subject + submitter name — not
+     Customer/Phone/Order ID/Wallet/Rider/Merchant
+     File: src/routes/support/index.tsx:82-88 — the search box filters the
+     already-loaded ticket list by `t.subject` and `t.profiles?.full_name`
+     only. There is no way for a support agent to look someone up directly
+     by phone number, order code, wallet, rider, or merchant — support can
+     only navigate via existing tickets, not by pulling up a customer's full
+     context from an identifier. This is the core "support workbench" gap:
+     an agent on a phone call with a customer reading out an order code has
+     no way to jump straight to that order from this screen.
+
+10.2 [MISSING] Refund action
+     No refund button/flow anywhere in the support dashboard. `refund`
+     exists as a wallet_transactions type (see 6.10/7.9 context) and there's
+     no admin_reject_topup-style RPC for issuing a refund from support —
+     support can mark a ticket resolved but can't actually credit money back
+     to a customer from this screen.
+
+10.3 [MISSING] Chat Logs
+     No way to view a customer's or order's chat conversation from the
+     support dashboard — conversations/messages exist in the schema (used by
+     the in-app chat feature) but nothing surfaces them here.
+
+10.4 [MISSING] Escrow Status
+     Not shown or searchable from support at all.
+
+10.5 [MISSING] Delivery Timeline
+     No link from a ticket to the underlying order's `order_events` timeline
+     — the same timeline data that powers the customer's tracking page
+     (app.track.$orderId.tsx) isn't surfaced anywhere in the support tool.
+
+Not gaps (confirmed working, no action needed):
+  - Support Ticket management itself is solid: list, filter by status,
+    priority display, expand for full message, and status transitions
+    (open/in_progress/resolved/closed) all work.
+
+################################################################################
+# SECTION 11 — ADMIN DASHBOARD GAP AUDIT vs target spec ("Everything.")       #
+# Added 2026-07-20. STATUS: logged only, not yet fixed.                       #
+################################################################################
+
+11.1 [BUG] Admin Users search silently fails for phone-number queries
+     File: src/routes/admin/users.tsx:49-78 — the server-side query only
+     filters with `.ilike("full_name", ...)` (line 64) when `search` is
+     non-empty; the client-side `filteredUsers` filter (line 167-174) then
+     also checks `u.phone?.includes(search)`, which reads as if phone search
+     is supported, but it can never actually surface a match: if the search
+     text isn't a substring of any user's name, the server query already
+     returned zero rows before the phone check ever runs. Searching a phone
+     number therefore always shows "No users found" even when that phone
+     exists in the system. Fix: OR the phone condition into the server-side
+     query (`.or('full_name.ilike.%x%,phone.ilike.%x%')`) instead of relying
+     on a client-side filter over an already-filtered result set.
+
+11.2 [BROKEN LINK] Admin sidebar links to "/admin/support" — route doesn't exist
+     File: src/routes/admin.tsx navItems includes `{ to: "/admin/support",
+     label: "Support" }`, but there is no `src/routes/admin/support.tsx` —
+     confirmed via directory listing (only analytics/drivers/finance/index/
+     users exist). Clicking "Support" in the admin sidebar 404s today. Note
+     there IS a working Support module, but it lives at the separate
+     `/support` URL for the `support` role — it isn't embedded in or
+     reachable from the admin dashboard itself.
+
+11.3 [MISSING] No Escrow admin view
+     Only a customer-facing escrow page exists
+     (src/routes/_authenticated/app.escrow.tsx). The `escrows` table exists
+     in the DB (Section 1 finding 1.3/RLS work references
+     `admin_manage_escrows`), but there's no admin UI to view or act on
+     escrows platform-wide.
+
+11.4 [PARTIAL] Wallet: only a top-10-by-balance list, no individual lookup or
+     manual adjustment
+     File: src/routes/admin/finance.tsx:161-171 — "Platform Float" shows the
+     top 10 wallets by balance and a total float figure, plus the pending
+     top-up approve/reject queue (which works well). But there's no way to
+     search for a specific user's wallet, view their full transaction
+     history from admin, or manually credit/debit a wallet (e.g. to resolve
+     a support-escalated dispute) outside the top-up approval flow.
+
+11.5 [MISSING] Settings page
+     No admin settings page of any kind exists.
+
+11.6 [MISSING] Pricing configuration
+     Base fare, per-km rate, delivery-type multipliers, and the insurance
+     surcharge are all hardcoded constants in src/lib/pricing.ts (`quote()`)
+     — no admin UI or DB table to adjust them without a code deploy.
+
+11.7 [MISSING] Coupons (admin side)
+     Same underlying gap as customer-side 6.8 — no tables, no code at all.
+
+11.8 [MISSING] Notifications management
+     No admin UI to compose/broadcast a notification, and — per 6.13 — the
+     underlying `create_notification` RPC isn't even wired into the order or
+     wallet lifecycle yet, so there's nothing to manage even once a UI
+     exists.
+
+11.9 [MISSING] Fraud Detection
+     No schema, no UI, no logic anywhere in the codebase.
+
+11.10 [PARTIAL] Permissions is really just whole-role assignment
+      admin/users.tsx's role dropdown (customer/support/dispatcher/merchant/
+      admin) is coarse-grained — it grants or revokes an entire role, not
+      individual permissions within a role (e.g. "support agent can view
+      finance but not approve top-ups"). Fine as a v1, but doesn't match a
+      dedicated "Permissions" spec item.
+
+11.11 [MISSING] Countries / Currencies / Taxes configuration
+      The entire app is hardcoded to Benin/XOF: `CITIES` in pricing.ts is
+      Benin-only, phone placeholders assume `+229`, `fmtXOF()` hardcodes
+      "XOF" and the `fr-FR` locale, and the 18% TVA rate is hardcoded inline
+      in merchant/invoicing.tsx rather than coming from an admin-configurable
+      tax settings table. No multi-country/multi-currency support exists at
+      any layer (schema, pricing engine, or UI).
+
+11.12 [MISSING] Reports
+      No CSV or data export feature anywhere in the app — all the
+      finance/analytics data is view-only in-browser.
+
+11.13 [PARTIAL — write path exists, no viewer] Logs
+      The `admin_audit_log` table exists and IS actively written to
+      (src/routes/admin/users.tsx:135-141 logs every role grant/revoke with
+      admin_id, action, target_user_id, details) — but there is no admin UI
+      page anywhere to actually view that log. Same "data collected, nothing
+      to look at it with" pattern as 6.13 (notifications) and 7.10 (bonuses).
+
+11.14 [PARTIAL] API Keys is merchant-scoped only
+      src/routes/merchant/api-keys.tsx lets a merchant manage their own keys
+      (and per 8.0, that flow is now properly hashed). There's no
+      platform-level admin view of all issued API keys across every
+      merchant, and no concept of internal/service-level API keys separate
+      from merchant self-service ones.
+
+11.15 [MISSING] Feature Flags
+      No schema, no UI, no toggle mechanism anywhere in the codebase.
+
+Not gaps (confirmed working, no action needed):
+  - Users: search-by-name, KYC approve/reject with ID document link, ban/
+    unban, and role assignment (with an audit-log write and a confirm
+    dialog specifically for granting admin) all work correctly — only the
+    phone-search path is broken (11.1).
+  - Analytics: 30-day order volume, delivery-type breakdown, category
+    breakdown, day-of-week success rate, and avg transit time are all real,
+    computed from actual order data.
+  - Finance: pending top-up approve/reject (via the proper
+    admin_approve_topup/admin_reject_topup RPCs), GMV/commissions/payouts/
+    refunds KPIs, and a real 30-day GMV vs commission chart all work.
+  - Ops dashboard (admin/index.tsx): live rider/order stats, a "stuck orders
+    >10min" attention panel with a working cancel action, live map, KYC
+    approval queue, and a recent-orders table with cancel — all functional.
+  - Drivers (admin/drivers.tsx, not in the spec list but exists and works):
+    full document-by-document approve/reject with rejection reasons, overall
+    rider KYC approve/reject, live location display.
+
+################################################################################
+# SECTION 12 — PROPOSED ORDER LIFECYCLE REDESIGN (order_status enum)          #
+# Added 2026-07-20. STEP 1 IMPLEMENTED 2026-07-20 (see 12.10-12.12). STEP 2   #
+# IMPLEMENTED 2026-07-20 (see 12.13-12.15) — the happy-path splits and the    #
+# centralized state-machine module are both done. Only genuinely deferred:    #
+# a real payment gateway (12.2), which the user explicitly chose not to      #
+# scope in yet — Payment Pending/Confirmed remain unmaterialized in the DB   #
+# enum, documented as a reserved future slot (12.13).                        #
+################################################################################
+
+12.10 STEP 1 SHIPPED 2026-07-20 — migrations
+      20260720125000_order_status_enum_expansion.sql (enum values, own
+      transaction per Postgres's "can't use a new enum value in the same
+      transaction it was added in" rule) and
+      20260720130000_order_lifecycle_step1.sql +
+      20260720131500_restrict_expire_stale_orders_execute.sql (everything
+      else). Added the purely-additive terminal states recommended above:
+      'rejected', 'failed_pickup', 'failed_delivery', 'returned', 'expired'
+      (the old 'failed' value is retired in place, not removed — Postgres
+      enums can't drop values in one step, and nothing writes it anymore).
+
+      New RPCs: report_delivery_failure (rider-triggered, auto-picks
+      failed_pickup vs failed_delivery from the order's current status),
+      mark_order_returned (rider/admin/dispatcher, only from
+      failed_delivery), admin_reject_order (admin/dispatcher-only, only
+      pre-assignment — implements 12.7's disambiguation: this is an
+      admin/merchant review rejection, not a rider declining), and
+      expire_stale_orders (pg_cron job, every 5 min, expires orders stuck in
+      searching_rider >15 min — 5 min above the existing 10-min "Needs
+      Attention" alert threshold so an operator gets first chance to
+      intervene, per 12.6).
+
+      UI wired up: StatusBadge.tsx (all 5 new statuses), rider/index.tsx
+      (Report Issue button + reason dialog on any active delivery),
+      dispatcher/index.tsx (new "Failed Deliveries" panel + "Mark as
+      returned" action — closes 9.14), admin/index.tsx (Reject button
+      alongside Cancel in the "Needs Attention" panel; cancelOrderMutation
+      now also sets cancellation_reason/cancelled_at, closing 13.4),
+      app.orders.tsx (new "Issues" filter tab — closes half of 6.12; the
+      other half, migrating rate_delivery off orders.customer_rating onto
+      the real ratings table, is still open per 13.3), app.track.$orderId.tsx
+      (terminal-failure banner so a rejected/expired/returned order doesn't
+      show the "searching for a rider" spinner forever — this was a
+      pre-existing gap since the page only ever checked `!rider_id`).
+
+12.11 CRITICAL BUG FOUND WHILE SCOPING THIS, FIXED SAME PASS: every order
+      ever booked was invisible to every rider
+      Not in the original audit. All three insert paths (app.book.tsx,
+      app.errand.tsx, merchant/bulk.tsx) create orders with status='pending'.
+      But every rider-matching path — the dispatch queue
+      (rider/dispatch.tsx, including its realtime filter
+      `status=eq.searching_rider`), claim_order (`WHERE status =
+      'searching_rider'`), and the dispatcher assignment view — only ever
+      looks at status='searching_rider'. Nothing anywhere transitioned
+      pending -> searching_rider. Verified live via `execute_sql`: the only
+      order that existed in production was stuck at 'pending', unclaimable,
+      forever. Fixed two ways: (1) all three insert call sites now write
+      'searching_rider' directly, (2) a BEFORE INSERT trigger
+      (advance_pending_orders) auto-advances any 'pending' row regardless of
+      insert path, as defense in depth against a future call site
+      reintroducing the same literal. The one stranded production order was
+      backfilled in the same migration.
+
+12.12 SELF-CAUGHT REGRESSION DURING THIS PASS: expire_stale_orders had no
+      access control
+      Unlike every other RPC added in this pass, expire_stale_orders has no
+      internal auth.uid()/has_role() check — by design, since it's only
+      meant to run from the pg_cron job. But Postgres grants EXECUTE to
+      PUBLIC by default on CREATE FUNCTION, and Supabase exposes every
+      public-schema function to both `anon` and `authenticated` via
+      PostgREST regardless of that — so until revoked, any signed-in (or
+      even anonymous) caller could hit
+      `/rest/v1/rpc/expire_stale_orders` directly and force any order past
+      the 15-minute searching_rider mark to expire on demand. Caught via
+      `get_advisors` (security) immediately after applying the migration,
+      before this doc was updated — fixed same pass via
+      20260720131500_restrict_expire_stale_orders_execute.sql (explicit
+      REVOKE EXECUTE FROM PUBLIC/anon/authenticated). Re-ran the advisor
+      after the fix to confirm the finding cleared.
+
+12.0 Scope check: `order_status` is the single most load-bearing enum in the
+     app. Grepped for direct status-value references (not counting the enum
+     definition itself or generated types.ts) — 20 files across every module
+     already audited reference specific status strings directly: both
+     customer routes (app.book/errand/index/orders/profile/track/wallet.tsx),
+     both rider routes (rider-signup, rider/dispatch, rider/documents,
+     rider/index), dispatcher/index.tsx, all four admin pages that touch
+     orders (analytics/drivers/finance/index), all three merchant order
+     pages (bulk/index/invoicing), and the shared StatusBadge.tsx component.
+     On top of the UI layer, `claim_order`, `complete_delivery`, and every
+     `orders` RLS policy already logged in Section 1 (1.1-1.3) branch on
+     specific status values or transitions. This redesign is not a rename —
+     it changes the contract every one of those call sites depends on.
+
+12.1 Current → proposed mapping (9 states → 14 main + 7 alternate = 21 states)
+
+     Current (order_status enum)     Proposed equivalent
+     --------------------------      --------------------------------
+     (none — orders are created      Draft                    [NEW]
+      already-submitted today)
+     (none)                          Submitted                [NEW]
+     (none — no payment gateway,     Payment Pending           [NEW — needs
+      COD only, see 12.2)                                       payment gateway]
+     (none)                          Confirmed                [NEW]
+     pending / searching_rider       Awaiting Rider           (rename/merge)
+     rider_assigned                  Rider Assigned            (direct match)
+     (none — see 12.3)               Rider Accepted            [NEW]
+     rider_arriving                  Heading To Pickup         (rename)
+     picked_up                       Package Picked            (rename)
+     in_transit                      In Transit                (direct match)
+     (none)                          Near Destination          [NEW — needs
+                                                                  geofence calc]
+     delivered                       Delivered                 (direct match)
+     (none — OTP check today is a    Delivery Verification     [NEW, see 12.4]
+      modal, not its own status)
+     (none — "delivered" is          Completed                 [NEW, see 12.5]
+      already the terminal
+      success state today)
+     cancelled                       Cancelled                 (direct match)
+     (none)                          Expired                   [NEW, see 12.6]
+     (none — enum has no value       Returned                  [NEW — already
+      at all, per Section 6.12)                                  flagged in 6.12]
+     (none — see 12.7)               Rejected                  [NEW]
+     failed (dead value, see 9.14)   Failed Pickup              [NEW — splits
+                                                                  the dead 'failed'
+                                                                  value in two]
+     failed (dead value, see 9.14)   Failed Delivery            [NEW — see above]
+     (none — refund is a wallet_     Refunded                  [NEW, see 12.8]
+      transactions type, not an
+      order-level status today]
+
+12.2 "Payment Pending" / "Confirmed" imply a payment gateway that doesn't exist
+     Every order today is cash-on-delivery — confirmed via the
+     `complete_delivery` migration's own comment ("Assumes cash-on-delivery
+     ... since there is no payment gateway integrated yet and no
+     payment-method selector in the booking flow"). Adding a Payment Pending
+     state ahead of Confirmed only makes sense once there's a real prepaid
+     path (wallet-prepay or card/mobile-money gateway) that can actually put
+     an order in a "waiting on payment" state. Open question: is payment
+     gateway integration in scope alongside this redesign, or should
+     Payment Pending/Confirmed be modeled as a no-op pass-through for COD
+     orders (auto-advance immediately) until a real gateway exists?
+
+12.3 "Rider Accepted" as distinct from "Rider Assigned" changes the claim flow
+     Today, for the rider self-serve flow, `claim_order` IS the accept
+     action — assignment and acceptance are the same atomic transition (see
+     Section 1 FIX 1.2). For dispatcher-assigned orders (Section 9), the
+     order also currently goes straight to rider_assigned with no separate
+     "rider must confirm" step. Splitting these means: dispatcher-assigned
+     orders would sit in "Rider Assigned" until the rider explicitly taps
+     something to move to "Rider Accepted" (a new rider-side action, ties
+     into 9.5's missing Reassign — a rider timing out at "Rider Assigned"
+     without accepting is exactly when Reassign would trigger). Self-claimed
+     orders could collapse both transitions into one atomic action as today.
+
+12.4 "Delivery Verification" as its own status vs. today's OTP modal
+     Today OTP entry is a client-side modal at status `in_transit`; the
+     `complete_delivery` RPC checks the OTP and jumps straight from
+     in_transit to delivered in one atomic step (Section 1 FIX 1.1). Making
+     Delivery Verification a real intermediate status means splitting that
+     RPC into two steps (enter verification state, then confirm) — worth
+     confirming this is wanted, since the current atomic version is exactly
+     what prevents a half-verified order from being left in a weird state if
+     a rider's connection drops mid-flow.
+
+12.5 "Delivered" vs "Completed" — what's the actual boundary?
+     Needs a product decision on what separates them: candidates are (a)
+     customer has rated the delivery, (b) the rider's payout has been
+     credited (already instant today per 1.1/7.8, so this would be
+     immediate), or (c) a dispute/refund window has closed. Whichever it is
+     determines whether Completed is set by a trigger, a cron job, or stays
+     manual.
+
+12.6 "Expired" needs a real TTL job — today there's only a passive warning
+     Section 9's "Needs Attention" panel on the admin ops dashboard
+     (admin/index.tsx, `stuckOrders` query) already flags orders stuck in
+     searching_rider >10 minutes, but it's a read-only alert with a manual
+     Cancel button — nothing auto-transitions an order to any terminal state
+     on a timer. "Expired" would need a scheduled job (pg_cron or an edge
+     function on a timer) that actually flips old unclaimed orders.
+
+12.7 "Rejected" needs the rider-decline tracking that doesn't exist yet
+     Directly depends on Section 7 finding 7.3: the dispatch queue's
+     "reject" (the X button) only dismisses the popup locally today — it
+     never touches the server. A real Rejected status requires that decline
+     to actually be recorded (and decide: does one rider rejecting move the
+     whole order to Rejected, or just remove that rider as a candidate and
+     keep the order in Awaiting Rider for others? Almost certainly the
+     latter — "Rejected" as an order-terminal state probably means something
+     closer to "customer's request was rejected" (e.g., by an admin/merchant
+     review step), not "a rider declined it," which needs disambiguating).
+
+12.8 "Refunded" as an order-level status vs. today's transaction-level refund
+     `refund` already exists as a `wallet_transactions.type` value (used
+     freely in admin/finance.tsx's GMV/refunds KPI), but there's no
+     corresponding order-level status — an order stays "delivered" or
+     "cancelled" forever even if it was later refunded. Adding Refunded to
+     `order_status` means either the order can leave its terminal state
+     (unusual — most systems keep the delivery outcome status and add a
+     separate `refund_status` column instead) or Refunded needs to be
+     modeled as an overlay/flag rather than a mutually-exclusive enum value.
+     Worth deciding: separate `orders.refund_status` column vs. folding it
+     into `order_status`.
+
+12.9 Blast radius if this proceeds (for scoping the eventual migration)
+     - New migration: expand `order_status` enum (Postgres enums support
+       ADD VALUE but not removing/reordering in one step — plan the
+       migration order carefully, especially since 'failed' is being split
+       into two new values and effectively retired).
+     - Section 1 RPCs need rewriting for the new granularity: `claim_order`
+       (rider_assigned → rider_accepted split, 12.3), `complete_delivery`
+       (delivery_verification step, 12.4), and the FIX 1.3 lock-down trigger
+       (needs to know the new valid transition graph, not just the 9 old
+       states).
+     - Every RLS policy gating on `status = 'searching_rider'` etc. (orders
+       table policies from Section 1) needs updating to the new state names.
+     - All 20 files listed in 12.0 need their local status-flow arrays
+       (ORDER_STATUS_MAP, STATUS_FLOW, STATUS_NEXT, ACTIVE_STATUSES, etc.)
+       rewritten — this is the single largest-surface-area change logged in
+       this entire document so far.
+     - Admin analytics (admin/analytics.tsx) delivery-rate and day-of-week
+       success-rate calculations key off `status === 'delivered'` — need to
+       decide whether "success" now means Delivered or Completed.
+     - Order History (6.12) "Returned" filter and Dispatcher (9.14) "Failed
+       Deliveries" widget — both already logged as missing — become
+       buildable once this lands, since the enum values they need
+       (Returned, Failed Pickup, Failed Delivery) would now exist with a
+       real write path, unlike today's dead 'failed' value.
+
+Recommendation for the eventual fix pass: land this in two steps rather than
+one — (1) add the purely-additive terminal/alternate states (Returned,
+Rejected once 7.3 is fixed, Failed Pickup/Failed Delivery replacing dead
+'failed', Expired once a TTL job exists) since those don't change the happy-
+path transition logic anywhere; (2) separately tackle the happy-path
+splits (Draft/Submitted/Payment Pending/Confirmed, Rider Accepted, Near
+Destination, Delivery Verification, Completed) since those require the RPC
+and 20-file UI rewrite in 12.9 plus the open product questions in
+12.2-12.5 resolved first.
+
+12.13 STEP 2 SHIPPED 2026-07-20 — product decisions resolved with the user,
+      then built same session
+      12.2 (Payment Pending/Confirmed): user initially asked for a real
+      gateway integration, then on being asked which provider (Kkiapay/
+      FedaPay/CinetPay — all real options for XOF/Benin) said not yet
+      decided. Resolved as: no-op pass-through, same as Step 1's
+      pending->searching_rider auto-advance. 'draft', 'submitted',
+      'payment_pending', 'confirmed' are deliberately NOT added to the
+      order_status enum — they'd be dead values nothing ever writes, the
+      exact anti-pattern Section 13 already caught once. They're documented
+      as a reserved future slot in src/lib/order-lifecycle.ts
+      (RESERVED_FUTURE_STATUSES) for whenever gateway integration is
+      separately scoped.
+      12.5 (Delivered vs Completed boundary): user chose "customer has
+      rated" as the primary trigger, with a time-based grace-window
+      fallback for orders that never get rated.
+
+      Migrations: 20260720140000_order_lifecycle_step2_enum.sql (adds
+      rider_accepted, near_destination, delivery_verification, completed —
+      own transaction, same Postgres constraint as Step 1's enum split) and
+      20260720141000_order_lifecycle_step2.sql (everything else):
+        - orders.refund_status column (text, 'none'/'requested'/'refunded')
+          instead of a 'refunded' order_status value — 12.8's own
+          recommendation, since folding it into order_status would force a
+          delivered/cancelled order to lose what actually happened to it.
+          admin_set_refund_status RPC (admin-only) writes it.
+        - claim_order (rider self-claim from the open queue) now goes
+          straight to rider_accepted — claiming IS accepting, per 12.3.
+        - assign_order (new): dispatcher/admin assignment, stops at
+          rider_assigned pending the rider's response.
+        - accept_order / decline_order (new): the rider's response to a
+          dispatcher assignment. Declining returns the order to
+          searching_rider for someone else to pick up, rather than leaving
+          it stuck.
+        - enforce_order_update_guard: rider-editable transition graph
+          extended for rider_accepted (replaces rider_assigned as the
+          flow's start for the manual-advance buttons) and the new
+          in_transit -> near_destination geofence step.
+        - complete_delivery: accepts from in_transit OR near_destination;
+          logs a delivery_verification order_event ahead of the delivered
+          event inside the same atomic transaction, so the state has real
+          audit-trail representation without ever parking orders.status
+          there mid-flow (preserves 12.4's own concern about a half-
+          verified order getting stuck if a rider's connection drops).
+        - rate_delivery: now actually sets rating_submitted (a column that
+          existed since 20260519000000_platform_expansion.sql but nothing
+          had ever written — dead until this pass) and flips
+          delivered -> completed on rating.
+        - auto_complete_stale_deliveries: pg_cron job, every 30 min,
+          completes any 'delivered' order >48h old that was never rated.
+          Correctly REVOKEd from PUBIC/anon/authenticated from the same
+          migration that created it (see 12.14 — learned from the mistake
+          made and caught in Step 1).
+
+      Also fixed while wiring this up: the tracking page's rating submit
+      (app.track.$orderId.tsx) was doing a raw `.update({customer_rating})`
+      directly on orders instead of calling the rate_delivery RPC at all —
+      meaning nothing would have ever triggered the new Completed state
+      from the actual UI. Switched it to call the RPC.
+
+12.14 SELF-CAUGHT REGRESSION, same pattern as Step 1's 12.12: caught before
+      shipping this time
+      Applied the same lesson from Step 1 proactively — auto_complete_
+      stale_deliveries has no internal auth check (cron-only by design), so
+      its REVOKE EXECUTE FROM PUBLIC/anon/authenticated was included in the
+      same migration that created it, not left for a follow-up fix.
+      Confirmed via `get_advisors` immediately after applying: it does not
+      appear in the anon/authenticated SECURITY DEFINER warnings list,
+      unlike Step 1's expire_stale_orders which needed a second migration
+      to close the same gap.
+
+12.15 Centralized state machine: src/lib/order-lifecycle.ts
+      Added per explicit instruction ("should be represented using a
+      centralized state machine or enum, not hardcoded strings") — exports
+      ORDER_HAPPY_PATH, ORDER_ALTERNATE_STATUSES, ORDER_STATUS_LABELS,
+      RIDER_ACTIVE_STATUSES, SUCCESSFUL_DELIVERY_STATUSES, isTerminalStatus/
+      isAlternateStatus/isSuccessfulDelivery/happyPathIndex/
+      nextRiderAction/isRiderEditableTransition. Refactored every file
+      identified in 12.0's 20-file survey that had its own local hardcoded
+      status array or string-literal comparison onto this module:
+      StatusBadge.tsx, app.orders.tsx, app.index.tsx, app.track.$orderId.tsx,
+      rider/index.tsx, rider/dispatch.tsx (unchanged — already correct),
+      dispatcher/index.tsx, admin/index.tsx, admin/analytics.tsx,
+      app.profile.tsx, merchant/index.tsx, merchant/invoicing.tsx. Also
+      caught and fixed several "delivered" success-rate/revenue reads
+      across admin/analytics.tsx, admin/index.tsx, app.profile.tsx,
+      merchant/index.tsx, merchant/invoicing.tsx, rider/index.tsx that would
+      have silently undercounted once orders started aging from delivered
+      into completed (both on rating and via the 48h cron) — all now check
+      isSuccessfulDelivery(status) / SUCCESSFUL_DELIVERY_STATUSES instead
+      of the single 'delivered' string.
+
+      Note: this module is a client-side *representation* for UI purposes,
+      not the enforcement layer — enforce_order_update_guard and the RPCs
+      remain the actual source of truth for what transitions are legal. The
+      module mirrors them; if the DB-side transition graph changes, this
+      file needs a matching update (RIDER_MANUAL_TRANSITIONS specifically
+      mirrors enforce_order_update_guard's allowed-transition list by hand,
+      since there's no way to introspect a plpgsql trigger body from
+      TypeScript).
+
+Verified: tsc clean, production build clean, security advisor re-checked
+after both migrations (no unexpected new anon/authenticated-executable
+warnings beyond the same accepted pattern every other order RPC already
+has).
+
+################################################################################
+# SECTION 13 — CORRECTION: several "missing" features are actually built     #
+# server-side and simply never wired to the UI. Added 2026-07-20.            #
+# IMPORTANT: this corrects earlier findings 6.8, 6.11, 6.12, 8.x, 9.7, 11.7 — #
+# read this section before acting on those.                                   #
+################################################################################
+
+While mapping the wallet/notification/analytics spec below, a full
+`grep -n "CREATE TABLE"` across every migration surfaced five fully-designed,
+RLS-protected tables (plus several `orders` columns) that were missed by the
+earlier keyword-based searches (which looked for "coupon", "saved_address",
+etc. — the actual table names differ). Verified with
+`grep -rl "<table>" src/` that each has ZERO references anywhere in src/.
+
+13.1 CORRECTS 6.11 (Address Book): a real DB-backed address book already
+     exists and is unused — there are TWO of them
+     `public.saved_places` (label, address, lat/lng, icon, is_default, owner-
+     scoped RLS via `saved_places_own`) — migration
+     20260519000000_platform_expansion.sql:139. Separately, `public.addresses`
+     (label, address_line, city, lat/lng, is_default) — migration
+     20260517154310_...sql:84, from the very first schema, with no RLS
+     policies checked in this pass (verify before using). Both are fully
+     unused; the app instead uses two disconnected localStorage-only
+     mechanisms (as described in 6.11). This is not "needs consolidating
+     into a new table" — it's "two backend tables already exist (and are
+     themselves duplicates of each other — pick one, probably the newer
+     `saved_places` since it has richer fields and confirmed RLS, and either
+     drop `addresses` or migrate it to the same shape), just wire the
+     existing profile/AddressSearch UI to one of them instead of
+     localStorage."
+
+13.2 CORRECTS 6.8 / 8.6-ish / 11.7 ("Coupons — no tables, zero code"): WRONG —
+     a full coupon/promo backend already exists, unused
+     `public.promo_codes` (code, type: percentage/fixed/free_delivery, value,
+     min_order_xof, max_discount_xof, max_uses, uses_per_user, times_used,
+     valid_from/until, is_active) and `public.promo_code_uses` (per-user
+     usage tracking with discount_xof and order_id) — both in
+     20260519000000_platform_expansion.sql:219-235, with RLS already correct
+     (public can read active codes, only admin can write, users can only see
+     their own usage). Nothing in src/ ever queries promo_codes, applies a
+     discount at booking, or increments times_used/uses_per_user. This
+     downgrades "Coupons" from a net-new feature to "wire the existing
+     backend into app.book.tsx's price calculation and add an admin
+     promo_codes management screen" — meaningfully smaller scope than
+     originally logged.
+
+13.3 CORRECTS 6.12 ("Rate Rider ... only from the tracking page"): the real
+     ratings model is a dead table, not just a UI gap
+     `public.ratings` (order_id, reviewer_id, reviewee_id, rating 1-5,
+     comment, unique per order+reviewer, RLS allows reviewer/reviewee/admin
+     to read) exists at 20260519000000_platform_expansion.sql:159 — a proper
+     two-way review model (customer rates rider AND rider rates customer,
+     with comments). It is never written to. Instead, `rate_delivery`
+     (Section 1 finding 1.5) and the tracking page's `submitRating` mutation
+     both write directly to denormalized `orders.customer_rating`/
+     `orders.rider_rating` int columns with no comment field. The proper
+     `ratings` table is fully dead code. Decide: migrate to the real table
+     (enables rider→customer rating, which doesn't exist in any form today)
+     or formally drop the unused table to stop the schema drift.
+
+13.4 [NEW] `orders.cancellation_reason` and `orders.cancelled_at` exist and
+     are never set — including by the one cancel action that does exist
+     Both columns were added in 20260519000000_platform_expansion.sql
+     alongside `rating_submitted`. Confirmed via grep: zero references
+     anywhere in src/. Notably, admin/index.tsx's `cancelOrderMutation`
+     (the one real cancel action in the whole app — see 9.7/6.3) only sets
+     `status: "cancelled"` and inserts an order_event with a hardcoded note
+     — it never populates `cancelled_at` or `cancellation_reason` despite
+     both columns existing for exactly this purpose. Trivial fix once
+     someone touches that mutation: pass a reason through and set both
+     columns.
+
+13.5 [NEW] `surge_zones` — a full dynamic-pricing/geofencing system exists,
+     completely unused
+     `public.surge_zones` (name, multiplier 1.0-5.0, polygon JSONB, is_active,
+     reason: high_demand/weather/event/manual, expires_at) at
+     20260519000000_platform_expansion.sql:259, admin-write / public-read
+     RLS already in place. `src/lib/pricing.ts`'s `quote()` is 100% static
+     (base 500 + 150/km, fixed multipliers for express/scheduled) — it never
+     looks up surge_zones at all. This is a complete, ready-to-use dynamic
+     pricing backend sitting dormant; relevant if "Analytics → Peak Hours"
+     (Section 16 below) is ever meant to feed back into pricing.
+
+13.6 [NEW] `bulk_order_batches` vs `route_batches` — two different tables for
+     the same concept, one is dead
+     `public.bulk_order_batches` (20260518000000_rider_admin_merchant.sql:35
+     — file_name, total_rows, success_rows, failed_rows, status) has zero
+     references in src/. `public.route_batches` is the one actually used by
+     src/routes/merchant/bulk.tsx today. `bulk_order_batches` looks like an
+     earlier design for the same "merchant CSV upload batch" concept that
+     was superseded by `route_batches` but never dropped. Housekeeping: drop
+     `bulk_order_batches` in a migration once confirmed nothing external
+     depends on it.
+
+Net effect on scope: Sections 6.8, 6.11, and the coupon references in 8.x/
+11.7 should be read as "wire up an existing, already-secured backend" rather
+than "build from scratch" — meaningfully cheaper than originally scoped. The
+new findings (13.3-13.6) are additive schema-hygiene items for the fix pass.
+
+################################################################################
+# SECTION 14 — WALLET SYSTEM GAP AUDIT vs target spec                        #
+# Added 2026-07-20. STATUS: logged only, not yet fixed.                       #
+################################################################################
+
+14.1 [ARCHITECTURE] No wallet_type distinction — one shared `wallets` table,
+     one row per user regardless of role
+     File: supabase/migrations/20260517154310_...sql — `wallets` has no
+     `wallet_type`/`owner_type` column, just `user_id` (unique) and
+     `balance_xof`. In practice: Customer Wallet and Rider Wallet are the
+     same table/same row shape (a rider is just a user with a wallets row,
+     UI'd differently per 7.7/7.8); Merchant Wallet is the same table too,
+     but per 8.4 has no portal UI at all; Escrow Wallet is a genuinely
+     separate table (`escrows`, per Section 1) rather than a wallet_type
+     variant; Platform Wallet doesn't exist as a row/ledger account at all —
+     "platform revenue" is only ever computed as an aggregate SUM over
+     `wallet_transactions.type = 'commission'` (admin/finance.tsx), with no
+     actual account holding that balance. Whether this needs to become a
+     real `wallet_type` enum or stays as "one wallet shape, different UIs
+     per role" is a design decision — flagging since the spec explicitly
+     asked for 5 distinct wallet types.
+
+14.2 [MISSING] No "Pending" balance concept — only pending *transactions*
+     `wallet_transactions.status` can be 'pending' (used today only for
+     top-ups awaiting admin approval), but there's no pending sub-balance
+     surfaced on the wallet itself — a user with a pending top-up doesn't
+     see "X pending" anywhere distinct from their confirmed balance; they'd
+     have to read the transaction list and notice the status badge (which
+     the customer wallet page does render per-row, but there's no rolled-up
+     "Pending: 5,000 XOF" figure on the balance card itself, for any wallet
+     type).
+
+14.3 [MISSING] No "Locked" balance concept anywhere
+     No column, no computation, for funds held/locked against an active
+     order (e.g., a merchant's wallet showing "50,000 available, 12,000
+     locked in active deliveries"). The closest related concept is the
+     separate `escrows` table, but that's a distinct ledger, not a locked
+     portion of a wallet's own balance.
+
+14.4 [PARTIAL] Refunds: transaction type and KPI aggregation exist, but no
+     action anywhere ever creates one
+     `refund` is a valid `wallet_transactions.type` and
+     admin/finance.tsx's Finance KPIs already sum it (Section 11 note), but
+     — per 10.2/11.2 gaps already logged — there is no refund button/RPC
+     anywhere in Support or Admin that actually inserts a refund
+     transaction. Same "column ready, nothing populates it" pattern as
+     bonuses (7.10) and coupons pre-13.2.
+
+14.5 [MISSING] No Statements
+     No downloadable/exportable wallet statement (PDF/CSV for a date range)
+     for any wallet type — every wallet-adjacent screen (customer wallet,
+     rider earnings, admin finance) only renders a live, in-browser
+     transaction list capped at 40-50 rows. Same underlying gap as 11.12
+     (no Reports/export anywhere in the app).
+
+Not gaps (confirmed working, no action needed):
+  - Transactions and Balance are real and correctly computed for every
+    wallet-adjacent screen that exists today (customer wallet, rider
+    earnings, admin finance/platform float).
+  - The pending-topup approve/reject flow itself (admin_approve_topup /
+    admin_reject_topup RPCs) is correctly atomic and audited — see Section 1
+    context and 11's "not gaps" note.
+
+################################################################################
+# SECTION 15 — NOTIFICATIONS CHANNELS GAP AUDIT vs target spec                #
+# Added 2026-07-20. STATUS: logged only, not yet fixed.                       #
+################################################################################
+
+15.1 [MISSING] Every external channel — SMS, Email, Push, WhatsApp — is
+     entirely absent
+     Grepped the whole repo (src/, supabase/, package.json) for Twilio,
+     SendGrid, Resend, nodemailer, web-push, FCM/Firebase messaging,
+     WhatsApp, and Africa's Talking (a common SMS provider for
+     West-Africa-focused apps) — zero hits. The `notifications` table's
+     `type` check constraint (order_update/chat_message/payment/promotion/
+     system/kyc_update) has no `channel` column at all — there is no
+     concept of "send this via SMS vs push vs in-app," only one channel:
+     an in-app row in the `notifications` table (and per 6.13, even that
+     path is barely wired into the order lifecycle). Building out any of
+     SMS/Email/Push/WhatsApp is a net-new integration (a transactional
+     email/SMS provider, a push service with device token registration,
+     and/or the WhatsApp Business API), not a wiring gap like most of this
+     document.
+
+15.2 [PARTIAL] "In-app" and "System Alerts" — the underlying mechanism
+     exists but is under-triggered
+     In-app notifications work as UI (Section 6.13) but — as already
+     logged — are only ever created by the voice-call signaling hack, never
+     by order/wallet lifecycle events. "System Alerts" as a distinct concept
+     (e.g., platform-wide broadcast to all users, or ops-team-only alerts)
+     doesn't exist — the closest thing is the admin ops dashboard's
+     client-side-only "stuck orders" panel (Section 9.13's dependency,
+     admin/index.tsx), which is a live UI computation, not a persisted
+     alert/notification.
+
+Not gaps: n/a — this is the smallest-coverage spec section audited so far;
+essentially only the in-app notification *storage* mechanism exists.
+
+################################################################################
+# SECTION 16 — ANALYTICS GAP AUDIT vs target spec (per-role breakdowns)       #
+# Added 2026-07-20. STATUS: logged only, not yet fixed.                       #
+################################################################################
+
+16.1 Customer Analytics
+     - Orders: real (src/routes/_authenticated/app.profile.tsx `stats`
+       query — total/delivered/totalSpent/avgRating).
+     - Retention: [MISSING] no cohort/retention computation anywhere in the
+       codebase, for any role.
+     - Revenue: N/A for the customer role specifically (this is what
+       "Total Spend" already covers from the customer's side).
+     - Locations / Top Cities: [MISSING] no city-level order aggregation
+       anywhere — `CITIES` in pricing.ts is a static Benin-only list used
+       for prototype geocoding, not an analytics dimension.
+     - Average Delivery Time: [PARTIAL] exists but only platform-wide
+       (admin/analytics.tsx `avgDeliveryTime`), never segmented per
+       customer/city/route.
+     - Conversion Rate: [MISSING] no funnel/session tracking exists at any
+       layer (Sentry is wired for error tracking only, per
+       package.json/@sentry — not product analytics) — there's no data
+       source to compute "booking started vs completed" from at all.
+
+16.2 Merchant Analytics
+     - Orders: real (merchant/index.tsx dashboard KPI cards).
+     - Revenue: [PARTIAL/MISLABELED] same issue as 8.1/8.4 — the dashboard
+       shows delivery spend, not the merchant's own business revenue.
+     - Repeat Customers: [MISSING] depends on 8.5 (no Customer Database to
+       compute repeat-rate from).
+     - Popular Routes: [MISSING] no route-frequency aggregation anywhere.
+
+16.3 Rider Analytics
+     - Acceptance Rate: [BUG — already logged 7.2] hardcoded fake "94%".
+     - Speed: [MISSING] no per-rider average delivery/transit time — only
+       the platform-wide figure exists (admin/analytics.tsx), never grouped
+       by rider_id.
+     - Ratings: real (`riders.rating`).
+     - Income: real (rider/earnings.tsx — Today/Weekly/Monthly figures are
+       genuinely computed from wallet_transactions, per Section 7's "not
+       gaps" note — only the dashboard's duplicate chart at rider/index.tsx
+       is fake, per 7.1).
+     - Distance: [MISSING] `orders.distance_km` is captured per-order but
+       never summed per rider anywhere (rider profile/earnings pages don't
+       show total distance traveled).
+
+16.4 Platform Analytics
+     - Revenue: real (admin/finance.tsx GMV/commissions/payouts/refunds).
+     - Orders: real (admin/analytics.tsx 30-day volume, delivery-type and
+       category breakdowns).
+     - Daily Active Users: [MISSING] admin/index.tsx shows a total
+       registered-user count (`trendStats.userCount`), which is a
+       cumulative signup count, not a daily-active metric — there's no
+       session/login-activity tracking to compute DAU from at all.
+     - Failed Deliveries: [MISSING — already logged 9.14] dead enum value,
+       zero write path.
+     - Refunds: [PARTIAL] KPI aggregation exists and renders correctly
+       (admin/finance.tsx), but per 14.4 nothing ever creates a refund
+       transaction, so the figure is structurally always zero today.
+     - Top Merchants: [MISSING] no merchant leaderboard/ranking by order
+       volume or spend anywhere.
+     - Peak Hours: [MISSING] admin/analytics.tsx has a day-of-week success-
+       rate breakdown but no hour-of-day breakdown at all.
+
+################################################################################
+# SECTION 17 — SUGGESTED DATABASE MODULES vs actual schema                    #
+# Added 2026-07-20. Reference table for the fix/build pass.                   #
+################################################################################
+
+  Suggested module   | Actual table(s)              | Status
+  --------------------|-------------------------------|---------------------------------
+  users               | auth.users (Supabase built-in)| exists
+  roles               | user_roles                    | exists, used
+  profiles            | profiles                      | exists, used
+  wallets             | wallets                       | exists, used (see 14.1 re: types)
+  transactions        | wallet_transactions           | exists, used
+  orders              | orders                        | exists, used (see Section 12)
+  deliveries           | (same as orders)              | not a separate concept in this
+                       |                                | app — orders ARE deliveries; not
+                       |                                | a real gap, just naming
+  addresses            | addresses + saved_places      | exist, BOTH fully unused (13.1)
+  notifications         | notifications                | exists, barely triggered (6.13/15.2)
+  messages              | messages                      | exists, used (chat feature)
+  support_tickets       | support_tickets               | exists, used
+  merchant_shops        | (none)                        | MISSING — see 8.1
+  branches              | (none)                        | MISSING — see 8.10
+  vehicles              | (inline columns on riders)    | not normalized — riders.vehicle_type/
+                        |                                | license_plate only; no multi-vehicle
+                        |                                | or fleet support
+  riders                | riders                        | exists, used
+  ratings                | ratings                       | exists, FULLY UNUSED (13.3) —
+                         |                                | app writes to orders.customer_rating/
+                         |                                | rider_rating instead
+  payments               | (folded into wallet_transactions, type='payment') | no
+                         |                                | dedicated gateway-transaction table;
+                         |                                | fine for COD-only, would need one for
+                         |                                | real online payment processing
+  escrow                 | escrows                       | exists, minimal usage (customer view
+                         |                                | only, no admin view — 11.3)
+  audit_logs              | admin_audit_log               | exists, written to, no viewer (11.13)
+  settings                | (none)                        | MISSING — see 11.5
+  promotions               | promo_codes (overlaps)        | see coupons row — promo_codes covers
+                           |                                | discount codes; a separate
+                           |                                | "promotions/announcements" concept
+                           |                                | (non-discount marketing content)
+                           |                                | doesn't exist
+  coupons                   | promo_codes + promo_code_uses | exist, FULLY UNUSED (13.2) —
+                            |                                | corrects earlier "net-new" claims
+  tracking / tracking_events | order_events                 | exists, used (powers tracking
+                            |                                | timeline)
+  delivery_zones              | (none — surge_zones is       | MISSING as a distinct concept.
+                              | adjacent, not equivalent)     | surge_zones (13.5) defines
+                              |                                | polygon + price multiplier for
+                              |                                | dynamic pricing, not "which
+                              |                                | areas do we service" — a real
+                              |                                | delivery_zones table (service
+                              |                                | area boundaries, maybe per-zone
+                              |                                | base fare) doesn't exist; nothing
+                              |                                | in app.book.tsx checks whether a
+                              |                                | pickup/dropoff falls inside any
+                              |                                | serviceable area at all today.
+  pricing_rules                | (none — hardcoded in         | MISSING — see 11.6. Base fare,
+                                | src/lib/pricing.ts)          | per-km rate, delivery-type
+                                |                                | multipliers, insurance surcharge
+                                |                                | are all literal constants in
+                                |                                | quote(), not DB rows; changing
+                                |                                | any of them requires a code
+                                |                                | deploy, not an admin action.
+
+  Extra tables that exist but weren't in the suggested list (all previously
+  covered): driver_documents, conversations, merchant_api_keys, rate_limit_log,
+  route_batches (used) + bulk_order_batches (dead duplicate, 13.6),
+  surge_zones (unused, 13.5), user_roles' banned-role mechanism, admin_audit_log.
+
+################################################################################
+# SECTION 18 — REALTIME COVERAGE AUDIT vs target spec ("Use Supabase          #
+# Realtime whenever appropriate"). Added 2026-07-20. STATUS: logged only.     #
+################################################################################
+
+Grepped every route for `.channel(` / `postgres_changes` vs `refetchInterval`
+to see which of the six spec'd realtime surfaces are actually realtime vs.
+polling vs. neither.
+
+18.1 [MISSING] Dispatcher dashboard is 100% polling, zero realtime — despite
+     being explicitly named in the spec
+     File: src/routes/dispatcher/index.tsx — `dispatcher-orders` (10s),
+     `dispatcher-riders` (15s) both use `refetchInterval` only; zero
+     `.channel()` calls anywhere in the file. Contrast with
+     admin/index.tsx's ops dashboard, which has both polling AND a
+     `admin-ops-realtime` channel subscribed to `orders`/`riders` table
+     changes (src/routes/admin/index.tsx:227-236) — the admin ops view (not
+     in this spec list) is more realtime than the dispatcher view that the
+     spec explicitly calls out. A new order can take up to 10s to appear in
+     the dispatch queue and a rider's status up to 15s to update, instead of
+     the instant push the "Live Operations Dashboard" framing implies.
+
+18.2 [MISSING] Wallet updates: zero realtime AND zero polling
+     File: src/routes/_authenticated/app.wallet.tsx — `wallet` and `txs`
+     queries are both plain `useQuery` with no `refetchInterval` and no
+     `.channel()` subscription. A customer whose top-up gets approved, or
+     who receives a refund, will not see their balance change at all unless
+     they navigate away from the page and back (which remounts the query).
+     This is the weakest of the six spec'd realtime surfaces — not even
+     falling back to polling.
+
+18.3 [MISSING] Support dashboard: zero realtime AND zero polling
+     File: src/routes/support/index.tsx — the `tickets` query is plain
+     `useQuery`, no `refetchInterval`, no `.channel()`. A support agent
+     watching the queue will not see a new ticket arrive, or another
+     agent's status change on a ticket they're both looking at, without a
+     manual page reload. Same "not even polling" gap as 18.2.
+
+18.4 [PARTIAL] Rider locations: realtime only for the one rider a customer
+     is actively tracking, not anywhere riders are shown in aggregate
+     `app.track.$orderId.tsx` subscribes to a specific
+     `rider-pos-${order.rider_id}` channel (real realtime, works correctly)
+     — but every other place rider locations are shown on a map (dispatcher
+     dashboard's live map, admin ops dashboard's live map) is poll-only
+     (10-12s), not subscribed to `riders` UPDATE events for position
+     specifically. admin/index.tsx's `admin-ops-realtime` channel does
+     listen to the `riders` table, but only to trigger a full query
+     invalidation/refetch (a poll-like pattern dressed as realtime), not to
+     smoothly update marker positions from the payload directly.
+
+18.5 [WORKING] Order updates, in-app notifications, and chat are correctly
+     realtime
+     `app.track.$orderId.tsx` (orders + order_events channels),
+     `NotificationBell.tsx` (notif-${user.id} channel, plus a 30s poll
+     fallback), `app.chat.$cid.tsx` (messages channel), and
+     `rider/dispatch.tsx` (dispatch-realtime channel, filtered to
+     `status=eq.searching_rider` INSERTs) all correctly use
+     `postgres_changes` subscriptions, not just polling. These three are the
+     spec's realtime bar actually being met.
+
+Not gaps: n/a for the surfaces in 18.1-18.3; 18.4-18.5 are mixed passes.
+Fixing 18.1-18.3 is mechanical (the same `.channel().on("postgres_changes",
+...)` pattern already proven correct in 18.5, applied to three more
+queries) — lower effort than most gaps in this document, just not yet done.
+
+################################################################################
+# SECTION 19 — UI/UX SYSTEM AUDIT vs target spec. Added 2026-07-20.           #
+# STATUS: logged only. Cross-cutting, not module-specific — checked actual   #
+# aria/responsive/theme/i18n code rather than assuming from visual style.    #
+################################################################################
+
+19.1 [MISSING] Accessibility is minimal — icon-only buttons throughout with
+     no aria-label
+     Grepped for `aria-` across all of src/: only 12 files use any
+     accessibility attribute at all, out of the full component/route tree.
+     Pervasive pattern: icon-only buttons (chat, call, share, GPS toggle,
+     the rider "Report an issue" button added this session, portal sign-out,
+     etc.) render a lucide-react icon with no text and no `aria-label` — a
+     screen reader announces "button" with no indication of what it does.
+     No skip-to-content link, no `role`/`aria-live` on toast notifications
+     or realtime-updating regions (order status, live map) that a screen
+     reader user would otherwise never know changed.
+
+19.2 [BUG] Admin/Merchant/Dispatcher portals are not responsive — fixed
+     240px sidebar, no mobile collapse
+     File: src/components/rapide/PortalShell.tsx:30 — `<aside
+     className="w-60 shrink-0 ...">` has no responsive breakpoint, no
+     hamburger/drawer toggle, no `md:hidden` fallback. On a phone-width
+     viewport this fixed sidebar consumes roughly half the screen next to a
+     squeezed `flex-1` content area — the three staff portals that use this
+     shell (admin, merchant, dispatcher) are effectively broken below
+     tablet width, directly contradicting the "Mobile First" / "Responsive"
+     requirements for those roles.
+
+19.3 [INCONSISTENCY] Support portal uses the customer/rider mobile shell,
+     not the staff dashboard shell
+     File: src/routes/support.tsx — wraps its pages in `AppShell` (the
+     `max-w-2xl` mobile-card-with-bottom-nav shell built for
+     customer/rider), not `PortalShell` (the sidebar shell used by admin,
+     merchant, and dispatcher — see 19.2). Support is an ops/staff role like
+     the other three, but visually and structurally it's the odd one out —
+     no sidebar nav, no "professional dashboard" framing, and (per 18.3) no
+     realtime ticket updates either. Worth deciding whether support should
+     move to PortalShell for consistency, or whether it's intentionally
+     mobile-first for agents working from a phone.
+
+19.4 [ARCHITECTURE] i18n is hardcoded to exactly two languages — adding a
+     third means changing the type, not just adding data
+     File: src/lib/i18n.tsx:3-5 — `type Lang = "fr" | "en"` and `type Dict =
+     Record<string, { fr: string; en: string }>`. Every one of the ~200+
+     translation entries is a literal `{ fr: "...", en: "..." }` object
+     inline in one file, not a per-locale JSON/resource file (the
+     i18next/react-intl pattern). "Future multilingual support" as stated in
+     the spec would require: (a) widening `Lang` and `Dict`'s shape to a
+     keyed record instead of two fixed fields, and (b) manually adding a
+     third string to every existing entry — there's no structural gap
+     that blocks a third language, but there's also no config-driven
+     structure that makes it cheap; today it's a full-file type change plus
+     re-touching every entry.
+
+Not gaps (confirmed working, no action needed):
+  - Smooth animations: framer-motion (`motion.div`, `AnimatePresence`) used
+    consistently across every route touched this session.
+  - Modern cards / design system: the glass/glass-strong + rounded-3xl
+    Tailwind pattern is applied consistently app-wide, not ad hoc per page.
+  - Status chips: StatusBadge/StatusDot — centralized onto
+    src/lib/order-lifecycle.ts this session (Section 12.15).
+  - Loading skeletons: SkeletonCard/SkeletonOrderCard/SkeletonStatCard exist
+    and are wired into the query-loading states of the pages checked.
+  - Empty states: EmptyState component exists and is used (e.g.
+    app.orders.tsx's empty order list).
+  - Error boundaries: real and working — src/routes/__root.tsx defines a
+    global `errorComponent` (with retry + Sentry reporting) and
+    `notFoundComponent`, not just an unhandled crash.
+  - Dark mode: the underlying mechanism (ThemeProvider, localStorage
+    persistence, `documentElement` class toggle) works correctly and
+    applies globally — but the toggle control itself is only exposed on the
+    customer profile page (src/routes/_authenticated/app.profile.tsx); no
+    rider/merchant/dispatcher/admin/support screen lets that user switch
+    theme themselves, even though the mechanism would work for them too.
+  - French localization: extensive and correct — fr is the primary/default
+    language, not an afterthought, across every page checked this session.
+  - Mobile-first: genuinely true for the four shells built on AppShell
+    (customer, rider, support) — bottom nav, card-based, `max-w-2xl`
+    centered layout. Not true for the three PortalShell-based staff portals
+    (19.2).
+
+################################################################################
+# SECTION 20 — REUSABLE FORM + OPTIMISTIC-UPDATE PATTERN ESTABLISHED          #
+# 2026-07-20, per explicit engineering standards from the user ("Use         #
+# reusable forms," "Validate all user inputs," "Implement optimistic         #
+# updates"). STATUS: pattern proven on 4 real conversions; the rest of the   #
+# app's forms/mutations are NOT yet converted — see 20.4 for the list.       #
+################################################################################
+
+20.1 Forms: react-hook-form + zod + shadcn Form were already installed and
+     scaffolded, unused everywhere
+     `zod`, `react-hook-form`, and `@hookform/resolvers` are all real
+     dependencies in package.json, and a complete shadcn Form primitive set
+     (Form/FormField/FormItem/FormLabel/FormControl/FormMessage,
+     src/components/ui/form.tsx) already existed — but was used in zero
+     route files before this pass. Every form in the app was hand-rolled
+     `useState` + ad hoc `if (!x.trim())` checks (18 files did this).
+     Converted two real forms as the reference implementation:
+       - app.errand.tsx: zod schema for description/budget/dropoff, replacing
+         the manual `Number.isFinite`/`<= 0` check added in an earlier pass
+         with a real schema. Dropoff (a non-primitive object from the custom
+         AddressSearch component, not a native input) is wired through
+         FormField's Controller-based `field.onChange`/`field.value`, the
+         pattern to reuse for any custom-component field going forward.
+       - signup.tsx: zod schema for fullName/phone/email/password, inline
+         FormMessage errors replacing HTML `required`-only validation. The
+         schema is built inside a `useSignupSchema()` hook via `useMemo`
+         keyed on `t`, so validation messages are actually localized
+         (fr/en) via new i18n keys (signup.err.*) rather than hardcoded
+         English — matches the "French localization is extensive" bar the
+         rest of the app already sets (Section 19).
+     Side benefit: shadcn's FormControl auto-wires `aria-invalid` and
+     `aria-describedby` to each field — every field converted to this
+     pattern gets a small accessibility improvement for free (19.1).
+
+20.2 Optimistic updates: TanStack Query's actual primitive (`setQueryData`
+     inside `onMutate`) was used in zero files before this pass
+     Converted two real mutations to the full onMutate/onError-rollback/
+     onSettled pattern:
+       - rider/index.tsx's `toggleOnline`: flipping online/offline now
+         updates the cached rider row instantly instead of waiting for the
+         round-trip + invalidate + refetch; rolls back to the previous
+         cached value if the update fails.
+       - app.notifications.tsx's `markRead`/`markAllRead`: marking a
+         notification read (or all of them) updates both the
+         `notifications` list cache and the `notif-unread` badge count
+         instantly, with rollback on failure. Previously these were a bare
+         async call + invalidate (markRead wasn't even a `useMutation`, just
+         a plain async function with no pending/error state at all).
+
+20.3 The pattern to reuse going forward (not a new abstraction — just the
+     shape both conversions above follow)
+     Forms: `useForm<T>({ resolver: zodResolver(schema), defaultValues })`
+     + `<Form {...form}><form onSubmit={form.handleSubmit(mutate)}>` +
+     `<FormField control={form.control} name="x" render={({field}) => ...} />`.
+     Keep zod schemas returning non-nullable field types with sensible empty
+     defaults (e.g. `{address:"",lat:0,lng:0}` rather than `null` for an
+     object field) — a `.nullable()` field on the schema fights zodResolver's
+     generic typing in the installed @hookform/resolvers version (hit and
+     fixed during the errand.tsx conversion).
+     Mutations: `onMutate` cancels in-flight queries for the affected
+     key(s), snapshots the previous cache value, writes the optimistic
+     value via `setQueryData`, and returns `{ previous }`; `onError` restores
+     it from context; `onSettled` invalidates for eventual consistency with
+     the server regardless of outcome.
+
+20.4 NOT yet converted — the rest of the app's forms and mutations
+     This was scoped as "establish the pattern," not "convert everything."
+     Still hand-rolled/non-optimistic and worth doing next in the same
+     style: app.book.tsx (the main, highest-traffic booking wizard —
+     largest form in the app, deliberately not the first conversion given
+     its size/multi-step complexity), login.tsx, rider-signup.tsx, KYC
+     document upload (app.verification.tsx / rider/documents.tsx), support
+     ticket creation, merchant API key creation, admin's
+     cancelOrderMutation/rejectOrderMutation (list-mutation optimistic
+     removal would apply the same onMutate/setQueryData shape used in 20.2),
+     and the dispatcher assign/accept/decline actions.
+
+Verified: tsc clean, production build clean.
+
+################################################################################
+# SECTION 21 — "FIX ALL THAT NEEDS TO BE" PASS — 2026-07-20                   #
+# User asked, after Sections 1-20 were fully cataloged, whether everything    #
+# had been fixed (no) and to fix everything that could genuinely be fixed.    #
+# This section records what got closed out in that pass and, just as         #
+# important, what was deliberately NOT touched and why.                      #
+################################################################################
+
+21.1 Closed this pass (real bugs + real wiring, no invented business logic):
+     - 7.1/7.2: rider dashboard's fake weekly chart and fake "94%" acceptance
+       rate replaced with a real 7-day payout/bonus query (with a real
+       week-over-week % change) and the rider's actual rating — no fake data
+       generated to fill either slot.
+     - 7.3: re-examined and corrected, not "fixed" — dismissing an order in
+       the self-serve dispatch queue only closes the local popup, and that
+       is the *correct* behavior for a shared/open claim queue (other online
+       riders must still see it; a real reject/decline concept already
+       exists for dispatcher-assigned orders via Section 12's decline_order
+       RPC, which is a different flow). Building fake acceptance/decline-rate
+       tracking with invented semantics would have been exactly the
+       placeholder logic ruled out — left for 7.5/7.6 as a real net-new
+       feature needing a product decision on what counts as a "decline"
+       (explicit dismiss vs timeout).
+     - 8.2: bulk CSV upload now geocodes every unique pickup/dropoff address
+       via the same Nominatim endpoint AddressSearch.tsx already uses
+       (src/lib/geocoding.ts, new), sequential with a 1.1s delay to respect
+       Nominatim's free-tier rate limit, with a live "Locating addresses…"
+       progress indicator. Rows whose address can't be geocoded are now
+       marked failed instead of silently defaulting to a fixed Cotonou
+       point.
+     - 8.3: commission rate unified to one exported constant
+       (COMMISSION_RATE in pricing.ts, 18%) used by quote(), app.errand.tsx,
+       and merchant/bulk.tsx (was hardcoded 0.15, silently 3 points off).
+     - 9.8: dispatcher's customer/rider phone numbers are real `tel:` links
+       now, not plain text (with stopPropagation so tapping the number
+       doesn't also toggle the order card's selection).
+     - 11.1: admin user search now actually searches phone numbers
+       server-side (`.or("full_name.ilike...,phone.ilike...")`) instead of
+       silently filtering an already-name-filtered result set client-side.
+     - 11.2: the dead `/admin/support` sidebar link (no such route existed)
+       now points at the real, working `/support` route; that route's role
+       guard was widened to allow admin in addition to support.
+     - 13.1: the profile page's "Saved Addresses" — previously 100%
+       localStorage, no lat/lng captured at all — now reads/writes the real
+       `saved_places` table via AddressSearch (so real coordinates are
+       captured), with the react-hook-form+zod and optimistic-delete
+       patterns from Section 20.
+     - 13.2: promo_codes/promo_code_uses wired end-to-end for the first
+       time: a new atomic `redeem_promo_code` RPC (FOR UPDATE row lock,
+       same race-condition-safe pattern as Section 1/12's RPCs) validates
+       and redeems a code, app.book.tsx has a real promo-code field in the
+       receipt with live discount calculation, and a new
+       admin/promotions.tsx screen (react-hook-form+zod, optimistic
+       activate/deactivate) manages codes. Also fixed while wiring this in:
+       the promo discount auto-clears with a toast if the order total
+       changes after applying (a stale discount would otherwise silently
+       misprice the order).
+     - 18.1-18.3: dispatcher dashboard, wallet, and support ticket list all
+       gained real `postgres_changes` realtime subscriptions (dispatcher
+       previously polled only, up to 10-15s stale; wallet and support had
+       neither polling nor realtime at all).
+     - 19.1: aria-label added to every icon-only button in the shared
+       component library (CallOverlay's accept/decline/mute/end — a live
+       phone call UI that had zero labels at all — RatingModal's close and
+       star buttons, AddressSearch's clear button, AudioPlayer's play/pause,
+       VoiceRecorder's record/stop) plus every icon-only back-button/
+       share-button pattern app-wide (8 route files). Not exhaustive across
+       every single icon button in all ~60 route files — see 21.3.
+     - 19.2: PortalShell (admin/merchant/dispatcher's shared sidebar shell)
+       is now actually responsive — the fixed 240px sidebar is hidden below
+       `md:` and replaced with a top bar + slide-in Sheet drawer containing
+       the same nav. Previously the sidebar had zero responsive handling at
+       all and would have consumed roughly half of a phone-width viewport.
+
+21.2 Attempted, correctly blocked, deliberately not forced through:
+     - 13.6 (dropping the empty, unused, fully-superseded
+       `bulk_order_batches` table + the dead `orders.batch_id` column/FK):
+       blocked by the auto-mode safety classifier — "fix all that needs to
+       be" doesn't meet the [named+specifics] bar the classifier requires
+       for destroying a data store, since the user never named this table.
+       Not worked around. Left in place; it's empty and unused, so it's
+       inert, not a functional bug — purely a housekeeping item (same class
+       as 13.5's dormant surge_zones) that needs an explicit go-ahead like
+       the one already given for deleting old migration files earlier this
+       session.
+
+21.3 Deliberately NOT attempted this pass — would require inventing
+     business logic or product decisions this document has no authority to
+     make, which is exactly what "do not generate placeholder code / do not
+     generate fake APIs" rules out:
+     - Any Section 8.1-dependent build (8.5 Customer Database, 8.6
+       Inventory, 8.10 Staff Accounts/Branch Management) — all need a real
+       `merchants` business-entity table and schema design decision first.
+     - 7.5/7.6 (Acceptance Rate, Cancellation Rate, Leaderboard, Badges) —
+       needs the decline-tracking product decision from 21.1's 7.3 note.
+     - 7.7/7.8 (Withdraw action, Pending Payout) — needs a decision on
+       whether payouts stay instant (current model) or move to a held/
+       payout-cycle model; a withdraw UI without a real payout backend
+       would just be a fake button.
+     - 9.3/9.9/9.10/9.11/9.12 (Alerts, Resolve Delays, Traffic Monitoring,
+       Priority Queue, Emergency Escalation) — Resolve Delays and Priority
+       Queue are schema-only gaps that could be built without a product
+       decision (an `orders.priority` column and an expected-duration
+       baseline) and are the most likely next candidates; Traffic
+       Monitoring needs a paid third-party API decision; Emergency
+       Escalation needs a defined escalation workflow.
+     - 10.1-10.5 (Support: unified customer/order/wallet lookup, Refund
+       action, Chat Logs viewer, Escrow Review, Delivery Timeline link) —
+       10.2's refund action specifically now has a real backend hook
+       (admin_set_refund_status from Section 12) but still no UI button
+       anywhere; the rest are net-new support-workbench screens.
+     - 11.5/11.6/11.9/11.11/11.15 (Settings, Pricing config UI, Fraud
+       Detection, Countries/Currencies/Taxes, Feature Flags) — all
+       genuinely net-new subsystems with no existing schema or business
+       rules to wire up; the audit doc has no basis for inventing fraud
+       rules, tax rates, or flag semantics.
+     - 11.12/14.5 (Reports/CSV export, Wallet Statements) — a real,
+       scoped, buildable feature with no open product question; not done
+       this pass purely for time, a good next candidate.
+     - 14.1-14.3 (distinct wallet_type, Pending balance, Locked balance) —
+       architecture decision (13.2/12's precedent of "add a column/table
+       rather than overload an existing concept" would apply, but needs
+       explicit sign-off given how many screens read the `wallets` table
+       shape today).
+     - 19.1's remaining coverage — icon-only buttons in the ~50+ route
+       files not touched this pass (every portal/dashboard screen has
+       several: filter icons, expand/collapse chevrons, map controls, etc.)
+       — the shared components and the single most-repeated pattern
+       (back/share buttons) are done; a full sweep is mechanical but large.
+     - Section 2 payment-gateway-adjacent work, multi-language beyond fr/en
+       (19.4), and anything under Section 17's "MISSING" rows not already
+       covered above.
+
+Verified: tsc clean, production build clean, security advisor re-checked
+(no new anon/authenticated-executable warnings beyond the established
+self-gating pattern; redeem_promo_code correctly appears in that same
+accepted list, not as a new class of issue).

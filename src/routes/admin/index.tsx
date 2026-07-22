@@ -3,15 +3,32 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { motion } from "framer-motion";
 import {
-  Bike, Package, Clock, CheckCircle, XCircle, Search, Users, MapIcon,
-  TrendingUp, AlertTriangle, DollarSign, Ban,
+  Bike,
+  Package,
+  Clock,
+  CheckCircle,
+  XCircle,
+  Search,
+  Users,
+  MapIcon,
+  TrendingUp,
+  AlertTriangle,
+  DollarSign,
+  Ban,
 } from "lucide-react";
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
 } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { fmtXOF } from "@/lib/pricing";
 import { LiveMap } from "@/components/rapide/LiveMap";
+import { RIDER_ACTIVE_STATUSES, isSuccessfulDelivery } from "@/lib/order-lifecycle";
 import type { RiderPin } from "@/components/rapide/LiveMap";
 import { toast } from "sonner";
 
@@ -38,7 +55,9 @@ function StatCard({
       animate={{ opacity: 1, y: 0 }}
       className="glass rounded-2xl p-5"
     >
-      <div className={`h-9 w-9 rounded-xl flex items-center justify-center mb-3 ${color ?? "bg-primary/10"}`}>
+      <div
+        className={`h-9 w-9 rounded-xl flex items-center justify-center mb-3 ${color ?? "bg-primary/10"}`}
+      >
         <Icon className={`h-5 w-5 ${color ? "text-white" : "text-primary"}`} />
       </div>
       <p className="font-display text-2xl font-bold">{value}</p>
@@ -68,16 +87,17 @@ function AdminOps() {
     queryFn: async () => {
       const { data } = await supabase.from("orders").select("status, price_xof, created_at");
       const now = new Date();
-      const today = data?.filter((o) => new Date(o.created_at).toDateString() === now.toDateString()) ?? [];
-      const delivered = data?.filter((o) => o.status === "delivered") ?? [];
+      const today =
+        data?.filter((o) => new Date(o.created_at).toDateString() === now.toDateString()) ?? [];
+      const delivered = data?.filter((o) => isSuccessfulDelivery(o.status)) ?? [];
       const totalRevenue = delivered.reduce((s, o) => s + Number(o.price_xof), 0);
-      const todayRevenue = today.filter((o) => o.status === "delivered").reduce((s, o) => s + Number(o.price_xof), 0);
+      const todayRevenue = today
+        .filter((o) => isSuccessfulDelivery(o.status))
+        .reduce((s, o) => s + Number(o.price_xof), 0);
       const avgValue = delivered.length > 0 ? Math.round(totalRevenue / delivered.length) : 0;
       return {
         searching: data?.filter((o) => o.status === "searching_rider").length ?? 0,
-        active: data?.filter((o) =>
-          ["rider_assigned", "rider_arriving", "picked_up", "in_transit"].includes(o.status),
-        ).length ?? 0,
+        active: data?.filter((o) => RIDER_ACTIVE_STATUSES.includes(o.status)).length ?? 0,
         delivered: delivered.length,
         cancelled: data?.filter((o) => o.status === "cancelled").length ?? 0,
         todayRevenue,
@@ -94,7 +114,9 @@ function AdminOps() {
     queryFn: async () => {
       const { data } = await supabase
         .from("orders")
-        .select("id, code, status, price_xof, created_at, pickup_address, dropoff_address, rider_id")
+        .select(
+          "id, code, status, price_xof, created_at, pickup_address, dropoff_address, rider_id",
+        )
         .order("created_at", { ascending: false })
         .limit(10);
       return data ?? [];
@@ -123,11 +145,13 @@ function AdminOps() {
         .select("id, current_lat, current_lng")
         .eq("is_online", true)
         .not("current_lat", "is", null);
-      return (data ?? []).filter((r) => r.current_lat && r.current_lng).map<RiderPin>((r) => ({
-        id: r.id,
-        lat: Number(r.current_lat),
-        lng: Number(r.current_lng),
-      }));
+      return (data ?? [])
+        .filter((r) => r.current_lat && r.current_lng)
+        .map<RiderPin>((r) => ({
+          id: r.id,
+          lat: Number(r.current_lat),
+          lng: Number(r.current_lng),
+        }));
     },
     refetchInterval: 12000,
   });
@@ -138,8 +162,8 @@ function AdminOps() {
       const { data } = await supabase
         .from("orders")
         .select("id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, status")
-        .in("status", ["rider_assigned", "rider_arriving", "picked_up", "in_transit"]);
-      
+        .in("status", RIDER_ACTIVE_STATUSES);
+
       return (data ?? []).map((o) => ({
         id: o.id,
         pickup: { lat: Number(o.pickup_lat), lng: Number(o.pickup_lng) },
@@ -170,7 +194,7 @@ function AdminOps() {
         trend.push({
           day: d.toLocaleDateString("fr-FR", { weekday: "short" }),
           revenue: dayOrders
-            .filter((o) => o.status === "delivered")
+            .filter((o) => isSuccessfulDelivery(o.status))
             .reduce((s, o) => s + Number(o.price_xof), 0),
           orders: dayOrders.length,
         });
@@ -210,7 +234,9 @@ function AdminOps() {
         qc.invalidateQueries({ queryKey: ["admin-riders"] });
       })
       .subscribe();
-    return () => { void ch.unsubscribe(); };
+    return () => {
+      void ch.unsubscribe();
+    };
   }, [qc]);
 
   const approveKyc = async (riderId: string) => {
@@ -228,7 +254,11 @@ function AdminOps() {
 
   const cancelOrderMutation = useMutation({
     mutationFn: async (orderId: string) => {
-      await supabase.from("orders").update({ status: "cancelled" }).eq("id", orderId);
+      const now = new Date().toISOString();
+      await supabase
+        .from("orders")
+        .update({ status: "cancelled", cancellation_reason: "Cancelled by admin", cancelled_at: now })
+        .eq("id", orderId);
       await supabase.from("order_events").insert({
         order_id: orderId,
         status: "cancelled",
@@ -244,19 +274,44 @@ function AdminOps() {
     onError: () => toast.error("Failed to cancel order"),
   });
 
+  const rejectOrderMutation = useMutation({
+    mutationFn: async (orderId: string) => {
+      const reason = window.prompt("Reason for rejecting this order?");
+      if (!reason || !reason.trim()) throw new Error("cancelled");
+      const { data, error } = await supabase.rpc("admin_reject_order", {
+        p_order_id: orderId,
+        p_reason: reason.trim(),
+      });
+      if (error) throw error;
+      if (!data) throw new Error("Could not reject — order may already have a rider assigned");
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-recent-orders"] });
+      qc.invalidateQueries({ queryKey: ["admin-order-stats"] });
+      qc.invalidateQueries({ queryKey: ["admin-stuck-orders"] });
+      toast.success("Order rejected");
+    },
+    onError: (e: Error) => {
+      if (e.message !== "cancelled") toast.error(e.message);
+    },
+  });
+
   const STATUS_COLOR: Record<string, string> = {
-    pending: "text-yellow-400",
+    pending: "text-blue-400",
     searching_rider: "text-blue-400",
     rider_assigned: "text-blue-400",
+    rider_accepted: "text-blue-400",
     rider_arriving: "text-blue-400",
     picked_up: "text-primary",
     in_transit: "text-primary",
+    near_destination: "text-primary",
     delivered: "text-green-400",
+    completed: "text-green-400",
     cancelled: "text-destructive",
     failed: "text-destructive",
   };
 
-  const ACTIVE_STATUSES = new Set(["pending", "searching_rider", "rider_assigned", "rider_arriving", "picked_up", "in_transit"]);
+  const ACTIVE_STATUSES = new Set(["pending", "searching_rider", ...RIDER_ACTIVE_STATUSES]);
 
   return (
     <div className="space-y-8">
@@ -273,8 +328,18 @@ function AdminOps() {
           value={`${riderStats?.online ?? 0} / ${riderStats?.total ?? 0}`}
           sub={`${riderStats?.pendingKyc ?? 0} pending KYC`}
         />
-        <StatCard icon={Search} label="Searching Rider" value={orderStats?.searching ?? 0} color="bg-blue-500" />
-        <StatCard icon={Package} label="Active Orders" value={orderStats?.active ?? 0} color="bg-primary" />
+        <StatCard
+          icon={Search}
+          label="Searching Rider"
+          value={orderStats?.searching ?? 0}
+          color="bg-blue-500"
+        />
+        <StatCard
+          icon={Package}
+          label="Active Orders"
+          value={orderStats?.active ?? 0}
+          color="bg-primary"
+        />
         <StatCard
           icon={CheckCircle}
           label="Today Delivered"
@@ -292,11 +357,7 @@ function AdminOps() {
           value={fmtXOF(orderStats?.todayRevenue ?? 0)}
           sub={`${orderStats?.todayOrders ?? 0} orders today`}
         />
-        <StatCard
-          icon={Users}
-          label="Total Users"
-          value={trendStats?.userCount ?? "—"}
-        />
+        <StatCard icon={Users} label="Total Users" value={trendStats?.userCount ?? "—"} />
         <StatCard
           icon={TrendingUp}
           label="Avg Order Value"
@@ -321,7 +382,10 @@ function AdminOps() {
         </h2>
         <div className="glass rounded-2xl p-4" style={{ height: 180 }}>
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={trendStats?.trend ?? []} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+            <AreaChart
+              data={trendStats?.trend ?? []}
+              margin={{ top: 4, right: 4, left: 0, bottom: 0 }}
+            >
               <defs>
                 <linearGradient id="revenueGrad" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="oklch(0.72 0.2 45)" stopOpacity={0.3} />
@@ -367,17 +431,23 @@ function AdminOps() {
             <AlertTriangle className="h-4 w-4 text-yellow-400" />
             Needs Attention
             <span className="ml-2 text-xs font-normal text-yellow-400/80">
-              {stuckOrders?.length} order{(stuckOrders?.length ?? 0) > 1 ? "s" : ""} searching &gt;10 min
+              {stuckOrders?.length} order{(stuckOrders?.length ?? 0) > 1 ? "s" : ""} searching
+              &gt;10 min
             </span>
           </h2>
           <div className="space-y-2">
             {stuckOrders?.map((o) => {
               const minAgo = Math.round((Date.now() - new Date(o.created_at).getTime()) / 60000);
               return (
-                <div key={o.id} className="glass rounded-xl p-4 flex items-center justify-between gap-3 border border-yellow-400/20">
+                <div
+                  key={o.id}
+                  className="glass rounded-xl p-4 flex items-center justify-between gap-3 border border-yellow-400/20"
+                >
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 mb-0.5">
-                      <span className="font-mono text-xs glass rounded-full px-2 py-0.5">{o.code}</span>
+                      <span className="font-mono text-xs glass rounded-full px-2 py-0.5">
+                        {o.code}
+                      </span>
                       <span className="text-xs text-yellow-400">{minAgo}m waiting</span>
                     </div>
                     <p className="text-xs text-muted-foreground truncate">
@@ -386,6 +456,13 @@ function AdminOps() {
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <span className="text-sm font-semibold">{fmtXOF(o.price_xof)}</span>
+                    <button
+                      onClick={() => rejectOrderMutation.mutate(o.id)}
+                      disabled={rejectOrderMutation.isPending}
+                      className="flex items-center gap-1 rounded-lg bg-destructive/10 text-destructive px-3 py-1.5 text-xs font-semibold hover:bg-destructive/20 transition"
+                    >
+                      Reject
+                    </button>
                     <button
                       onClick={() => cancelOrderMutation.mutate(o.id)}
                       disabled={cancelOrderMutation.isPending}
@@ -410,7 +487,12 @@ function AdminOps() {
             {onlineRiders?.length ?? 0} online · {activeOrders?.length ?? 0} active
           </span>
         </h2>
-        <LiveMap riders={onlineRiders ?? []} activeOrders={activeOrders ?? []} height={340} zoom={12} />
+        <LiveMap
+          riders={onlineRiders ?? []}
+          activeOrders={activeOrders ?? []}
+          height={340}
+          zoom={12}
+        />
       </section>
 
       {/* KYC Pending */}
@@ -425,7 +507,10 @@ function AdminOps() {
           </h2>
           <div className="space-y-2">
             {pendingKycRiders?.map((r) => (
-              <div key={r.id} className="glass rounded-xl p-4 flex items-center justify-between gap-3">
+              <div
+                key={r.id}
+                className="glass rounded-xl p-4 flex items-center justify-between gap-3"
+              >
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="h-7 w-7 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -435,7 +520,9 @@ function AdminOps() {
                       {r.vehicle_type} · {r.license_plate ?? "No plate"}
                     </p>
                   </div>
-                  <p className="text-xs text-muted-foreground font-mono">{r.user_id.slice(0, 12)}…</p>
+                  <p className="text-xs text-muted-foreground font-mono">
+                    {r.user_id.slice(0, 12)}…
+                  </p>
                   <p className="text-xs text-muted-foreground">
                     Joined {new Date(r.created_at).toLocaleDateString("fr-FR")}
                   </p>
@@ -480,20 +567,28 @@ function AdminOps() {
             </thead>
             <tbody>
               {recentOrders?.map((o) => (
-                <tr key={o.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
+                <tr
+                  key={o.id}
+                  className="border-b border-border/50 hover:bg-muted/30 transition-colors"
+                >
                   <td className="py-3 font-mono text-xs">{o.code}</td>
                   <td className="py-3 max-w-[180px]">
                     <p className="truncate text-xs">{o.pickup_address}</p>
                     <p className="truncate text-xs text-muted-foreground">→ {o.dropoff_address}</p>
                   </td>
                   <td className="py-3">
-                    <span className={`text-xs font-medium capitalize ${STATUS_COLOR[o.status] ?? ""}`}>
+                    <span
+                      className={`text-xs font-medium capitalize ${STATUS_COLOR[o.status] ?? ""}`}
+                    >
                       {o.status.replace(/_/g, " ")}
                     </span>
                   </td>
                   <td className="py-3 text-right font-medium text-xs">{fmtXOF(o.price_xof)}</td>
                   <td className="py-3 text-right text-xs text-muted-foreground">
-                    {new Date(o.created_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+                    {new Date(o.created_at).toLocaleTimeString("fr-FR", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
                   </td>
                   <td className="py-3 text-right">
                     {ACTIVE_STATUSES.has(o.status) && (

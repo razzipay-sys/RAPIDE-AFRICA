@@ -5,7 +5,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Upload, CheckCircle, XCircle, Download, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { fmtXOF } from "@/lib/pricing";
+import { fmtXOF, COMMISSION_RATE } from "@/lib/pricing";
+import { geocodeSequentially } from "@/lib/geocoding";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/merchant/bulk")({
@@ -42,9 +43,12 @@ function parseCSV(text: string): Row[] {
   if (lines.length < 2) return [];
   const headers = lines[0].split(",").map((h) => h.replace(/^"|"$/g, "").trim().toLowerCase());
   return lines.slice(1).map((line) => {
-    const vals = line.match(/(".*?"|[^,]+)(?=,|$)/g)?.map((v) => v.replace(/^"|"$/g, "").trim()) ?? [];
+    const vals =
+      line.match(/(".*?"|[^,]+)(?=,|$)/g)?.map((v) => v.replace(/^"|"$/g, "").trim()) ?? [];
     const obj: Record<string, string> = {};
-    headers.forEach((h, i) => { obj[h] = vals[i] ?? ""; });
+    headers.forEach((h, i) => {
+      obj[h] = vals[i] ?? "";
+    });
     const errors: string[] = [];
     REQUIRED_COLS.forEach((col) => {
       if (!obj[col]) errors.push(`Missing: ${col}`);
@@ -74,6 +78,9 @@ function MerchantBulk() {
   const [rows, setRows] = useState<Row[]>([]);
   const [fileName, setFileName] = useState<string | null>(null);
   const [result, setResult] = useState<{ success: number; failed: number } | null>(null);
+  const [geocodeProgress, setGeocodeProgress] = useState<{ done: number; total: number } | null>(
+    null,
+  );
 
   const handleFile = (file: File) => {
     setFileName(file.name);
@@ -93,34 +100,54 @@ function MerchantBulk() {
       if (!valid.length) throw new Error("No valid rows");
       let success = 0;
       let failed = 0;
-      
+
       const { data: batchData, error: batchErr } = await supabase
         .from("route_batches")
         .insert({ merchant_id: user.id })
         .select("id")
         .single();
-        
+
       if (batchErr) throw new Error("Failed to create route batch");
       const route_batch_id = batchData.id;
 
+      // Geocode every unique address (pickup addresses are typically
+      // repeated across every row for a single-shop merchant, so this is
+      // usually far fewer than 2x the row count) sequentially, respecting
+      // Nominatim's ~1 req/sec free-tier limit.
+      const allAddresses = valid.flatMap((r) => [r.pickup_address, r.dropoff_address]);
+      setGeocodeProgress({ done: 0, total: 0 });
+      const geocoded = await geocodeSequentially(allAddresses, (done, total) =>
+        setGeocodeProgress({ done, total }),
+      );
+      setGeocodeProgress(null);
+
+      const geocodable = valid.filter(
+        (r) => geocoded.get(r.pickup_address.trim()) && geocoded.get(r.dropoff_address.trim()),
+      );
+      failed += valid.length - geocodable.length;
+
       // Batch inserts in chunks of 20
-      for (let i = 0; i < valid.length; i += 20) {
-        const chunk = valid.slice(i, i + 20).map((r) => ({
-          customer_id: user.id,
-          route_batch_id,
-          pickup_address: r.pickup_address,
-          pickup_lat: 6.3676,   // Cotonou default – production would geocode
-          pickup_lng: 2.4252,
-          dropoff_address: r.dropoff_address,
-          dropoff_lat: 6.3676,
-          dropoff_lng: 2.4252,
-          dropoff_contact_name: r.dropoff_contact_name,
-          dropoff_contact_phone: r.dropoff_contact_phone,
-          parcel_category: r.parcel_category as never,
-          price_xof: r.price_xof,
-          commission_xof: Math.round(r.price_xof * 0.15),
-          status: "pending" as const,
-        }));
+      for (let i = 0; i < geocodable.length; i += 20) {
+        const chunk = geocodable.slice(i, i + 20).map((r) => {
+          const pickup = geocoded.get(r.pickup_address.trim())!;
+          const dropoff = geocoded.get(r.dropoff_address.trim())!;
+          return {
+            customer_id: user.id,
+            route_batch_id,
+            pickup_address: r.pickup_address,
+            pickup_lat: pickup.lat,
+            pickup_lng: pickup.lng,
+            dropoff_address: r.dropoff_address,
+            dropoff_lat: dropoff.lat,
+            dropoff_lng: dropoff.lng,
+            dropoff_contact_name: r.dropoff_contact_name,
+            dropoff_contact_phone: r.dropoff_contact_phone,
+            parcel_category: r.parcel_category as never,
+            price_xof: r.price_xof,
+            commission_xof: Math.round(r.price_xof * COMMISSION_RATE),
+            status: "searching_rider" as const,
+          };
+        });
         const { error } = await supabase.from("orders").insert(chunk);
         if (error) failed += chunk.length;
         else success += chunk.length;
@@ -131,9 +158,14 @@ function MerchantBulk() {
       setResult(res);
       setRows([]);
       setFileName(null);
-      toast.success(`${res.success} orders submitted${res.failed ? `, ${res.failed} failed` : ""}`);
+      toast.success(
+        `${res.success} orders submitted${res.failed ? `, ${res.failed} failed (address could not be located)` : ""}`,
+      );
     },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Submission failed"),
+    onError: (e) => {
+      setGeocodeProgress(null);
+      toast.error(e instanceof Error ? e.message : "Submission failed");
+    },
   });
 
   const validCount = rows.filter((r) => r._valid).length;
@@ -144,7 +176,9 @@ function MerchantBulk() {
     <div className="space-y-6">
       <div>
         <h1 className="font-display text-3xl font-bold">Bulk Orders</h1>
-        <p className="text-muted-foreground text-sm mt-1">Upload a CSV to submit hundreds of orders instantly</p>
+        <p className="text-muted-foreground text-sm mt-1">
+          Upload a CSV to submit hundreds of orders instantly
+        </p>
       </div>
 
       {/* Template download */}
@@ -180,7 +214,10 @@ function MerchantBulk() {
           type="file"
           accept=".csv"
           className="hidden"
-          onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) handleFile(f);
+          }}
         />
       </div>
 
@@ -223,13 +260,18 @@ function MerchantBulk() {
               <thead>
                 <tr className="border-b border-border bg-muted/30 text-left text-muted-foreground">
                   {["", "Pickup", "Dropoff", "Contact", "Category", "Price"].map((h) => (
-                    <th key={h} className="px-3 py-2 font-medium">{h}</th>
+                    <th key={h} className="px-3 py-2 font-medium">
+                      {h}
+                    </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {rows.slice(0, 50).map((row, i) => (
-                  <tr key={i} className={`border-b border-border/50 ${!row._valid ? "bg-destructive/5" : ""}`}>
+                  <tr
+                    key={i}
+                    className={`border-b border-border/50 ${!row._valid ? "bg-destructive/5" : ""}`}
+                  >
                     <td className="px-3 py-2">
                       {row._valid ? (
                         <CheckCircle className="h-3.5 w-3.5 text-green-400" />
@@ -255,12 +297,21 @@ function MerchantBulk() {
             )}
           </div>
 
+          {geocodeProgress && (
+            <p className="text-xs text-muted-foreground text-center">
+              Locating addresses… {geocodeProgress.done}/{geocodeProgress.total}
+            </p>
+          )}
           <button
             onClick={() => submit.mutate()}
             disabled={validCount === 0 || submit.isPending}
             className="w-full rounded-xl bg-gradient-primary py-3 font-bold text-primary-foreground shadow-glow disabled:opacity-50"
           >
-            {submit.isPending ? "Submitting..." : `Submit ${validCount} Orders`}
+            {submit.isPending
+              ? geocodeProgress
+                ? "Locating addresses..."
+                : "Submitting..."
+              : `Submit ${validCount} Orders`}
           </button>
         </div>
       )}

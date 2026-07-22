@@ -152,6 +152,13 @@ const dict: Dict = {
     fr: "Vérifiez votre email pour confirmer votre compte",
     en: "Check your email to confirm your account",
   },
+  "signup.err.fullname_required": { fr: "Le nom complet est requis", en: "Full name is required" },
+  "signup.err.phone_required": { fr: "Le numéro de téléphone est requis", en: "Phone number is required" },
+  "signup.err.email_invalid": { fr: "Adresse email invalide", en: "Invalid email address" },
+  "signup.err.password_short": {
+    fr: "Le mot de passe doit contenir au moins 8 caractères",
+    en: "Password must be at least 8 characters",
+  },
 
   // ── App dashboard ──
   "app.hello": { fr: "Bonjour", en: "Hello" },
@@ -202,6 +209,7 @@ const dict: Dict = {
   "orders.filter.active": { fr: "En cours", en: "Active" },
   "orders.filter.delivered": { fr: "Livrées", en: "Delivered" },
   "orders.filter.cancelled": { fr: "Annulées", en: "Cancelled" },
+  "orders.filter.issues": { fr: "Problèmes", en: "Issues" },
   "wallet.title": { fr: "Portefeuille", en: "Wallet" },
   "wallet.balance": { fr: "Solde disponible", en: "Available balance" },
   "wallet.topup": { fr: "Recharger", en: "Top up" },
@@ -226,6 +234,7 @@ const dict: Dict = {
     en: "Searching for a nearby rider…",
   },
   "track.live": { fr: "Suivi en direct", en: "Live tracking" },
+  "track.terminal_failure": { fr: "Cette course s'est arrêtée", en: "This trip has stopped" },
   "track.amount": { fr: "Montant", en: "Amount" },
   "track.s.pending": { fr: "Recherche d'un coursier", en: "Searching for a rider" },
   "track.s.accepted": { fr: "Coursier assigné", en: "Rider assigned" },
@@ -332,6 +341,21 @@ const dict: Dict = {
   "book.arrival": { fr: "Arrivée", en: "Arrival" },
   "book.base_fare": { fr: "Frais de base", en: "Base fare" },
   "book.total_pay": { fr: "Total à payer", en: "Total to pay" },
+  "book.promo_placeholder": { fr: "Code promo", en: "Promo code" },
+  "book.apply": { fr: "Appliquer", en: "Apply" },
+  "book.applying": { fr: "Vérification...", en: "Applying..." },
+  "book.promo_applied": { fr: "Code promo appliqué", en: "Promo code applied" },
+  "book.promo_applied_label": { fr: "Code appliqué", en: "Code applied" },
+  "book.promo_invalid": {
+    fr: "Ce code promo n'est pas valide pour cette commande",
+    en: "This promo code isn't valid for this order",
+  },
+  "book.promo_discount": { fr: "Réduction", en: "Discount" },
+  "book.promo_reset": {
+    fr: "La commande a changé, veuillez réappliquer votre code promo",
+    en: "Your order changed — please re-apply your promo code",
+  },
+  "book.remove": { fr: "Retirer", en: "Remove" },
   "book.confirm_order": { fr: "Confirmer la commande", en: "Confirm order" },
   "book.processing": { fr: "Traitement...", en: "Processing..." },
   "book.use_current_location": { fr: "Utiliser ma position actuelle", en: "Use current location" },
@@ -561,10 +585,29 @@ const dict: Dict = {
   "err.500.home": { fr: "Accueil", en: "Home" },
 };
 
+export type I18nKey = keyof typeof dict;
+
+export function getPreferredLang(): Lang {
+  if (typeof window !== "undefined") {
+    try {
+      const saved = localStorage.getItem("rapide_lang");
+      if (saved === "fr" || saved === "en") return saved;
+    } catch {
+      // Ignore blocked storage and fall back to the browser language.
+    }
+    return navigator.language.startsWith("fr") ? "fr" : "en";
+  }
+  return "en";
+}
+
+export function translate(k: I18nKey, lang: Lang = getPreferredLang()) {
+  return dict[k]?.[lang] ?? k;
+}
+
 const LangCtx = createContext<{
   lang: Lang;
   setLang: (l: Lang) => void;
-  t: (k: keyof typeof dict) => string;
+  t: (k: I18nKey) => string;
 }>({
   lang: "fr",
   setLang: () => {},
@@ -572,20 +615,19 @@ const LangCtx = createContext<{
 });
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
-  const [lang, setLangState] = useState<"fr" | "en">(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("rapide_lang");
-      if (saved === "fr" || saved === "en") return saved;
-      return navigator.language.startsWith("fr") ? "fr" : "en";
-    }
-    return "en";
-  });
+  const [lang, setLangState] = useState<Lang>(() => getPreferredLang());
   const setLang = (l: Lang) => {
     setLangState(l);
-    if (typeof window !== "undefined") localStorage.setItem("rapide_lang", l);
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("rapide_lang", l);
+      } catch {
+        // Ignore blocked storage; the in-memory language still updates.
+      }
+    }
     if (typeof document !== "undefined") document.documentElement.lang = l;
   };
-  const t = (k: keyof typeof dict) => dict[k]?.[lang] ?? (k as string);
+  const t = (k: I18nKey) => translate(k, lang);
   return <LangCtx.Provider value={{ lang, setLang, t }}>{children}</LangCtx.Provider>;
 }
 

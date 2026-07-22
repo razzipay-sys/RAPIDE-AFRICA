@@ -3,8 +3,17 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Bike, Search, CheckCircle2, XCircle, Clock, MapPin, Star,
-  FileText, ChevronDown, ChevronUp, X,
+  Bike,
+  Search,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  MapPin,
+  Star,
+  FileText,
+  ChevronDown,
+  ChevronUp,
+  X,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { fmtXOF } from "@/lib/pricing";
@@ -40,14 +49,16 @@ function AdminDrivers() {
   const { data: riders, isLoading } = useQuery({
     queryKey: ["admin-riders", search],
     queryFn: async () => {
-      let q = supabase
+      const q = supabase
         .from("riders")
-        .select(`
+        .select(
+          `
           id, user_id, vehicle_type, license_plate, is_online, rating, total_deliveries, current_lat, current_lng,
           profiles:user_id (full_name, phone, avatar_url, kyc_status),
           wallets:user_id (balance_xof),
           driver_documents (id, type, status, file_url, rejection_reason, created_at)
-        `)
+        `,
+        )
         .order("created_at", { ascending: false })
         .limit(50);
       const { data } = await q;
@@ -57,7 +68,15 @@ function AdminDrivers() {
   });
 
   const updateDocStatus = useMutation({
-    mutationFn: async ({ docId, status, reason }: { docId: string; status: DocStatus; reason?: string }) => {
+    mutationFn: async ({
+      docId,
+      status,
+      reason,
+    }: {
+      docId: string;
+      status: DocStatus;
+      reason?: string;
+    }) => {
       const { error } = await supabase
         .from("driver_documents")
         .update({
@@ -79,7 +98,10 @@ function AdminDrivers() {
 
   const updateRiderKyc = useMutation({
     mutationFn: async ({ userId, status }: { userId: string; status: "approved" | "rejected" }) => {
-      const { error } = await supabase.from("profiles").update({ kyc_status: status }).eq("id", userId);
+      const { error } = await supabase
+        .from("profiles")
+        .update({ kyc_status: status })
+        .eq("id", userId);
       if (error) throw error;
     },
     onSuccess: (_, { status }) => {
@@ -95,9 +117,10 @@ function AdminDrivers() {
     return name.toLowerCase().includes(search.toLowerCase());
   });
 
-  const pendingDocCount = riders?.reduce((count: number, r: any) => {
-    return count + (r.driver_documents?.filter((d: any) => d.status === "pending").length ?? 0);
-  }, 0) ?? 0;
+  const pendingDocCount =
+    riders?.reduce((count: number, r: any) => {
+      return count + (r.driver_documents?.filter((d: any) => d.status === "pending").length ?? 0);
+    }, 0) ?? 0;
 
   return (
     <div className="space-y-6">
@@ -147,7 +170,12 @@ function AdminDrivers() {
             const pendingDocs = docs.filter((d) => d.status === "pending");
             const isExpanded = expandedId === rider.id;
             const initials = profile?.full_name
-              ? profile.full_name.split(" ").map((n: string) => n[0]).slice(0, 2).join("").toUpperCase()
+              ? profile.full_name
+                  .split(" ")
+                  .map((n: string) => n[0])
+                  .slice(0, 2)
+                  .join("")
+                  .toUpperCase()
               : "R";
 
             return (
@@ -167,7 +195,9 @@ function AdminDrivers() {
                     <div className="h-10 w-10 rounded-full bg-gradient-primary flex items-center justify-center text-xs font-bold text-primary-foreground">
                       {initials}
                     </div>
-                    <div className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-background ${rider.is_online ? "bg-green-400" : "bg-muted-foreground"}`} />
+                    <div
+                      className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-background ${rider.is_online ? "bg-green-400" : "bg-muted-foreground"}`}
+                    />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
@@ -178,7 +208,8 @@ function AdminDrivers() {
                       </div>
                     </div>
                     <p className="text-xs text-muted-foreground capitalize">
-                      {rider.vehicle_type ?? "—"} · {rider.license_plate ?? "no plate"} · {rider.total_deliveries ?? 0} deliveries
+                      {rider.vehicle_type ?? "—"} · {rider.license_plate ?? "no plate"} ·{" "}
+                      {rider.total_deliveries ?? 0} deliveries
                     </p>
                   </div>
                   <div className="text-right shrink-0">
@@ -212,7 +243,9 @@ function AdminDrivers() {
                         </p>
 
                         {docs.length === 0 && (
-                          <p className="text-xs text-muted-foreground">No documents uploaded yet.</p>
+                          <p className="text-xs text-muted-foreground">
+                            No documents uploaded yet.
+                          </p>
                         )}
 
                         {docs.map((doc) => (
@@ -220,13 +253,19 @@ function AdminDrivers() {
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
                                 <FileText className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                                <p className="text-xs font-medium">{DOC_TYPE_LABELS[doc.type] ?? doc.type}</p>
-                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${statusBadge(doc.status)}`}>
+                                <p className="text-xs font-medium">
+                                  {DOC_TYPE_LABELS[doc.type] ?? doc.type}
+                                </p>
+                                <span
+                                  className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${statusBadge(doc.status)}`}
+                                >
                                   {doc.status}
                                 </span>
                               </div>
                               {doc.rejection_reason && (
-                                <p className="text-[10px] text-destructive mt-0.5 pl-5">{doc.rejection_reason}</p>
+                                <p className="text-[10px] text-destructive mt-0.5 pl-5">
+                                  {doc.rejection_reason}
+                                </p>
                               )}
                             </div>
 
@@ -244,7 +283,9 @@ function AdminDrivers() {
                             {doc.status === "pending" && (
                               <div className="flex gap-1 shrink-0">
                                 <button
-                                  onClick={() => updateDocStatus.mutate({ docId: doc.id, status: "approved" })}
+                                  onClick={() =>
+                                    updateDocStatus.mutate({ docId: doc.id, status: "approved" })
+                                  }
                                   className="h-6 w-6 rounded-lg bg-green-500/15 text-green-400 hover:bg-green-500/25 flex items-center justify-center transition"
                                   title="Approve"
                                 >
@@ -275,13 +316,22 @@ function AdminDrivers() {
                             />
                             <div className="flex gap-2">
                               <button
-                                onClick={() => updateDocStatus.mutate({ docId: pendingRejectId!, status: "rejected", reason: rejectReason || undefined })}
+                                onClick={() =>
+                                  updateDocStatus.mutate({
+                                    docId: pendingRejectId!,
+                                    status: "rejected",
+                                    reason: rejectReason || undefined,
+                                  })
+                                }
                                 className="flex-1 rounded-xl bg-destructive/15 text-destructive py-1.5 text-xs font-semibold hover:bg-destructive/25 transition"
                               >
                                 Confirm Reject
                               </button>
                               <button
-                                onClick={() => { setPendingRejectId(null); setRejectReason(""); }}
+                                onClick={() => {
+                                  setPendingRejectId(null);
+                                  setRejectReason("");
+                                }}
                                 className="h-7 w-7 rounded-xl glass flex items-center justify-center"
                               >
                                 <X className="h-3.5 w-3.5" />
@@ -295,7 +345,8 @@ function AdminDrivers() {
                           <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1 pt-2 border-t border-border/50">
                             <MapPin className="h-3 w-3 text-green-400" />
                             <span className="text-green-400">Live</span>
-                            {Number(rider.current_lat).toFixed(4)}, {Number(rider.current_lng).toFixed(4)}
+                            {Number(rider.current_lat).toFixed(4)},{" "}
+                            {Number(rider.current_lng).toFixed(4)}
                           </div>
                         )}
                       </div>
@@ -309,25 +360,33 @@ function AdminDrivers() {
                           </p>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className={`text-xs px-2 py-1 rounded-full font-bold ${
-                            rider.profiles?.kyc_status === 'approved' ? 'bg-green-500/20 text-green-400' :
-                            rider.profiles?.kyc_status === 'rejected' ? 'bg-destructive/20 text-destructive' :
-                            'bg-orange-500/20 text-orange-400'
-                          }`}>
-                            {rider.profiles?.kyc_status?.toUpperCase() || 'PENDING'}
+                          <span
+                            className={`text-xs px-2 py-1 rounded-full font-bold ${
+                              rider.profiles?.kyc_status === "approved"
+                                ? "bg-green-500/20 text-green-400"
+                                : rider.profiles?.kyc_status === "rejected"
+                                  ? "bg-destructive/20 text-destructive"
+                                  : "bg-orange-500/20 text-orange-400"
+                            }`}
+                          >
+                            {rider.profiles?.kyc_status?.toUpperCase() || "PENDING"}
                           </span>
-                          {rider.profiles?.kyc_status !== 'approved' && (
+                          {rider.profiles?.kyc_status !== "approved" && (
                             <button
-                              onClick={() => updateRiderKyc.mutate({ userId: rider.user_id, status: "approved" })}
+                              onClick={() =>
+                                updateRiderKyc.mutate({ userId: rider.user_id, status: "approved" })
+                              }
                               disabled={updateRiderKyc.isPending}
                               className="px-3 py-1.5 rounded-lg bg-green-500/20 text-green-400 text-xs font-bold hover:bg-green-500/30 transition"
                             >
                               Approve Rider
                             </button>
                           )}
-                          {rider.profiles?.kyc_status !== 'rejected' && (
+                          {rider.profiles?.kyc_status !== "rejected" && (
                             <button
-                              onClick={() => updateRiderKyc.mutate({ userId: rider.user_id, status: "rejected" })}
+                              onClick={() =>
+                                updateRiderKyc.mutate({ userId: rider.user_id, status: "rejected" })
+                              }
                               disabled={updateRiderKyc.isPending}
                               className="px-3 py-1.5 rounded-lg bg-destructive/20 text-destructive text-xs font-bold hover:bg-destructive/30 transition"
                             >

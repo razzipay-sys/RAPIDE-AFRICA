@@ -22,20 +22,30 @@ import { fmtXOF, haversineKm } from "@/lib/pricing";
 import { useT } from "@/lib/i18n";
 import { LiveMap, MapSkeleton } from "@/components/rapide/LiveMapLazy";
 import { RatingModal } from "@/components/rapide/RatingModal";
+import { StatusBadge } from "@/components/rapide/StatusBadge";
 import { toast } from "sonner";
+import { ORDER_ALTERNATE_STATUSES, RIDER_ACTIVE_STATUSES, isSuccessfulDelivery } from "@/lib/order-lifecycle";
 
 export const Route = createFileRoute("/_authenticated/app/track/$orderId")({
   component: TrackPage,
 });
 
+// Collapsed onto the 6-step visual tracker below: rider_accepted folds into
+// the same "accepted" step as rider_assigned (self-claim skips straight to
+// accepted; dispatcher-assign visits both), near_destination folds into
+// "in_transit", and completed shows as the same final step as delivered
+// (isSuccessfulDelivery covers both for the isDelivered check).
 const ORDER_STATUS_MAP: Record<string, number> = {
   pending: 0,
   searching_rider: 0,
   rider_assigned: 1,
+  rider_accepted: 1,
   rider_arriving: 2,
   picked_up: 3,
   in_transit: 4,
+  near_destination: 4,
   delivered: 5,
+  completed: 5,
 };
 
 function TrackPage() {
@@ -176,14 +186,16 @@ function TrackPage() {
   }, [order?.status, order?.customer_rating, ratingDone]);
 
   // ── Rating mutation ────────────────────────────────────────────────────────
+  // Goes through rate_delivery (not a raw .update()) so rating_submitted
+  // gets set and the order advances delivered -> completed atomically.
   const submitRating = useMutation({
     mutationFn: async ({ rating }: { rating: number }) => {
-      const { error } = await supabase
-        .from("orders")
-        .update({ customer_rating: rating })
-        .eq("id", orderId)
-        .eq("customer_id", user!.id);
+      const { data, error } = await supabase.rpc("rate_delivery", {
+        p_order_id: orderId,
+        p_rating: rating,
+      });
       if (error) throw error;
+      if (!data) throw new Error("Could not submit rating");
     },
     onSuccess: () => {
       setRatingOpen(false);
@@ -228,13 +240,13 @@ function TrackPage() {
     if (!dest) return null;
     const km = haversineKm(rider, dest);
     return Math.max(1, Math.round((km / 20) * 60));
-  }, [rider, order?.status, pickup, dropoff]);
+  }, [rider, order, pickup, dropoff]);
 
   const routeCoords = useMemo(() => {
     if (!rider || !order) return undefined;
     const dest = ["in_transit", "picked_up"].includes(order.status) ? dropoff : pickup;
     return dest ? [rider, dest] : undefined;
-  }, [rider, order?.status, pickup, dropoff]);
+  }, [rider, order, pickup, dropoff]);
 
   // ── Share tracking ─────────────────────────────────────────────────────────
   const shareTracking = async () => {
@@ -259,12 +271,11 @@ function TrackPage() {
     );
   }
 
-  const isSearching = !order?.rider_id;
-  const isActive = ["rider_assigned", "rider_arriving", "picked_up", "in_transit"].includes(
-    order?.status ?? "",
-  );
-  const isDelivered = order?.status === "delivered";
-  const showOtp = order?.status === "in_transit" && order.delivery_otp;
+  const isTerminalFailure = !!order?.status && ORDER_ALTERNATE_STATUSES.includes(order.status);
+  const isSearching = !order?.rider_id && !isTerminalFailure;
+  const isActive = !!order?.status && RIDER_ACTIVE_STATUSES.includes(order.status);
+  const isDelivered = !!order?.status && isSuccessfulDelivery(order.status);
+  const showOtp = ["in_transit", "near_destination"].includes(order?.status ?? "") && order?.delivery_otp;
   const riderName = riderProfile?.full_name ?? (t("track.rider") || "Rider");
   const vehicleLabel = riderLoc?.vehicle_type ?? "motorbike";
 
@@ -274,6 +285,7 @@ function TrackPage() {
       <header className="flex items-center justify-between">
         <button
           onClick={() => navigate({ to: "/app" })}
+          aria-label="Back"
           className="glass h-9 w-9 rounded-xl flex items-center justify-center"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -281,6 +293,7 @@ function TrackPage() {
         <p className="font-display text-sm font-semibold">{order?.code ?? "…"}</p>
         <button
           onClick={shareTracking}
+          aria-label="Share tracking link"
           className="glass h-9 w-9 rounded-xl flex items-center justify-center"
         >
           <Share2 className="h-4 w-4" />
@@ -299,6 +312,23 @@ function TrackPage() {
           zoom={isActive && rider ? 14 : 12}
         />
       </Suspense>
+
+      {/* Terminal failure state */}
+      {isTerminalFailure && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="glass-strong rounded-3xl p-5 space-y-2"
+        >
+          <div className="flex items-center justify-between">
+            <p className="font-display font-bold">{t("track.terminal_failure")}</p>
+            <StatusBadge status={order!.status} />
+          </div>
+          {order?.cancellation_reason && (
+            <p className="text-sm text-muted-foreground">{order.cancellation_reason}</p>
+          )}
+        </motion.div>
+      )}
 
       {/* Searching animation */}
       {isSearching && (

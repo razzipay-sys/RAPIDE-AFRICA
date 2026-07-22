@@ -5,6 +5,4 @@ import "./styles.css";
 
 const router = getRouter();
 
-createRoot(document.getElementById("root")!).render(
-  <RouterProvider router={router} />,
-);
+createRoot(document.getElementById("root")!).render(<RouterProvider router={router} />);

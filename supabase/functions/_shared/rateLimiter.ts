@@ -6,23 +6,20 @@ export async function checkRateLimit(
   action: string,
   maxRequests: number,
   windowSeconds: number,
-): Promise<{ allowed: boolean; remaining: number }> {
+): Promise<{ allowed: boolean }> {
   const key = `${userId}:${action}`;
   const windowStart = new Date(Date.now() - windowSeconds * 1000).toISOString();
 
-  const { count } = await supabase
-    .from("rate_limit_log")
-    .select("*", { count: "exact", head: true })
-    .eq("user_action", key)
-    .gte("created_at", windowStart);
+  // Atomic check+insert via advisory lock — a plain check-then-insert here
+  // let concurrent requests from the same user all read the same
+  // pre-insert count and all pass.
+  const { data: allowed, error } = await supabase.rpc("check_and_log_rate_limit", {
+    p_user_action: key,
+    p_max_requests: maxRequests,
+    p_window_seconds: windowSeconds,
+  });
 
-  const current = count ?? 0;
-
-  if (current >= maxRequests) {
-    return { allowed: false, remaining: 0 };
-  }
-
-  await supabase.from("rate_limit_log").insert({ user_action: key });
+  if (error) throw error;
 
   // Fire-and-forget: prune old entries
   supabase
@@ -32,5 +29,5 @@ export async function checkRateLimit(
     .lt("created_at", windowStart)
     .then(() => {});
 
-  return { allowed: true, remaining: maxRequests - current - 1 };
+  return { allowed: !!allowed };
 }

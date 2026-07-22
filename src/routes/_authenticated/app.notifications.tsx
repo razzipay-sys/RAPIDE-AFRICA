@@ -1,14 +1,15 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import {
-  Bell, Package, MessageCircle, Wallet, Tag, AlertCircle, CheckCheck,
-} from "lucide-react";
+import { Bell, Package, MessageCircle, Wallet, Tag, AlertCircle, CheckCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useT } from "@/lib/i18n";
 import { EmptyState } from "@/components/rapide/EmptyState";
 import { SkeletonListItem } from "@/components/rapide/SkeletonCard";
+import type { Tables } from "@/integrations/supabase/types";
+
+type Notification = Tables<"notifications">;
 
 export const Route = createFileRoute("/_authenticated/app/notifications")({
   component: NotificationsPage,
@@ -71,23 +72,57 @@ function NotificationsPage() {
 
   const markAllRead = useMutation({
     mutationFn: async () => {
-      await supabase
+      const { error } = await supabase
         .from("notifications")
         .update({ is_read: true })
         .eq("user_id", user!.id)
         .eq("is_read", false);
+      if (error) throw error;
     },
-    onSuccess: () => {
+    onMutate: async () => {
+      await qc.cancelQueries({ queryKey: ["notifications", user?.id] });
+      const previous = qc.getQueryData<Notification[]>(["notifications", user?.id]);
+      qc.setQueryData<Notification[]>(["notifications", user?.id], (old) =>
+        old?.map((n) => ({ ...n, is_read: true })),
+      );
+      qc.setQueryData(["notif-unread", user?.id], 0);
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) qc.setQueryData(["notifications", user?.id], context.previous);
+      qc.invalidateQueries({ queryKey: ["notif-unread"] });
+    },
+    onSettled: () => {
       qc.invalidateQueries({ queryKey: ["notifications"] });
       qc.invalidateQueries({ queryKey: ["notif-unread"] });
     },
   });
 
-  const markRead = async (id: string) => {
-    await supabase.from("notifications").update({ is_read: true }).eq("id", id);
-    qc.invalidateQueries({ queryKey: ["notifications"] });
-    qc.invalidateQueries({ queryKey: ["notif-unread"] });
-  };
+  const markRead = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("notifications").update({ is_read: true }).eq("id", id);
+      if (error) throw error;
+    },
+    onMutate: async (id: string) => {
+      await qc.cancelQueries({ queryKey: ["notifications", user?.id] });
+      const previous = qc.getQueryData<Notification[]>(["notifications", user?.id]);
+      qc.setQueryData<Notification[]>(["notifications", user?.id], (old) =>
+        old?.map((n) => (n.id === id ? { ...n, is_read: true } : n)),
+      );
+      qc.setQueryData(["notif-unread", user?.id], (old: number | undefined) =>
+        old && old > 0 ? old - 1 : old,
+      );
+      return { previous };
+    },
+    onError: (_err, _id, context) => {
+      if (context?.previous) qc.setQueryData(["notifications", user?.id], context.previous);
+      qc.invalidateQueries({ queryKey: ["notif-unread"] });
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["notifications"] });
+      qc.invalidateQueries({ queryKey: ["notif-unread"] });
+    },
+  });
 
   const unread = notifications?.filter((n) => !n.is_read) ?? [];
 
@@ -116,23 +151,22 @@ function NotificationsPage() {
 
       {isLoading && (
         <div className="space-y-2">
-          {[1, 2, 3, 4].map((i) => <SkeletonListItem key={i} />)}
+          {[1, 2, 3, 4].map((i) => (
+            <SkeletonListItem key={i} />
+          ))}
         </div>
       )}
 
       {!isLoading && !notifications?.length && (
-        <EmptyState
-          icon={Bell}
-          title={t("notif.empty")}
-          subtitle={t("notif.empty_sub")}
-        />
+        <EmptyState icon={Bell} title={t("notif.empty")} subtitle={t("notif.empty_sub")} />
       )}
 
       {!isLoading && notifications && notifications.length > 0 && (
         <div className="space-y-1">
           {notifications.map((notif, idx) => {
             const Icon = TYPE_ICON[notif.type as keyof typeof TYPE_ICON] ?? Bell;
-            const colorClass = TYPE_COLOR[notif.type as keyof typeof TYPE_COLOR] ?? TYPE_COLOR.system;
+            const colorClass =
+              TYPE_COLOR[notif.type as keyof typeof TYPE_COLOR] ?? TYPE_COLOR.system;
 
             const content = (
               <motion.div
@@ -140,10 +174,12 @@ function NotificationsPage() {
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: idx * 0.03 }}
-                onClick={() => !notif.is_read && markRead(notif.id)}
+                onClick={() => !notif.is_read && markRead.mutate(notif.id)}
                 className={`glass rounded-2xl p-4 flex items-start gap-3 cursor-pointer hover:bg-white/5 transition ${!notif.is_read ? "border border-primary/20" : ""}`}
               >
-                <div className={`h-9 w-9 rounded-xl flex items-center justify-center shrink-0 ${colorClass}`}>
+                <div
+                  className={`h-9 w-9 rounded-xl flex items-center justify-center shrink-0 ${colorClass}`}
+                >
                   <Icon className="h-4 w-4" />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -156,7 +192,9 @@ function NotificationsPage() {
                     </span>
                   </div>
                   {notif.body && (
-                    <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{notif.body}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                      {notif.body}
+                    </p>
                   )}
                 </div>
                 {!notif.is_read && (
@@ -166,7 +204,9 @@ function NotificationsPage() {
             );
 
             return notif.action_url ? (
-              <Link key={notif.id} to={notif.action_url as any}>{content}</Link>
+              <Link key={notif.id} to={notif.action_url as any}>
+                {content}
+              </Link>
             ) : (
               <div key={notif.id}>{content}</div>
             );

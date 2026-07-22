@@ -1,4 +1,4 @@
-import { Link, useLocation, useNavigate } from "@tanstack/react-router";
+import { Link, useLocation, useNavigate, useRouter } from "@tanstack/react-router";
 import { Home, Package, Wallet, User, Plus, MessageCircle, ArrowLeft, LogOut } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { ReactNode } from "react";
@@ -15,11 +15,11 @@ type TabDef = {
 };
 
 const tabDefs: TabDef[] = [
-  { to: "/app",         icon: Home,          labelKey: "tab.home" },
-  { to: "/app/orders",  icon: Package,       labelKey: "tab.orders" },
-  { to: "/app/book",    icon: Plus,          labelKey: "tab.send",    primary: true },
-  { to: "/app/chat",    icon: MessageCircle, labelKey: "tab.chat" },
-  { to: "/app/profile", icon: User,          labelKey: "tab.profile" },
+  { to: "/app", icon: Home, labelKey: "tab.home" },
+  { to: "/app/orders", icon: Package, labelKey: "tab.orders" },
+  { to: "/app/book", icon: Plus, labelKey: "tab.send", primary: true },
+  { to: "/app/chat", icon: MessageCircle, labelKey: "tab.chat" },
+  { to: "/app/profile", icon: User, labelKey: "tab.profile" },
 ];
 
 // Routes that ARE top-level tabs — show logo, not back button
@@ -39,8 +39,12 @@ function isTabRoot(pathname: string) {
 /** Page transition variants — subtle fade-up */
 const pageVariants = {
   initial: { opacity: 0, y: 8 },
-  enter:   { opacity: 1, y: 0, transition: { duration: 0.22, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] } },
-  exit:    { opacity: 0, y: -4, transition: { duration: 0.14 } },
+  enter: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.22, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] },
+  },
+  exit: { opacity: 0, y: -4, transition: { duration: 0.14 } },
 };
 
 async function handleSignOut() {
@@ -51,17 +55,17 @@ async function handleSignOut() {
 export function AppShell({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
   const navigate = useNavigate();
+  const router = useRouter();
   const { t } = useT();
 
   const showBack = !isTabRoot(pathname);
 
   const handleBack = () => {
-    // Try browser history first; fall back to /app
-    if (window.history.length > 1) {
-      navigate({ to: ".." as any });
-    } else {
-      navigate({ to: "/app" });
+    if (router.history.canGoBack()) {
+      router.history.back();
+      return;
     }
+    void navigate({ to: "/app" });
   };
 
   return (
@@ -114,13 +118,9 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       {/* Page content with transition */}
       <main className="mx-auto max-w-2xl px-4 pt-16">
-          <motion.div
-            variants={pageVariants}
-            initial="initial"
-            animate="enter"
-          >
-            {children}
-          </motion.div>
+        <motion.div variants={pageVariants} initial="initial" animate="enter">
+          {children}
+        </motion.div>
       </main>
 
       {/* Bottom navigation */}
@@ -128,12 +128,16 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="glass-strong mx-auto flex max-w-2xl items-center justify-between rounded-2xl px-2 py-2 shadow-elegant">
           {tabDefs.map((tab) => {
             const active =
-              pathname === tab.to ||
-              (tab.to !== "/app" && pathname.startsWith(tab.to));
+              pathname === tab.to || (tab.to !== "/app" && pathname.startsWith(tab.to));
             const Icon = tab.icon;
             if (tab.primary) {
               return (
-                <Link key={tab.to} to={tab.to} className="flex flex-col items-center -mt-6" aria-label={t(tab.labelKey)}>
+                <Link
+                  key={tab.to}
+                  to={tab.to}
+                  className="flex flex-col items-center -mt-6"
+                  aria-label={t(tab.labelKey)}
+                >
                   <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-primary shadow-glow">
                     <Icon className="h-6 w-6 text-primary-foreground" strokeWidth={2.5} />
                   </div>

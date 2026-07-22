@@ -24,7 +24,7 @@ const TYPE_LABELS: Record<string, string> = {
 function RiderEarnings() {
   const { user } = useAuth();
   const { data: wallet } = useWallet(user?.id);
-  const { data: rider }  = useRiderProfile(user?.id);
+  const { data: rider } = useRiderProfile(user?.id);
 
   const { data: transactions } = useQuery({
     queryKey: ["rider-transactions", user?.id],
@@ -61,17 +61,18 @@ function RiderEarnings() {
     }));
   })();
 
-  const thisMonth = transactions
-    ?.filter((t) => {
-      const now = new Date();
-      const d = new Date(t.created_at);
-      return (
-        d.getMonth() === now.getMonth() &&
-        d.getFullYear() === now.getFullYear() &&
-        ["payout", "bonus"].includes(t.type)
-      );
-    })
-    .reduce((s, t) => s + Number(t.amount_xof), 0) ?? 0;
+  const thisMonth =
+    transactions
+      ?.filter((t) => {
+        const now = new Date();
+        const d = new Date(t.created_at);
+        return (
+          d.getMonth() === now.getMonth() &&
+          d.getFullYear() === now.getFullYear() &&
+          ["payout", "bonus"].includes(t.type)
+        );
+      })
+      .reduce((s, t) => s + Number(t.amount_xof), 0) ?? 0;
 
   return (
     <div className="space-y-5">
@@ -99,7 +100,9 @@ function RiderEarnings() {
         </div>
         <div className="glass rounded-2xl p-3 text-center">
           <Star className="h-4 w-4 text-yellow-400 mx-auto mb-1" />
-          <p className="font-display text-base font-bold">{Number(rider?.rating ?? 5).toFixed(1)}</p>
+          <p className="font-display text-base font-bold">
+            {Number(rider?.rating ?? 5).toFixed(1)}
+          </p>
           <p className="text-[10px] text-muted-foreground">Rating</p>
         </div>
         <div className="glass rounded-2xl p-3 text-center">
@@ -116,11 +119,21 @@ function RiderEarnings() {
         </p>
         <ResponsiveContainer width="100%" height={120}>
           <BarChart data={chartData} barSize={20}>
-            <XAxis dataKey="day" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
+            <XAxis
+              dataKey="day"
+              tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+              axisLine={false}
+              tickLine={false}
+            />
             <YAxis hide />
             <Tooltip
               formatter={(v: number) => [`${v}K XOF`, "Earnings"]}
-              contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 12, fontSize: 12 }}
+              contentStyle={{
+                background: "hsl(var(--card))",
+                border: "1px solid hsl(var(--border))",
+                borderRadius: 12,
+                fontSize: 12,
+              }}
             />
             <Bar dataKey="amount" fill="oklch(0.72 0.2 45)" radius={[6, 6, 0, 0]} />
           </BarChart>
@@ -131,20 +144,31 @@ function RiderEarnings() {
       <section>
         <h2 className="font-display text-lg font-bold mb-3">Transaction History</h2>
         {transactions?.length === 0 ? (
-          <p className="text-sm text-muted-foreground glass rounded-2xl p-4">No transactions yet.</p>
+          <p className="text-sm text-muted-foreground glass rounded-2xl p-4">
+            No transactions yet.
+          </p>
         ) : (
           <ul className="space-y-2">
             {transactions?.map((tx) => {
               const isCredit = ["payout", "bonus", "topup", "refund"].includes(tx.type);
               return (
-                <li key={tx.id} className="glass rounded-2xl px-4 py-3 flex items-center justify-between">
+                <li
+                  key={tx.id}
+                  className="glass rounded-2xl px-4 py-3 flex items-center justify-between"
+                >
                   <div className="flex items-center gap-3">
-                    <div className={`h-8 w-8 rounded-full flex items-center justify-center ${isCredit ? "bg-green-400/10" : "bg-destructive/10"}`}>
-                      <ArrowDownLeft className={`h-4 w-4 ${isCredit ? "text-green-400 rotate-180" : "text-destructive"}`} />
+                    <div
+                      className={`h-8 w-8 rounded-full flex items-center justify-center ${isCredit ? "bg-green-400/10" : "bg-destructive/10"}`}
+                    >
+                      <ArrowDownLeft
+                        className={`h-4 w-4 ${isCredit ? "text-green-400 rotate-180" : "text-destructive"}`}
+                      />
                     </div>
                     <div>
                       <p className="text-sm font-medium">{TYPE_LABELS[tx.type] ?? tx.type}</p>
-                      {tx.description && <p className="text-xs text-muted-foreground">{tx.description}</p>}
+                      {tx.description && (
+                        <p className="text-xs text-muted-foreground">{tx.description}</p>
+                      )}
                       <p className="text-[10px] text-muted-foreground">
                         {new Date(tx.created_at).toLocaleDateString("fr-FR", {
                           day: "numeric",
@@ -155,8 +179,11 @@ function RiderEarnings() {
                       </p>
                     </div>
                   </div>
-                  <p className={`font-display font-bold ${isCredit ? "text-green-400" : "text-destructive"}`}>
-                    {isCredit ? "+" : "-"}{fmtXOF(Math.abs(Number(tx.amount_xof)))}
+                  <p
+                    className={`font-display font-bold ${isCredit ? "text-green-400" : "text-destructive"}`}
+                  >
+                    {isCredit ? "+" : "-"}
+                    {fmtXOF(Math.abs(Number(tx.amount_xof)))}
                   </p>
                 </li>
               );

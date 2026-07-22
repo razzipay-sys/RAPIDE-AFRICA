@@ -23,6 +23,8 @@ import {
   haversineKm,
   quote,
   fmtXOF,
+  INSURANCE_SURCHARGE_XOF,
+  COMMISSION_RATE,
   type DeliveryType,
   type GeoResult,
 } from "@/lib/pricing";
@@ -107,6 +109,15 @@ function BookPage() {
   const [type, setType] = useState<DeliveryType>("standard");
   const [insurance, setInsurance] = useState(false);
 
+  // Promo code
+  const [promoInput, setPromoInput] = useState("");
+  const [applyingPromo, setApplyingPromo] = useState(false);
+  const [promoApplied, setPromoApplied] = useState<{
+    code: string;
+    discountXof: number;
+    useId: string;
+  } | null>(null);
+
   // Memoized Calculations
   const distance = useMemo(() => haversineKm(pickup, dropoff), [pickup, dropoff]);
   const pricing = useMemo(
@@ -119,6 +130,41 @@ function BookPage() {
       quote({ distanceKm: distance, type: ty, insurance, weightKg: weight }).price_xof,
     [distance, insurance, weight],
   );
+  const finalPrice = pricing.price_xof - (promoApplied?.discountXof ?? 0);
+  const finalCommission = Math.round(finalPrice * COMMISSION_RATE);
+
+  // A promo code was redeemed (and its "use" already consumed server-side)
+  // against a specific order total — if the price changes afterward, that
+  // discount amount is stale, so drop it rather than silently apply a wrong
+  // amount. The use itself isn't refunded; this only affects this booking.
+  useEffect(() => {
+    if (promoApplied) {
+      setPromoApplied(null);
+      toast.info(t("book.promo_reset"));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pricing.price_xof]);
+
+  const applyPromo = async () => {
+    if (!promoInput.trim()) return;
+    setApplyingPromo(true);
+    const { data, error } = await supabase.rpc("redeem_promo_code", {
+      p_code: promoInput.trim(),
+      p_order_total: pricing.price_xof,
+    });
+    setApplyingPromo(false);
+    const result = data?.[0];
+    if (error || !result || result.discount_xof == null) {
+      toast.error(t("book.promo_invalid"));
+      return;
+    }
+    setPromoApplied({
+      code: promoInput.trim().toUpperCase(),
+      discountXof: result.discount_xof,
+      useId: result.use_id,
+    });
+    toast.success(t("book.promo_applied"));
+  };
 
   const handleMapClick = useCallback(
     async (latlng: { lat: number; lng: number }) => {
@@ -172,9 +218,9 @@ function BookPage() {
         delivery_type: type,
         insurance,
         distance_km: Number(distance.toFixed(2)),
-        price_xof: pricing.price_xof,
-        commission_xof: pricing.commission_xof,
-        status: "pending",
+        price_xof: finalPrice,
+        commission_xof: finalCommission,
+        status: "searching_rider",
       })
       .select("id")
       .single();
@@ -186,9 +232,16 @@ function BookPage() {
       return;
     }
 
+    if (promoApplied) {
+      await supabase
+        .from("promo_code_uses")
+        .update({ order_id: data.id })
+        .eq("id", promoApplied.useId);
+    }
+
     await supabase.from("order_events").insert({
       order_id: data.id,
-      status: "pending",
+      status: "searching_rider",
       created_by: user.id,
       note: "Commande créée",
     });
@@ -203,6 +256,7 @@ function BookPage() {
       <header className="flex-none px-4 py-3 flex items-center justify-between bg-background/80 backdrop-blur-md sticky top-0 z-50">
         <button
           onClick={() => (step > 1 ? setStep(step - 1) : navigate({ to: "/app" }))}
+          aria-label="Back"
           className="h-10 w-10 rounded-2xl bg-muted/50 flex items-center justify-center hover:bg-muted transition-colors"
         >
           <ArrowLeft className="h-5 w-5 text-foreground" />
@@ -577,17 +631,58 @@ function BookPage() {
               <div className="my-3 border-t border-dashed border-border" />
               <ReceiptRow
                 label={t("book.base_fare")}
-                value={fmtXOF(pricing.price_xof - (insurance ? 500 : 0))}
+                value={fmtXOF(pricing.price_xof - (insurance ? INSURANCE_SURCHARGE_XOF : 0))}
               />
-              {insurance && <ReceiptRow label={t("book.insurance")} value="500 FCFA" />}
+              {insurance && (
+                <ReceiptRow label={t("book.insurance")} value={fmtXOF(INSURANCE_SURCHARGE_XOF)} />
+              )}
+              {promoApplied && (
+                <ReceiptRow
+                  label={`${t("book.promo_discount")} (${promoApplied.code})`}
+                  value={`-${fmtXOF(promoApplied.discountXof)}`}
+                />
+              )}
 
               <div className="mt-4 pt-4 border-t border-border flex items-end justify-between">
                 <span className="text-sm font-medium">{t("book.total_pay")}</span>
                 <span className="text-3xl font-display font-bold text-primary">
-                  {fmtXOF(pricing.price_xof)}
+                  {fmtXOF(finalPrice)}
                 </span>
               </div>
             </div>
+          </div>
+
+          {/* Promo code */}
+          <div className="bg-card border border-border rounded-2xl p-4">
+            {promoApplied ? (
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-green-500">
+                  {t("book.promo_applied_label")}: {promoApplied.code}
+                </p>
+                <button
+                  onClick={() => setPromoApplied(null)}
+                  className="text-xs text-muted-foreground hover:text-foreground underline"
+                >
+                  {t("book.remove")}
+                </button>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <input
+                  value={promoInput}
+                  onChange={(e) => setPromoInput(e.target.value)}
+                  placeholder={t("book.promo_placeholder")}
+                  className="flex-1 min-w-0 rounded-xl bg-input/40 border border-border px-3 py-2 text-sm outline-none focus:border-primary uppercase placeholder:normal-case"
+                />
+                <button
+                  onClick={applyPromo}
+                  disabled={applyingPromo || !promoInput.trim()}
+                  className="rounded-xl bg-muted px-4 py-2 text-sm font-semibold disabled:opacity-50"
+                >
+                  {applyingPromo ? t("book.applying") : t("book.apply")}
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Submit Button */}

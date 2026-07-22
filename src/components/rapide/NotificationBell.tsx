@@ -29,19 +29,30 @@ export function NotificationBell() {
     if (!user) return;
     const ch = supabase
       .channel(`notif-${user.id}`)
-      .on("postgres_changes", {
-        event: "INSERT", schema: "public", table: "notifications",
-        filter: `user_id=eq.${user.id}`,
-      }, () => {
-        qc.invalidateQueries({ queryKey: ["notif-unread"] });
-        qc.invalidateQueries({ queryKey: ["notifications"] });
-      })
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          qc.invalidateQueries({ queryKey: ["notif-unread"] });
+          qc.invalidateQueries({ queryKey: ["notifications"] });
+        },
+      )
       .subscribe();
-    return () => { supabase.removeChannel(ch); };
+    return () => {
+      supabase.removeChannel(ch);
+    };
   }, [user, qc]);
 
   return (
-    <Link to="/app/notifications" className="relative glass h-9 w-9 rounded-xl flex items-center justify-center hover:bg-white/10 transition">
+    <Link
+      to="/app/notifications"
+      className="relative glass h-9 w-9 rounded-xl flex items-center justify-center hover:bg-white/10 transition"
+    >
       <Bell className="h-4 w-4" />
       <AnimatePresence>
         {unreadCount !== undefined && unreadCount > 0 && (

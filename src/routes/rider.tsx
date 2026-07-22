@@ -1,10 +1,18 @@
-import { createFileRoute, Outlet, Link, redirect, useLocation, useNavigate } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Outlet,
+  Link,
+  useLocation,
+  useNavigate,
+  useRouter,
+} from "@tanstack/react-router";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { AuthProvider } from "@/hooks/use-auth";
 import { Home, Package, Wallet, User, FileText, ArrowLeft, LogOut } from "lucide-react";
 import rapideLogo from "@/assets/rapide-logo.jpg";
 import { NotificationBell } from "@/components/rapide/NotificationBell";
+import { requireRoleAccess } from "@/lib/platform-routing";
 
 async function handleSignOut() {
   await supabase.auth.signOut();
@@ -13,27 +21,11 @@ async function handleSignOut() {
 
 export const Route = createFileRoute("/rider")({
   beforeLoad: async ({ location, context }) => {
-    const { data } = await supabase.auth.getSession();
-    if (!data.session) {
-      throw redirect({ to: "/login", search: { redirect: location.href } });
-    }
-    // Ensure the user actually has the rider role
-    const roles = await context.queryClient.fetchQuery({
-      queryKey: ["user_roles", data.session.user.id],
-      queryFn: async () => {
-        const { data: rolesData } = await supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", data.session.user.id);
-        return rolesData ?? [];
-      },
-      staleTime: 1000 * 60 * 5,
+    await requireRoleAccess({
+      queryClient: context.queryClient,
+      location,
+      allowedRoles: ["rider"],
     });
-      
-    const hasRole = roles.some((r: any) => r.role === "rider" || r.role === "admin");
-    if (!hasRole) {
-      throw redirect({ to: "/app" });
-    }
   },
   component: RiderLayout,
 });
@@ -56,21 +48,26 @@ const tabs = [
 
 const pageVariants = {
   initial: { opacity: 0, y: 8 },
-  enter:   { opacity: 1, y: 0, transition: { duration: 0.22, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] } },
-  exit:    { opacity: 0, y: -4, transition: { duration: 0.14 } },
+  enter: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.22, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] },
+  },
+  exit: { opacity: 0, y: -4, transition: { duration: 0.14 } },
 };
 
 function RiderLayout() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
+  const router = useRouter();
   const showBack = !RIDER_TAB_ROOTS.has(pathname);
 
   const handleBack = () => {
-    if (window.history.length > 1) {
-      navigate({ to: ".." as any });
-    } else {
-      navigate({ to: "/rider" });
+    if (router.history.canGoBack()) {
+      router.history.back();
+      return;
     }
+    void navigate({ to: "/rider" });
   };
 
   return (
@@ -103,7 +100,11 @@ function RiderLayout() {
                   transition={{ duration: 0.15 }}
                 >
                   <Link to="/rider" className="flex items-center gap-2">
-                    <img src={rapideLogo} alt="Rapide" className="h-8 w-8 rounded-lg object-cover" />
+                    <img
+                      src={rapideLogo}
+                      alt="Rapide"
+                      className="h-8 w-8 rounded-lg object-cover"
+                    />
                     <span className="font-display text-base font-bold tracking-tight">Rapide</span>
                     <span className="text-[10px] font-semibold uppercase tracking-widest text-primary bg-primary/10 px-1.5 py-0.5 rounded-md">
                       Rider

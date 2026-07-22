@@ -5,6 +5,7 @@ import { Package, TrendingUp, CheckCircle, Clock, ChevronRight } from "lucide-re
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { fmtXOF } from "@/lib/pricing";
+import { RIDER_ACTIVE_STATUSES, isSuccessfulDelivery } from "@/lib/order-lifecycle";
 
 export const Route = createFileRoute("/merchant/")({
   component: MerchantDashboard,
@@ -21,13 +22,14 @@ function MerchantDashboard() {
         .select("status, price_xof, created_at")
         .eq("customer_id", user!.id);
       const total = data?.length ?? 0;
-      const delivered = data?.filter((o) => o.status === "delivered").length ?? 0;
-      const spend = data
-        ?.filter((o) => o.status === "delivered")
-        .reduce((s, o) => s + Number(o.price_xof), 0) ?? 0;
-      const active = data?.filter((o) =>
-        ["pending", "searching_rider", "rider_assigned", "rider_arriving", "picked_up", "in_transit"].includes(o.status),
-      ).length ?? 0;
+      const delivered = data?.filter((o) => isSuccessfulDelivery(o.status)).length ?? 0;
+      const spend =
+        data
+          ?.filter((o) => isSuccessfulDelivery(o.status))
+          .reduce((s, o) => s + Number(o.price_xof), 0) ?? 0;
+      const active =
+        data?.filter((o) => ["pending", "searching_rider", ...RIDER_ACTIVE_STATUSES].includes(o.status))
+          .length ?? 0;
       return { total, delivered, spend, active };
     },
     enabled: !!user,
@@ -50,7 +52,11 @@ function MerchantDashboard() {
   const { data: profile } = useQuery({
     queryKey: ["profile", user?.id],
     queryFn: async () => {
-      const { data } = await supabase.from("profiles").select("full_name").eq("id", user!.id).single();
+      const { data } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", user!.id)
+        .single();
       return data;
     },
     enabled: !!user,
@@ -95,11 +101,30 @@ function MerchantDashboard() {
       {/* Quick links */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {[
-          { to: "/merchant/bulk", label: "Bulk CSV Upload", desc: "Upload thousands of orders at once", icon: Package },
-          { to: "/merchant/api-keys", label: "API Integration", desc: "Manage API keys for your system", icon: Clock },
-          { to: "/merchant/invoicing", label: "Invoices", desc: "Download monthly invoices as PDF", icon: TrendingUp },
+          {
+            to: "/merchant/bulk",
+            label: "Bulk CSV Upload",
+            desc: "Upload thousands of orders at once",
+            icon: Package,
+          },
+          {
+            to: "/merchant/api-keys",
+            label: "API Integration",
+            desc: "Manage API keys for your system",
+            icon: Clock,
+          },
+          {
+            to: "/merchant/invoicing",
+            label: "Invoices",
+            desc: "Download monthly invoices as PDF",
+            icon: TrendingUp,
+          },
         ].map(({ to, label, desc, icon: Icon }) => (
-          <Link key={to} to={to} className="glass-strong rounded-2xl p-4 flex items-center justify-between hover:border-primary/30 border border-border transition-all">
+          <Link
+            key={to}
+            to={to}
+            className="glass-strong rounded-2xl p-4 flex items-center justify-between hover:border-primary/30 border border-border transition-all"
+          >
             <div className="flex items-center gap-3">
               <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
                 <Icon className="h-4 w-4 text-primary" />
@@ -138,7 +163,9 @@ function MerchantDashboard() {
                     <td className="py-3 font-mono text-xs">{o.code}</td>
                     <td className="py-3 max-w-[200px]">
                       <p className="truncate text-xs">{o.pickup_address}</p>
-                      <p className="truncate text-xs text-muted-foreground">→ {o.dropoff_address}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        → {o.dropoff_address}
+                      </p>
                     </td>
                     <td className="py-3">
                       <span className="text-xs capitalize glass rounded-full px-2 py-0.5">

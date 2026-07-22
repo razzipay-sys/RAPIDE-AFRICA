@@ -16,6 +16,7 @@ import {
   CartesianGrid,
 } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
+import { isSuccessfulDelivery } from "@/lib/order-lifecycle";
 
 export const Route = createFileRoute("/admin/analytics")({
   component: AdminAnalytics,
@@ -36,7 +37,9 @@ function AdminAnalytics() {
     queryFn: async () => {
       const { data } = await supabase
         .from("orders")
-        .select("status, delivery_type, parcel_category, created_at, delivered_at, picked_up_at, price_xof")
+        .select(
+          "status, delivery_type, parcel_category, created_at, delivered_at, picked_up_at, price_xof",
+        )
         .order("created_at", { ascending: true });
       return data ?? [];
     },
@@ -55,7 +58,7 @@ function AdminAnalytics() {
       const day = o.created_at.slice(0, 10);
       if (day in days) {
         days[day].orders++;
-        if (o.status === "delivered") days[day].delivered++;
+        if (isSuccessfulDelivery(o.status)) days[day].delivered++;
       }
     });
     return Object.entries(days).map(([date, v]) => ({
@@ -98,7 +101,7 @@ function AdminAnalytics() {
     orders.forEach((o) => {
       const dow = new Date(o.created_at).getDay();
       counts[dow].total++;
-      if (o.status === "delivered") counts[dow].delivered++;
+      if (isSuccessfulDelivery(o.status)) counts[dow].delivered++;
     });
     return counts.map((d) => ({
       ...d,
@@ -130,7 +133,7 @@ function AdminAnalytics() {
           {
             label: "Delivery Rate",
             value: orders?.length
-              ? `${Math.round(((orders.filter((o) => o.status === "delivered").length) / orders.length) * 100)}%`
+              ? `${Math.round((orders.filter((o) => isSuccessfulDelivery(o.status)).length / orders.length) * 100)}%`
               : "—",
           },
           { label: "Avg Transit Time", value: avgDeliveryTime ? `${avgDeliveryTime}m` : "—" },
@@ -165,8 +168,22 @@ function AdminAnalytics() {
               }}
             />
             <Legend wrapperStyle={{ fontSize: 12 }} />
-            <Line type="monotone" dataKey="orders" stroke={COLORS[0]} strokeWidth={2} dot={false} name="Orders" />
-            <Line type="monotone" dataKey="delivered" stroke={COLORS[3]} strokeWidth={2} dot={false} name="Delivered" />
+            <Line
+              type="monotone"
+              dataKey="orders"
+              stroke={COLORS[0]}
+              strokeWidth={2}
+              dot={false}
+              name="Orders"
+            />
+            <Line
+              type="monotone"
+              dataKey="delivered"
+              stroke={COLORS[3]}
+              strokeWidth={2}
+              dot={false}
+              name="Delivered"
+            />
           </LineChart>
         </ResponsiveContainer>
       </div>
@@ -240,7 +257,9 @@ function AdminAnalytics() {
               <div key={name}>
                 <div className="flex justify-between text-sm mb-1">
                   <span className="capitalize">{name}</span>
-                  <span className="text-muted-foreground">{value} ({pct}%)</span>
+                  <span className="text-muted-foreground">
+                    {value} ({pct}%)
+                  </span>
                 </div>
                 <div className="h-2 rounded-full bg-muted overflow-hidden">
                   <div

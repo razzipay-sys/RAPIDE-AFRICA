@@ -13,12 +13,21 @@ type Props = {
 };
 
 function formatDuration(secs: number) {
-  const m = Math.floor(secs / 60).toString().padStart(2, "0");
+  const m = Math.floor(secs / 60)
+    .toString()
+    .padStart(2, "0");
   const s = (secs % 60).toString().padStart(2, "0");
   return `${m}:${s}`;
 }
 
-export function CallOverlay({ callState, callDuration, otherName, onAccept, onDecline, onEnd }: Props) {
+export function CallOverlay({
+  callState,
+  callDuration,
+  otherName,
+  onAccept,
+  onDecline,
+  onEnd,
+}: Props) {
   const [muted, setMuted] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -26,14 +35,21 @@ export function CallOverlay({ callState, callDuration, otherName, onAccept, onDe
 
   const handleAction = async (fn: () => Promise<void>) => {
     setBusy(true);
-    try { await fn(); } finally { setBusy(false); }
+    try {
+      await fn();
+    } finally {
+      setBusy(false);
+    }
   };
 
   const statusLabel =
-    callState === "outgoing" ? "Calling…" :
-    callState === "incoming" ? "Incoming voice call" :
-    callState === "connected" ? formatDuration(callDuration) :
-    "Call ended";
+    callState === "outgoing"
+      ? "Calling…"
+      : callState === "incoming"
+        ? "Incoming voice call"
+        : callState === "connected"
+          ? formatDuration(callDuration)
+          : "Call ended";
 
   return (
     <AnimatePresence>
@@ -67,7 +83,9 @@ export function CallOverlay({ callState, callDuration, otherName, onAccept, onDe
 
         {/* Name + status */}
         <p className="text-xl font-semibold relative z-10">{otherName}</p>
-        <p className="text-sm text-muted-foreground mt-1 mb-10 relative z-10 tabular-nums">{statusLabel}</p>
+        <p className="text-sm text-muted-foreground mt-1 mb-10 relative z-10 tabular-nums">
+          {statusLabel}
+        </p>
 
         {/* Action buttons */}
         <div className="flex items-center gap-6 relative z-10">
@@ -76,6 +94,7 @@ export function CallOverlay({ callState, callDuration, otherName, onAccept, onDe
               <button
                 disabled={busy}
                 onClick={() => handleAction(onDecline)}
+                aria-label="Decline call"
                 className="h-16 w-16 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center shadow-lg transition disabled:opacity-60"
               >
                 <PhoneOff className="h-6 w-6 text-white" />
@@ -83,6 +102,7 @@ export function CallOverlay({ callState, callDuration, otherName, onAccept, onDe
               <button
                 disabled={busy}
                 onClick={() => handleAction(onAccept)}
+                aria-label="Accept call"
                 className="h-16 w-16 rounded-full bg-green-500 hover:bg-green-600 flex items-center justify-center shadow-lg transition disabled:opacity-60"
               >
                 <Phone className="h-6 w-6 text-white" />
@@ -94,6 +114,8 @@ export function CallOverlay({ callState, callDuration, otherName, onAccept, onDe
             <>
               <button
                 onClick={() => setMuted((m) => !m)}
+                aria-label={muted ? "Unmute microphone" : "Mute microphone"}
+                aria-pressed={muted}
                 className={`h-12 w-12 rounded-full flex items-center justify-center transition ${
                   muted ? "bg-muted-foreground/30 text-foreground" : "glass text-muted-foreground"
                 }`}
@@ -103,6 +125,7 @@ export function CallOverlay({ callState, callDuration, otherName, onAccept, onDe
               <button
                 disabled={busy}
                 onClick={() => handleAction(onEnd)}
+                aria-label="End call"
                 className="h-16 w-16 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center shadow-lg transition disabled:opacity-60"
               >
                 <PhoneOff className="h-6 w-6 text-white" />
@@ -114,6 +137,7 @@ export function CallOverlay({ callState, callDuration, otherName, onAccept, onDe
             <button
               disabled={busy}
               onClick={() => handleAction(onEnd)}
+              aria-label="Cancel call"
               className="h-16 w-16 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center shadow-lg transition disabled:opacity-60"
             >
               <PhoneOff className="h-6 w-6 text-white" />

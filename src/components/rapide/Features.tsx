@@ -17,7 +17,9 @@ export function Features() {
       <div className="mx-auto max-w-6xl px-6">
         <div className="mx-auto max-w-2xl text-center">
           <div className="text-sm font-medium text-primary">{t("feat.tag")}</div>
-          <h2 className="mt-3 font-display text-4xl font-bold tracking-tight md:text-5xl">{t("feat.title")}</h2>
+          <h2 className="mt-3 font-display text-4xl font-bold tracking-tight md:text-5xl">
+            {t("feat.title")}
+          </h2>
           <p className="mt-4 text-muted-foreground">{t("feat.desc")}</p>
         </div>
 

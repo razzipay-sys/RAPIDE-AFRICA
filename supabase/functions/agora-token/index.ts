@@ -26,9 +26,10 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser(
-      authHeader.replace("Bearer ", ""),
-    );
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
     if (authError || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
@@ -38,10 +39,13 @@ serve(async (req) => {
 
     const rateCheck = await checkRateLimit(supabase, user.id, "agora-token", 10, 60);
     if (!rateCheck.allowed) {
-      return new Response(JSON.stringify({ error: "Rate limit exceeded. Try again in 1 minute." }), {
-        status: 429,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ error: "Rate limit exceeded. Try again in 1 minute." }),
+        {
+          status: 429,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
     const body = await req.json();
@@ -56,7 +60,7 @@ serve(async (req) => {
     }
 
     // Validate channelName to prevent injection (alphanumeric + hyphens only)
-    if (typeof channelName !== "string" || !/^[a-zA-Z0-9_\-]{1,64}$/.test(channelName)) {
+    if (typeof channelName !== "string" || !/^[a-zA-Z0-9_-]{1,64}$/.test(channelName)) {
       return new Response(JSON.stringify({ error: "Invalid channelName" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -66,6 +70,28 @@ serve(async (req) => {
     if (typeof uid !== "number" || !Number.isInteger(uid) || uid < 1 || uid > 2_147_483_647) {
       return new Response(JSON.stringify({ error: "Invalid uid" }), {
         status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // channelName is client-derived as `call-${conversationId}` — verify the
+    // caller is actually a participant of that conversation before minting a
+    // token, otherwise any authenticated user who learns/guesses a
+    // conversationId could join or disrupt someone else's call.
+    const conversationId = channelName.replace(/^call-/, "");
+    const { data: convo, error: convoError } = await supabase
+      .from("conversations")
+      .select("participant_1, participant_2")
+      .eq("id", conversationId)
+      .single();
+
+    if (
+      convoError ||
+      !convo ||
+      (convo.participant_1 !== user.id && convo.participant_2 !== user.id)
+    ) {
+      return new Response(JSON.stringify({ error: "Forbidden" }), {
+        status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

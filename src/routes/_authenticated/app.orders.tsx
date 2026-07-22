@@ -10,18 +10,24 @@ import { useT } from "@/lib/i18n";
 import { StatusBadge, StatusDot } from "@/components/rapide/StatusBadge";
 import { EmptyState } from "@/components/rapide/EmptyState";
 import { SkeletonOrderCard } from "@/components/rapide/SkeletonCard";
+import {
+  RIDER_ACTIVE_STATUSES,
+  SUCCESSFUL_DELIVERY_STATUSES,
+  ORDER_ALTERNATE_STATUSES,
+} from "@/lib/order-lifecycle";
 
 export const Route = createFileRoute("/_authenticated/app/orders")({
   component: OrdersPage,
 });
 
-type FilterType = "all" | "active" | "delivered" | "cancelled";
+type FilterType = "all" | "active" | "delivered" | "cancelled" | "issues";
 
 const FILTER_STATUSES: Record<FilterType, string[]> = {
   all: [],
-  active: ["pending", "searching_rider", "rider_assigned", "rider_arriving", "picked_up", "in_transit"],
-  delivered: ["delivered"],
-  cancelled: ["cancelled", "failed"],
+  active: ["pending", "searching_rider", ...RIDER_ACTIVE_STATUSES],
+  delivered: SUCCESSFUL_DELIVERY_STATUSES,
+  cancelled: ["cancelled"],
+  issues: ORDER_ALTERNATE_STATUSES.filter((s) => s !== "cancelled"),
 };
 
 function OrdersPage() {
@@ -43,15 +49,15 @@ function OrdersPage() {
     enabled: !!user,
   });
 
-  const filtered = filter === "all"
-    ? orders
-    : orders?.filter((o) => FILTER_STATUSES[filter].includes(o.status));
+  const filtered =
+    filter === "all" ? orders : orders?.filter((o) => FILTER_STATUSES[filter].includes(o.status));
 
   const filterLabels: Record<FilterType, string> = {
     all: t("orders.filter.all"),
     active: t("orders.filter.active"),
     delivered: t("orders.filter.delivered"),
     cancelled: t("orders.filter.cancelled"),
+    issues: t("orders.filter.issues"),
   };
 
   return (
@@ -63,7 +69,7 @@ function OrdersPage() {
 
       {/* Filter tabs */}
       <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
-        {(["all", "active", "delivered", "cancelled"] as FilterType[]).map((f) => (
+        {(["all", "active", "delivered", "cancelled", "issues"] as FilterType[]).map((f) => (
           <button
             key={f}
             onClick={() => setFilter(f)}
@@ -86,7 +92,9 @@ function OrdersPage() {
       {/* List */}
       {isLoading && (
         <div className="space-y-2">
-          {[1, 2, 3].map((i) => <SkeletonOrderCard key={i} />)}
+          {[1, 2, 3].map((i) => (
+            <SkeletonOrderCard key={i} />
+          ))}
         </div>
       )}
 
@@ -122,7 +130,8 @@ function OrdersPage() {
                       <StatusDot status={o.status} />
                       <span className="text-xs text-muted-foreground">
                         {new Date(o.created_at).toLocaleDateString(t("auto.engb"), {
-                          day: "numeric", month: "short",
+                          day: "numeric",
+                          month: "short",
                         })}
                       </span>
                     </div>

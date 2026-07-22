@@ -64,7 +64,7 @@ function RiderDispatch() {
       )
       .subscribe();
     return () => {
-      channelRef.current?.unsubscribe();
+      if (channelRef.current) supabase.removeChannel(channelRef.current);
     };
   }, [rider?.is_online, qc]);
 
@@ -72,10 +72,10 @@ function RiderDispatch() {
     mutationFn: async (orderId: string) => {
       if (!rider || !user) throw new Error("No rider profile");
       // Atomic claim — prevents two riders claiming the same order simultaneously
-      const { data: claimed, error } = await (supabase.rpc as CallableFunction)(
-        "claim_order",
-        { p_order_id: orderId, p_rider_id: rider.id, p_user_id: user.id },
-      );
+      const { data: claimed, error } = await supabase.rpc("claim_order", {
+        p_order_id: orderId,
+        p_rider_id: rider.id,
+      });
       if (error) throw error;
       if (!claimed) throw new Error("Order already taken");
     },
@@ -89,7 +89,11 @@ function RiderDispatch() {
     },
     onError: (e: Error) => {
       setAccepting(null);
-      toast.error(e.message === "Order already taken" ? "Order was just taken by another rider." : "Could not accept order.");
+      toast.error(
+        e.message === "Order already taken"
+          ? "Order was just taken by another rider."
+          : "Could not accept order.",
+      );
     },
   });
 
@@ -140,9 +144,7 @@ function RiderDispatch() {
             <p className="font-display text-lg font-bold text-primary-foreground mb-1">
               {newOrder.pickup_address}
             </p>
-            <p className="text-sm text-primary-foreground/80 mb-3">
-              → {newOrder.dropoff_address}
-            </p>
+            <p className="text-sm text-primary-foreground/80 mb-3">→ {newOrder.dropoff_address}</p>
             <p className="font-display text-2xl font-bold text-primary-foreground mb-4">
               {fmtXOF(newOrder.price_xof)}
             </p>

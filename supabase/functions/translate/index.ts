@@ -27,9 +27,10 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser(
-      authHeader.replace("Bearer ", ""),
-    );
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
     if (authError || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
@@ -40,10 +41,13 @@ serve(async (req) => {
     // 30 translations per minute per user
     const rateCheck = await checkRateLimit(supabase, user.id, "translate", 30, 60);
     if (!rateCheck.allowed) {
-      return new Response(JSON.stringify({ error: "Rate limit exceeded. Try again in 1 minute." }), {
-        status: 429,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ error: "Rate limit exceeded. Try again in 1 minute." }),
+        {
+          status: 429,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
     const body = await req.json();
@@ -80,7 +84,7 @@ serve(async (req) => {
     const deeplRes = await fetch("https://api-free.deepl.com/v2/translate", {
       method: "POST",
       headers: {
-        "Authorization": `DeepL-Auth-Key ${deeplKey}`,
+        Authorization: `DeepL-Auth-Key ${deeplKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ text: [text], target_lang: targetCode }),
@@ -99,12 +103,31 @@ serve(async (req) => {
     const translated: string = deeplData.translations[0].text;
     const detectedLang: string = deeplData.translations[0].detected_source_language;
 
-    // Persist translation on the message row (cache for future viewers)
+    // Persist translation on the message row (cache for future viewers) —
+    // this client uses the service role key (bypasses RLS), so caller
+    // authorization must be checked explicitly here: only cache the
+    // translation if the requester is actually a participant of the
+    // conversation the message belongs to.
     if (messageId && typeof messageId === "string" && messageId.length === 36) {
-      await supabase
+      const { data: msg } = await supabase
         .from("messages")
-        .update({ translated_content: translated, translate_from: detectedLang })
-        .eq("id", messageId);
+        .select("conversation_id, conversations(participant_1, participant_2)")
+        .eq("id", messageId)
+        .single();
+
+      const convo = msg?.conversations as
+        | { participant_1: string; participant_2: string }
+        | null
+        | undefined;
+      const isParticipant =
+        !!convo && (convo.participant_1 === user.id || convo.participant_2 === user.id);
+
+      if (isParticipant) {
+        await supabase
+          .from("messages")
+          .update({ translated_content: translated, translate_from: detectedLang })
+          .eq("id", messageId);
+      }
     }
 
     return new Response(JSON.stringify({ translated, detectedLang }), {

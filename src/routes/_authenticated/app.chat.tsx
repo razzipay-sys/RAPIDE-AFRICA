@@ -30,11 +30,13 @@ function ChatListPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("conversations")
-        .select(`
+        .select(
+          `
           id, order_id, last_message_at, last_message_preview, unread_1, unread_2,
           participant_1, participant_2,
           order:orders(code, status)
-        `)
+        `,
+        )
         .or(`participant_1.eq.${user!.id},participant_2.eq.${user!.id}`)
         .order("last_message_at", { ascending: false });
       if (error) throw error;
@@ -71,16 +73,14 @@ function ChatListPage() {
 
       {isLoading && (
         <div className="space-y-0 divide-y divide-border">
-          {[1, 2, 3].map((i) => <SkeletonChatItem key={i} />)}
+          {[1, 2, 3].map((i) => (
+            <SkeletonChatItem key={i} />
+          ))}
         </div>
       )}
 
       {!isLoading && conversations?.length === 0 && (
-        <EmptyState
-          icon={MessageCircle}
-          title={t("chat.empty")}
-          subtitle={t("chat.empty_sub")}
-        />
+        <EmptyState icon={MessageCircle} title={t("chat.empty")} subtitle={t("chat.empty_sub")} />
       )}
 
       {!isLoading && conversations && conversations.length > 0 && (
@@ -117,7 +117,9 @@ function ChatListPage() {
                   {/* Content */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-baseline justify-between gap-2">
-                      <p className={`text-sm truncate ${conv.unread > 0 ? "font-semibold" : "font-medium"}`}>
+                      <p
+                        className={`text-sm truncate ${conv.unread > 0 ? "font-semibold" : "font-medium"}`}
+                      >
                         {profile?.full_name ?? `User ${conv.otherId.slice(0, 6)}`}
                       </p>
                       <span className="text-[11px] text-muted-foreground shrink-0">
@@ -132,8 +134,11 @@ function ChatListPage() {
                         </span>
                       )}
                       {conv.last_message_preview && (
-                        <p className={`text-xs truncate ${conv.unread > 0 ? "text-foreground" : "text-muted-foreground"}`}>
-                          {order ? " · " : ""}{conv.last_message_preview}
+                        <p
+                          className={`text-xs truncate ${conv.unread > 0 ? "text-foreground" : "text-muted-foreground"}`}
+                        >
+                          {order ? " · " : ""}
+                          {conv.last_message_preview}
                         </p>
                       )}
                     </div>

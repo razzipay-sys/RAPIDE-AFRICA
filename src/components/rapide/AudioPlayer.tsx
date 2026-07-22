@@ -11,7 +11,9 @@ type Props = {
 function formatTime(secs: number) {
   if (!isFinite(secs) || isNaN(secs) || secs <= 0) return "0:00";
   const m = Math.floor(secs / 60);
-  const s = Math.floor(secs % 60).toString().padStart(2, "0");
+  const s = Math.floor(secs % 60)
+    .toString()
+    .padStart(2, "0");
   return `${m}:${s}`;
 }
 
@@ -36,18 +38,24 @@ export function AudioPlayer({ src, isMine }: Props) {
   };
 
   return (
-    <div className={`flex items-center gap-2.5 min-w-[180px] max-w-[220px] ${isMine ? "text-primary-foreground" : ""}`}>
+    <div
+      className={`flex items-center gap-2.5 min-w-[180px] max-w-[220px] ${isMine ? "text-primary-foreground" : ""}`}
+    >
       <audio
         ref={audioRef}
         src={src}
         preload="metadata"
         onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
         onTimeUpdate={(e) => setCurrent(e.currentTarget.currentTime)}
-        onEnded={() => { setPlaying(false); setCurrent(0); }}
+        onEnded={() => {
+          setPlaying(false);
+          setCurrent(0);
+        }}
       />
 
       <button
         onClick={toggle}
+        aria-label={playing ? "Pause voice message" : "Play voice message"}
         className={`h-8 w-8 rounded-full flex items-center justify-center shrink-0 transition ${
           isMine
             ? "bg-white/25 hover:bg-white/35 text-primary-foreground"
@@ -60,22 +68,28 @@ export function AudioPlayer({ src, isMine }: Props) {
       {/* Waveform */}
       <div className="flex-1 flex items-center gap-[2px] h-8">
         {BAR_HEIGHTS.map((h, i) => {
-          const filled = (i / BAR_HEIGHTS.length) <= progress;
+          const filled = i / BAR_HEIGHTS.length <= progress;
           return (
             <div
               key={i}
               style={{ height: `${h}px` }}
               className={`flex-1 rounded-full transition-colors ${
                 filled
-                  ? isMine ? "bg-white/85" : "bg-primary"
-                  : isMine ? "bg-white/30" : "bg-border"
+                  ? isMine
+                    ? "bg-white/85"
+                    : "bg-primary"
+                  : isMine
+                    ? "bg-white/30"
+                    : "bg-border"
               }`}
             />
           );
         })}
       </div>
 
-      <span className={`text-[10px] tabular-nums shrink-0 ${isMine ? "opacity-80" : "text-muted-foreground"}`}>
+      <span
+        className={`text-[10px] tabular-nums shrink-0 ${isMine ? "opacity-80" : "text-muted-foreground"}`}
+      >
         {formatTime(playing ? current : duration)}
       </span>
     </div>

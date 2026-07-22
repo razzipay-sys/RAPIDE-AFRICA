@@ -18,8 +18,7 @@ export function CTA() {
           <div className="absolute inset-0 bg-gradient-radial opacity-60" />
           <div className="relative">
             <h2 className="font-display text-4xl font-bold tracking-tight md:text-6xl">
-              {t("cta.title1")}{" "}
-              <span className="text-gradient-primary">{t("cta.title2")}</span>
+              {t("cta.title1")} <span className="text-gradient-primary">{t("cta.title2")}</span>
               {t("cta.title3")}
             </h2>
             <p className="mx-auto mt-5 max-w-xl text-muted-foreground">{t("cta.desc")}</p>

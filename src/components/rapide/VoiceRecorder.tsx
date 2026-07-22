@@ -9,7 +9,9 @@ type Props = {
 };
 
 function formatSecs(secs: number) {
-  const m = Math.floor(secs / 60).toString().padStart(2, "0");
+  const m = Math.floor(secs / 60)
+    .toString()
+    .padStart(2, "0");
   const s = (secs % 60).toString().padStart(2, "0");
   return `${m}:${s}`;
 }
@@ -58,7 +60,10 @@ export function VoiceRecorder({ disabled, onVoiceNote }: Props) {
   };
 
   const stopRecording = () => {
-    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
     mediaRecorderRef.current?.stop();
     setRecording(false);
   };
@@ -72,6 +77,7 @@ export function VoiceRecorder({ disabled, onVoiceNote }: Props) {
         <motion.button
           whileTap={{ scale: 0.9 }}
           onClick={stopRecording}
+          aria-label="Stop recording"
           animate={{ scale: [1, 1.05, 1] }}
           transition={{ duration: 1, repeat: Infinity }}
           className="h-10 w-10 rounded-xl bg-red-500 flex items-center justify-center shrink-0"
@@ -85,6 +91,7 @@ export function VoiceRecorder({ disabled, onVoiceNote }: Props) {
   return (
     <button
       title="Voice note"
+      aria-label="Record voice note"
       className="h-10 w-10 rounded-xl glass flex items-center justify-center text-muted-foreground hover:text-foreground transition shrink-0"
       onClick={startRecording}
       disabled={disabled}

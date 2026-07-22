@@ -13,7 +13,11 @@ function USSDComingSoon() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
-        <Link to="/app" className="h-10 w-10 glass rounded-full flex items-center justify-center">
+        <Link
+          to="/app"
+          aria-label="Back"
+          className="h-10 w-10 glass rounded-full flex items-center justify-center"
+        >
           <ArrowLeft className="h-5 w-5" />
         </Link>
         <h1 className="font-display text-2xl font-bold">{t("ussd.title")}</h1>

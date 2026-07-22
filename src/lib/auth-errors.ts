@@ -48,13 +48,25 @@ const CODE_MESSAGES: Record<AuthErrorCode, { fr: string; en: string }> = {
 
 function classifyError(raw: string): AuthErrorCode {
   const lower = raw.toLowerCase();
-  if (lower.includes("invalid login") || lower.includes("invalid credentials") || lower.includes("invalid email or password"))
+  if (
+    lower.includes("invalid login") ||
+    lower.includes("invalid credentials") ||
+    lower.includes("invalid email or password")
+  )
     return "invalid_credentials";
   if (lower.includes("email not confirmed") || lower.includes("email_not_confirmed"))
     return "email_not_confirmed";
-  if (lower.includes("user already registered") || lower.includes("already been registered") || lower.includes("email address is already"))
+  if (
+    lower.includes("user already registered") ||
+    lower.includes("already been registered") ||
+    lower.includes("email address is already")
+  )
     return "user_already_exists";
-  if (lower.includes("password should be") || lower.includes("weak_password") || lower.includes("password is too short"))
+  if (
+    lower.includes("password should be") ||
+    lower.includes("weak_password") ||
+    lower.includes("password is too short")
+  )
     return "weak_password";
   if (lower.includes("rate limit") || lower.includes("too many requests") || lower.includes("429"))
     return "rate_limit";
@@ -95,7 +107,7 @@ export function sanitizeError(error: unknown, lang: "fr" | "en" = "fr"): string 
     stripped.includes("supabase") ||
     stripped.includes("postgrest") ||
     stripped.includes("PGRST") ||
-    stripped.includes("23")  // PostgreSQL error codes start with 23
+    stripped.includes("23") // PostgreSQL error codes start with 23
   ) {
     return CODE_MESSAGES.generic[lang];
   }
@@ -109,8 +121,39 @@ export function sanitizeError(error: unknown, lang: "fr" | "en" = "fr"): string 
 /** Validates a redirect URL is safe (relative or same-origin only) */
 export function isSafeRedirect(url: string): boolean {
   if (!url) return false;
-  // Allow relative paths only
   if (url.startsWith("/") && !url.startsWith("//")) return true;
-  // Reject everything else (absolute URLs, data:, javascript:, etc.)
-  return false;
+
+  if (typeof window === "undefined") return false;
+
+  try {
+    const parsed = new URL(url, window.location.origin);
+    return (
+      (parsed.protocol === "http:" || parsed.protocol === "https:") &&
+      parsed.origin === window.location.origin
+    );
+  } catch {
+    return false;
+  }
+}
+
+export function normalizeSafeRedirect(url: string, fallback = "/app"): string {
+  if (!url) return fallback;
+  if (url.startsWith("/") && !url.startsWith("//")) return url;
+
+  if (typeof window === "undefined") return fallback;
+
+  try {
+    const parsed = new URL(url, window.location.origin);
+    if (
+      (parsed.protocol === "http:" || parsed.protocol === "https:") &&
+      parsed.origin === window.location.origin
+    ) {
+      const normalized = `${parsed.pathname}${parsed.search}${parsed.hash}`;
+      return normalized || fallback;
+    }
+  } catch {
+    // fall back to the default destination below
+  }
+
+  return fallback;
 }

@@ -60,7 +60,14 @@ export function Network() {
             transition={{ duration: 0.8 }}
             className="relative overflow-hidden rounded-3xl border border-border shadow-elegant"
           >
-            <img src={mapImg} alt="" width={1600} height={1000} loading="lazy" className="w-full h-auto" />
+            <img
+              src={mapImg}
+              alt=""
+              width={1600}
+              height={1000}
+              loading="lazy"
+              className="w-full h-auto"
+            />
             <div className="absolute inset-0 bg-gradient-to-t from-background/60 to-transparent" />
           </motion.div>
         </div>
