@@ -631,10 +631,19 @@ function BookPage() {
               <div className="my-3 border-t border-dashed border-border" />
               <ReceiptRow
                 label={t("book.base_fare")}
-                value={fmtXOF(pricing.price_xof - (insurance ? INSURANCE_SURCHARGE_XOF : 0))}
+                value={fmtXOF(pricing.breakdown.base_fare)}
               />
-              {insurance && (
-                <ReceiptRow label={t("book.insurance")} value={fmtXOF(INSURANCE_SURCHARGE_XOF)} />
+              {pricing.breakdown.weight_surcharge > 0 && (
+                <ReceiptRow 
+                  label="Heavy item surcharge" 
+                  value={fmtXOF(pricing.breakdown.weight_surcharge)} 
+                />
+              )}
+              {pricing.breakdown.insurance_fee > 0 && (
+                <ReceiptRow 
+                  label={t("book.insurance")} 
+                  value={fmtXOF(pricing.breakdown.insurance_fee)} 
+                />
               )}
               {promoApplied && (
                 <ReceiptRow

@@ -110,12 +110,12 @@ function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-hero px-4">
+    <div className="relative min-h-screen flex items-center justify-center bg-gradient-hero px-4">
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, ease: "easeOut" }}
-        className="glass-strong w-full max-w-md rounded-3xl p-8"
+        className="relative z-10 glass-strong w-full max-w-md rounded-3xl p-8 pointer-events-auto"
       >
         <Link to="/" className="flex items-center gap-2 mb-6">
           <img
@@ -158,7 +158,7 @@ function LoginPage() {
           <div className="h-px flex-1 bg-border" />
         </div>
 
-        <form onSubmit={onSubmit} className="space-y-3">
+        <form onSubmit={onSubmit} className="relative z-20 space-y-3">
           <input
             id="email"
             name="email"
@@ -169,7 +169,8 @@ function LoginPage() {
             placeholder="Email"
             value={email}
             onChange={handleEmailChange}
-            className="w-full rounded-xl bg-input/40 border border-border px-4 py-2.5 text-sm outline-none focus:border-primary"
+            disabled={loading}
+            className="w-full rounded-xl bg-input/40 border border-border px-4 py-2.5 text-sm outline-none focus:border-primary disabled:opacity-50"
           />
           <input
             id="password"
@@ -180,7 +181,8 @@ function LoginPage() {
             placeholder={t("login.password")}
             value={password}
             onChange={handlePasswordChange}
-            className="w-full rounded-xl bg-input/40 border border-border px-4 py-2.5 text-sm outline-none focus:border-primary"
+            disabled={loading}
+            className="w-full rounded-xl bg-input/40 border border-border px-4 py-2.5 text-sm outline-none focus:border-primary disabled:opacity-50"
           />
           <button
             type="submit"

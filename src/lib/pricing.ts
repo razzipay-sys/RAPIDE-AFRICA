@@ -26,13 +26,38 @@ export function quote(opts: {
 }) {
   const base = 500;
   const perKm = 150;
-  let price = base + opts.distanceKm * perKm;
-  if (opts.type === "express") price *= 1.5;
-  if (opts.type === "scheduled") price *= 0.9;
-  if ((opts.weightKg ?? 0) > 5) price += ((opts.weightKg ?? 0) - 5) * 80;
-  if (opts.insurance) price += INSURANCE_SURCHARGE_XOF;
+  const distance_fee = opts.distanceKm * perKm;
+  let price = base + distance_fee;
+  
+  let type_multiplier = 1.0;
+  if (opts.type === "express") type_multiplier = 1.5;
+  if (opts.type === "scheduled") type_multiplier = 0.9;
+  
+  price *= type_multiplier;
+  
+  let weight_surcharge = 0;
+  if ((opts.weightKg ?? 0) > 5) weight_surcharge = ((opts.weightKg ?? 0) - 5) * 80;
+  
+  price += weight_surcharge;
+  
+  let insurance_fee = 0;
+  if (opts.insurance) insurance_fee = INSURANCE_SURCHARGE_XOF;
+  
+  price += insurance_fee;
   const total = Math.max(800, Math.round(price / 50) * 50);
-  return { price_xof: total, commission_xof: Math.round(total * COMMISSION_RATE) };
+  
+  // Calculate base fare for receipt display (accounting for rounding)
+  const base_fare = total - insurance_fee - weight_surcharge;
+  
+  return { 
+    price_xof: total, 
+    commission_xof: Math.round(total * COMMISSION_RATE),
+    breakdown: {
+      base_fare,
+      insurance_fee,
+      weight_surcharge
+    }
+  };
 }
 
 export const fmtXOF = (n: number) => `${n.toLocaleString("fr-FR")} XOF`;

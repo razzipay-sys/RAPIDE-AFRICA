@@ -45,8 +45,9 @@ function AppErrand() {
   const requestErrand = useMutation({
     mutationFn: async (values: ErrandFormValues) => {
       const dropoff = values.dropoff;
-      const priceXof = Math.round(values.budget) + 1500; // Budget + delivery fee
-      const commissionXof = Math.round(priceXof * COMMISSION_RATE);
+      const deliveryFee = 1500;
+      const priceXof = Math.round(values.budget) + deliveryFee; // Budget + delivery fee
+      const commissionXof = Math.round(deliveryFee * COMMISSION_RATE);
       const { error } = await supabase.from("orders").insert({
         customer_id: user!.id,
         delivery_type: "errand",

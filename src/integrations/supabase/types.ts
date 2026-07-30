@@ -1181,6 +1181,7 @@ export type Database = {
         | "rider"
         | "merchant"
         | "admin"
+        | "super_admin"
         | "support"
         | "dispatcher"
         | "banned"
