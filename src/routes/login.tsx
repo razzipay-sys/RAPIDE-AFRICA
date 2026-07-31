@@ -1,6 +1,6 @@
 import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { useState, type FormEvent, useCallback, useMemo, memo, useEffect } from "react";
+import { useState, type FormEvent, useCallback, useMemo, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Loader2 } from "lucide-react";
 import rapideLogo from "@/assets/rapide-logo.jpg";
@@ -21,7 +21,7 @@ export const Route = createFileRoute("/login")({
     const roles = await fetchUserRolesSafe(context.queryClient, data.session.user.id);
     throw redirect({ to: getPostAuthRedirect(dest, roles) as any });
   },
-  component: memo(LoginPage),
+  component: LoginPage,
 });
 
 function LoginPage() {
